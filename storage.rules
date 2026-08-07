@@ -1,0 +1,22 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    match /profile-images/{imageId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    match /resumes/{resumePdfId} {
+      allow read, write: if request.auth != null;
+    }
+
+    match /uploaded-resumes/{uploadPdfId} {
+      allow read, write: if request.auth != null;
+    }
+
+    match /reports/{reportPdfId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

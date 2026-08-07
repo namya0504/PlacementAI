@@ -1,0 +1,24 @@
+{
+  "name": "placementai-backend",
+  "version": "1.0.0",
+  "description": "Backend service for PlacementAI Progressive Web App",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "seed": "node firebase/seedData.js"
+  },
+  "dependencies": {
+    "@google/genai": "^0.1.1",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "firebase-admin": "^13.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "pdf-parse": "^1.1.1",
+    "pdfkit": "^0.16.0"
+  }
+}

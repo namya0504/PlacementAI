@@ -1,0 +1,74 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Profiles Collection
+    match /profiles/{profileId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Resumes Collection
+    match /resumes/{resumeId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Skills, Projects, Certificates
+    match /skills/{skillId} {
+      allow read, write: if isAuthenticated();
+    }
+    match /projects/{projectId} {
+      allow read, write: if isAuthenticated();
+    }
+    match /certificates/{certificateId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Mock Tests & Aptitude
+    match /mock_tests/{testId} {
+      allow read, write: if isAuthenticated();
+    }
+    match /aptitude_questions/{qId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Technical Practice
+    match /technical_practice/{submissionId} {
+      allow read, write: if isAuthenticated();
+    }
+    match /technical_questions/{qId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // HR Interviews
+    match /hr_interviews/{interviewId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Placement Readiness & Download History
+    match /placement_readiness/{readinessId} {
+      allow read, write: if isAuthenticated();
+    }
+    match /download_history/{downloadId} {
+      allow read, write: if isAuthenticated();
+    }
+    match /reports/{reportId} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}

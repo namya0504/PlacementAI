@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <defs>
+    <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563EB" />
+      <stop offset="100%" stop-color="#7C3AED" />
+    </linearGradient>
+  </defs>
+  <!-- Document outline -->
+  <rect x="25" y="15" width="50" height="70" rx="8" stroke="url(#logoGrad)" stroke-width="4.5" fill="#FFFFFF"/>
+  <!-- Lines on document -->
+  <line x1="35" y1="65" x2="65" y2="65" stroke="url(#logoGrad)" stroke-width="3" stroke-linecap="round"/>
+  <line x1="35" y1="73" x2="55" y2="73" stroke="url(#logoGrad)" stroke-width="3" stroke-linecap="round"/>
+  <!-- Brain network icon -->
+  <circle cx="50" cy="38" r="14" fill="#7C3AED" fill-opacity="0.1" stroke="url(#logoGrad)" stroke-width="2"/>
+  <circle cx="44" cy="34" r="2.5" fill="#2563EB"/>
+  <circle cx="56" cy="34" r="2.5" fill="#2563EB"/>
+  <circle cx="50" cy="44" r="2.5" fill="#7C3AED"/>
+  <path d="M44 34 L56 34 L50 44 Z" stroke="#7C3AED" stroke-width="1.5"/>
+  <!-- Curved Swoosh Arrow -->
+  <path d="M 20 60 C 20 30, 60 20, 78 20" stroke="url(#logoGrad)" stroke-width="5" stroke-linecap="round" fill="none"/>
+  <!-- Star Sparkle at top of arrow -->
+  <path d="M 78 12 L 80 18 L 86 20 L 80 22 L 78 28 L 76 22 L 70 20 L 76 18 Z" fill="#7C3AED"/>
+</svg>
