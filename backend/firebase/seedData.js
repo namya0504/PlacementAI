@@ -118,6 +118,59 @@ export const seedInitialData = async () => {
       await FirestoreHelper.setDoc('technical_questions', tq.questionId, tq);
     }
 
+    const hrQuestions = [
+      {
+        id: 'hr_c1',
+        title: 'Tell me about yourself and your background.',
+        category: 'Introduction',
+        difficulty: 'Easy',
+        tip: 'Keep it concise (60-90 seconds). Highlight education, key skills, and passion for software.'
+      },
+      {
+        id: 'hr_c2',
+        title: 'What are your greatest professional strengths and technical weaknesses?',
+        category: 'Self Assessment',
+        difficulty: 'Easy',
+        tip: 'Frame weaknesses as areas you are actively improving (e.g. learning Docker).'
+      },
+      {
+        id: 'hr_c3',
+        title: 'Why do you want to join our organization as a Software Developer?',
+        category: 'Motivation',
+        difficulty: 'Easy',
+        tip: 'Show knowledge of company products, engineering culture, and long-term career alignment.'
+      }
+    ];
+
+    for (const hq of hrQuestions) {
+      await FirestoreHelper.setDoc('hr_questions', hq.id, hq);
+    }
+
+    const companies = [
+      {
+        id: 'comp_tcs',
+        companyName: 'TCS',
+        logo: 'https://logo.clearbit.com/tcs.com',
+        description: 'Tata Consultancy Services is a global leader in IT services, consulting, and business solutions.',
+        aptitudeQuestions: ['apt_1', 'apt_2', 'apt_3'],
+        technicalQuestions: ['tech_mcq_1', 'tech_code_1'],
+        hrQuestions: ['hr_c1', 'hr_c2']
+      },
+      {
+        id: 'comp_infosys',
+        companyName: 'Infosys',
+        logo: 'https://logo.clearbit.com/infosys.com',
+        description: 'Infosys is a global leader in next-generation digital services and consulting.',
+        aptitudeQuestions: ['apt_4', 'apt_5'],
+        technicalQuestions: ['tech_mcq_2', 'tech_code_2'],
+        hrQuestions: ['hr_c1', 'hr_c3']
+      }
+    ];
+
+    for (const comp of companies) {
+      await FirestoreHelper.setDoc('companies', comp.id, comp);
+    }
+
     console.log('✅ Seed data initialized successfully');
   } catch (err) {
     console.error('⚠️ Seed data error:', err.message);

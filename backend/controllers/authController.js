@@ -24,6 +24,21 @@ export const registerUser = async (req, res, next) => {
     const userId = 'usr_' + Date.now();
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Sync with Firebase Auth Service if live Firebase is active
+    try {
+      const { auth, isMockFirebase } = await import('../firebase/firebaseAdmin.js');
+      if (auth && !isMockFirebase) {
+        await auth.createUser({
+          uid: userId,
+          email,
+          password,
+          displayName: name
+        });
+      }
+    } catch (fbAuthErr) {
+      console.warn('Firebase Auth user creation warning:', fbAuthErr.message);
+    }
+
     const newUser = {
       userId,
       name: name || email.split('@')[0],
@@ -101,23 +116,10 @@ export const loginUser = async (req, res, next) => {
     let user = users[0];
 
     if (!user) {
-      // Auto-create user for frictionless login during testing if not present
-      const userId = 'usr_' + Date.now();
-      const hashedPassword = await bcrypt.hash(password, 10);
-      user = {
-        userId,
-        name: email.split('@')[0].replace('.', ' ').replace(/^./, str => str.toUpperCase()),
-        email,
-        password: hashedPassword,
-        role: 'Software Developer',
-        photoURL: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
-        createdAt: new Date().toISOString()
-      };
-      await FirestoreHelper.setDoc('users', userId, user);
+      return sendError(res, 'Invalid email or password', 401);
     } else {
       const match = await bcrypt.compare(password, user.password || '');
-      // If user exists with password, verify; if mock mode or legacy password, allow
-      if (user.password && !match && user.password !== password) {
+      if (!match) {
         return sendError(res, 'Invalid email or password', 401);
       }
     }
@@ -128,17 +130,17 @@ export const loginUser = async (req, res, next) => {
     let readinessDoc = await FirestoreHelper.getDoc('placement_readiness', 'readiness_' + user.userId);
     if (!readinessDoc) {
       readinessDoc = {
-        resumeScore: 85,
-        atsScore: 84,
-        aptitudeScore: 72,
-        technicalScore: 80,
-        hrScore: 82,
-        overallReadiness: 78,
-        resumesCreated: 3,
-        testsCompleted: 24,
-        certificatesEarned: 5,
-        mockInterviews: 6,
-        streakDays: 7
+        resumeScore: 0,
+        atsScore: 0,
+        aptitudeScore: 0,
+        technicalScore: 0,
+        hrScore: 0,
+        overallReadiness: 0,
+        resumesCreated: 0,
+        testsCompleted: 0,
+        certificatesEarned: 0,
+        mockInterviews: 0,
+        streakDays: 0
       };
     }
 
@@ -183,17 +185,17 @@ export const googleLogin = async (req, res, next) => {
     let readinessDoc = await FirestoreHelper.getDoc('placement_readiness', 'readiness_' + user.userId);
     if (!readinessDoc) {
       readinessDoc = {
-        resumeScore: 85,
-        atsScore: 84,
-        aptitudeScore: 72,
-        technicalScore: 80,
-        hrScore: 82,
-        overallReadiness: 78,
-        resumesCreated: 3,
-        testsCompleted: 24,
-        certificatesEarned: 5,
-        mockInterviews: 6,
-        streakDays: 7
+        resumeScore: 0,
+        atsScore: 0,
+        aptitudeScore: 0,
+        technicalScore: 0,
+        hrScore: 0,
+        overallReadiness: 0,
+        resumesCreated: 0,
+        testsCompleted: 0,
+        certificatesEarned: 0,
+        mockInterviews: 0,
+        streakDays: 0
       };
     }
 
@@ -235,13 +237,7 @@ export const getCurrentUser = async (req, res, next) => {
     const userId = req.user?.userId;
     let user = await FirestoreHelper.getDoc('users', userId);
     if (!user) {
-      user = {
-        userId: 'usr_default_namya',
-        name: 'Namya Shah',
-        email: 'namya@placementai.com',
-        role: 'Software Developer',
-        photoURL: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'
-      };
+      return sendError(res, 'User not found', 404);
     }
 
     let readinessDoc = await FirestoreHelper.getDoc('placement_readiness', 'readiness_' + userId);
@@ -253,12 +249,12 @@ export const getCurrentUser = async (req, res, next) => {
       photoURL: user.photoURL,
       role: user.role,
       stats: readinessDoc || {
-        resumeScore: 85,
-        atsScore: 84,
-        aptitudeScore: 72,
-        technicalScore: 80,
-        hrScore: 82,
-        overallReadiness: 78
+        resumeScore: 0,
+        atsScore: 0,
+        aptitudeScore: 0,
+        technicalScore: 0,
+        hrScore: 0,
+        overallReadiness: 0
       }
     });
   } catch (err) {

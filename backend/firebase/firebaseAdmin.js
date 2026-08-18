@@ -1,4 +1,7 @@
-import admin from 'firebase-admin';
+import { initializeApp, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
+import { getStorage } from 'firebase-admin/storage';
 import { config } from '../config/env.js';
 
 let db = null;
@@ -6,13 +9,12 @@ let auth = null;
 let storage = null;
 let isMockFirebase = false;
 
-// In-Memory store for local testing fallback when Firebase credentials are not supplied
 const memoryStore = new Map();
 
 try {
   if (config.firebase.clientEmail && config.firebase.privateKey) {
-    admin.initializeApp({
-      credential: admin.credential.cert({
+    const app = initializeApp({
+      credential: cert({
         projectId: config.firebase.projectId,
         clientEmail: config.firebase.clientEmail,
         privateKey: config.firebase.privateKey
@@ -20,10 +22,10 @@ try {
       storageBucket: config.firebase.storageBucket
     });
 
-    db = admin.firestore();
-    auth = admin.auth();
-    storage = admin.storage();
-    console.log('✅ Firebase Admin SDK Initialized Successfully');
+    db = getFirestore(app);
+    auth = getAuth(app);
+    storage = getStorage(app);
+    console.log('✅ Live Firebase Admin SDK Initialized Successfully (Project: ' + config.firebase.projectId + ')');
   } else {
     console.log('⚠️ Firebase credentials not found in env. Operating with In-Memory Firestore & Auth helper mode.');
     isMockFirebase = true;
@@ -33,4 +35,5 @@ try {
   isMockFirebase = true;
 }
 
-export { admin, db, auth, storage, isMockFirebase, memoryStore };
+export { db, auth, storage, isMockFirebase, memoryStore };
+

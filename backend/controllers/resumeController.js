@@ -1,11 +1,12 @@
 import { FirestoreHelper } from '../firebase/firestoreHelper.js';
+import { storage, isMockFirebase } from '../firebase/firebaseAdmin.js';
 import { GeminiService } from '../services/geminiService.js';
 import { PDFService } from '../services/pdfService.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 
 export const getResumes = async (req, res, next) => {
   try {
-    const userId = req.user?.userId || 'usr_default_namya';
+    const userId = req.user.userId;
     const list = await FirestoreHelper.queryCollection('resumes', 'userId', userId);
     return sendSuccess(res, list, 'Resumes retrieved successfully');
   } catch (err) {
@@ -39,7 +40,7 @@ export const getResumeById = async (req, res, next) => {
 
 export const createResume = async (req, res, next) => {
   try {
-    const userId = req.user?.userId || 'usr_default_namya';
+    const userId = req.user.userId;
     const resumeId = 'res_' + Date.now();
 
     const {
@@ -165,12 +166,28 @@ export const generatePDF = async (req, res, next) => {
   try {
     const resumeData = req.body;
     const pdfBuffer = await PDFService.generateResumePDF(resumeData);
-    const base64Pdf = `data:application/pdf;base64,${pdfBuffer.toString('base64')}`;
-
+    
+    let pdfUrl = '';
     const resumeId = resumeData.resumeId || 'res_' + Date.now();
-    await FirestoreHelper.setDoc('resumes', resumeId, { pdfUrl: base64Pdf }, true);
 
-    return sendSuccess(res, { pdfUrl: base64Pdf, fileName: `${resumeData.personalInfo?.fullName || 'Resume'}.pdf` }, 'PDF generated successfully');
+    if (!isMockFirebase && storage) {
+      const bucket = storage.bucket();
+      const fileName = `resumes/${resumeId}_${Date.now()}.pdf`;
+      const file = bucket.file(fileName);
+      
+      await file.save(pdfBuffer, {
+        metadata: { contentType: 'application/pdf' }
+      });
+      await file.makePublic();
+      pdfUrl = file.publicUrl();
+    } else {
+      // Fallback for local mock development
+      pdfUrl = `data:application/pdf;base64,${pdfBuffer.toString('base64')}`;
+    }
+
+    await FirestoreHelper.setDoc('resumes', resumeId, { pdfUrl }, true);
+
+    return sendSuccess(res, { pdfUrl, fileName: `${resumeData.personalInfo?.fullName || 'Resume'}.pdf` }, 'PDF generated successfully');
   } catch (err) {
     next(err);
   }

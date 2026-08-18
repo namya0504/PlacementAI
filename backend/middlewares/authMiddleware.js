@@ -12,13 +12,7 @@ export const protectRoute = async (req, res, next) => {
     }
 
     if (!token) {
-      // Default dev fallback user if no auth token provided
-      req.user = {
-        userId: 'usr_default_namya',
-        email: 'namya@placementai.com',
-        role: 'Software Developer'
-      };
-      return next();
+      return res.status(401).json({ success: false, message: 'Unauthorized: No token provided' });
     }
 
     // 1. Verify custom JWT
@@ -37,17 +31,18 @@ export const protectRoute = async (req, res, next) => {
             role: fbUser.role || 'Software Developer'
           };
           return next();
-        } catch (fbErr) {}
+        } catch (fbErr) {
+          console.warn('Firebase ID token verification failed:', fbErr.message);
+        }
       }
     }
 
-    // Fallback for dev mode
-    req.user = {
-      userId: 'usr_default_namya',
-      email: 'namya@placementai.com',
-      role: 'Software Developer'
-    };
-    next();
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(401).json({ success: false, message: 'Unauthorized: Invalid token' });
+    }
+    
+    // In strict mode, we no longer fallback to dev mock user
+    return res.status(401).json({ success: false, message: 'Unauthorized: Invalid token' });
   } catch (err) {
     return res.status(401).json({
       success: false,

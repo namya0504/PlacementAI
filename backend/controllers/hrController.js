@@ -5,51 +5,36 @@ import { calculatePlacementReadiness } from '../utils/scoring.js';
 
 export const getHRQuestions = async (req, res, next) => {
   try {
-    const userId = req.user?.userId || 'usr_default_namya';
+    const userId = req.user.userId;
     const round = req.query.round ? Number(req.query.round) : 1;
 
+    let aiQuestions = [];
+
     if (round === 1) {
-      const commonQuestions = [
-        {
-          id: 'hr_c1',
-          title: 'Tell me about yourself and your background.',
-          category: 'Introduction',
-          difficulty: 'Easy',
-          tip: 'Keep it concise (60-90 seconds). Highlight education, key skills, and passion for software.'
-        },
-        {
-          id: 'hr_c2',
-          title: 'What are your greatest professional strengths and technical weaknesses?',
-          category: 'Self Assessment',
-          difficulty: 'Easy',
-          tip: 'Frame weaknesses as areas you are actively improving (e.g. learning Docker).'
-        },
-        {
-          id: 'hr_c3',
-          title: 'Why do you want to join our organization as a Software Developer?',
-          category: 'Motivation',
-          difficulty: 'Easy',
-          tip: 'Show knowledge of company products, engineering culture, and long-term career alignment.'
-        }
-      ];
-      return sendSuccess(res, { round: 1, questions: commonQuestions }, 'Round 1 questions fetched');
+      const allQuestions = await FirestoreHelper.queryCollection('hr_questions');
+      if (allQuestions && allQuestions.length > 0) {
+        const shuffled = allQuestions.sort(() => 0.5 - Math.random());
+        aiQuestions = shuffled.slice(0, 4);
+      }
     }
 
-    // Round 2+: Fetch user profile, skills, projects to generate dynamic AI questions using Gemini
-    const profile = await FirestoreHelper.getDoc('profiles', 'prof_' + userId) || {};
-    const resumes = await FirestoreHelper.queryCollection('resumes', 'userId', userId);
-    const latestResume = resumes[resumes.length - 1] || {};
+    if (aiQuestions.length === 0) {
+      // Round 2+ or fallback: Fetch user profile, skills, projects to generate dynamic AI questions using Gemini
+      const profile = await FirestoreHelper.getDoc('profiles', 'prof_' + userId) || {};
+      const resumes = await FirestoreHelper.queryCollection('resumes', 'userId', userId);
+      const latestResume = resumes[resumes.length - 1] || {};
 
-    const userContext = {
-      role: req.query.role || profile.role || latestResume.role || 'Software Developer',
-      skills: profile.skills || latestResume.skills || ['React', 'Node.js', 'Python'],
-      projects: profile.projects || latestResume.projects || [{ title: 'PlacementAI Platform' }],
-      interests: profile.interests || ['Web Development', 'AI']
-    };
+      const userContext = {
+        role: req.query.role || profile.role || latestResume.role || 'Software Developer',
+        skills: profile.skills || latestResume.skills || ['Software Development'],
+        projects: profile.projects || latestResume.projects || [{ title: 'Academic Project' }],
+        interests: profile.interests || ['Technology']
+      };
 
-    const aiQuestions = await GeminiService.generateHRQuestions(userContext);
+      aiQuestions = await GeminiService.generateHRQuestions(userContext);
+    }
 
-    return sendSuccess(res, { round, questions: aiQuestions }, `Round ${round} AI questions generated`);
+    return sendSuccess(res, { round, questions: aiQuestions }, `Round ${round} questions fetched`);
   } catch (err) {
     next(err);
   }
@@ -57,7 +42,7 @@ export const getHRQuestions = async (req, res, next) => {
 
 export const evaluateHRAnswer = async (req, res, next) => {
   try {
-    const userId = req.user?.userId || 'usr_default_namya';
+    const userId = req.user.userId;
     const { questionId, questionTitle, userResponse, round = 1 } = req.body;
 
     if (!userResponse || userResponse.trim().length === 0) {

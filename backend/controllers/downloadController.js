@@ -3,7 +3,7 @@ import { sendSuccess, sendError } from '../utils/responseHandler.js';
 
 export const recordDownload = async (req, res, next) => {
   try {
-    const userId = req.user?.userId || 'usr_default_namya';
+    const userId = req.user.userId;
     const { resumeId = 'res_1', fileName = 'Resume.pdf' } = req.body;
 
     const downloadId = 'dl_' + Date.now();
@@ -25,7 +25,7 @@ export const recordDownload = async (req, res, next) => {
 
 export const getDownloadHistory = async (req, res, next) => {
   try {
-    const userId = req.user?.userId || 'usr_default_namya';
+    const userId = req.user.userId;
     const history = await FirestoreHelper.queryCollection('download_history', 'userId', userId);
     return sendSuccess(res, history, 'Download history retrieved');
   } catch (err) {

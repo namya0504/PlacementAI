@@ -6,7 +6,7 @@ import { calculatePlacementReadiness } from '../utils/scoring.js';
 
 export const analyzeResume = async (req, res, next) => {
   try {
-    const userId = req.user?.userId || 'usr_default_namya';
+    const userId = req.user.userId;
     const targetRole = req.body.targetRole || 'Software Developer';
     let resumeText = req.body.resumeText || '';
 
@@ -15,11 +15,7 @@ export const analyzeResume = async (req, res, next) => {
     }
 
     if (!resumeText || resumeText.trim().length === 0) {
-      resumeText = `Namya Shah Software Developer
-Skills: React.js, Node.js, JavaScript, Python, Express, Tailwind CSS, SQL, Git
-Education: Bachelor of Technology in Computer Science (2025)
-Projects: PlacementAI Platform, E-Commerce Microservices Architecture
-Experience: Frontend Software Engineering Intern`;
+      return sendError(res, 'Resume text extraction failed. Please upload a valid readable PDF.', 400);
     }
 
     const report = await GeminiService.analyzeATS(resumeText, targetRole);
@@ -33,7 +29,7 @@ Experience: Frontend Software Engineering Intern`;
       createdAt: new Date().toISOString()
     };
 
-    await FirestoreHelper.setDoc('reports', reportId, reportDoc);
+    await FirestoreHelper.setDoc('ats_results', reportId, reportDoc);
 
     // Update User Placement Readiness
     const readiness = await FirestoreHelper.getDoc('placement_readiness', 'readiness_' + userId) || {};
@@ -53,8 +49,8 @@ Experience: Frontend Software Engineering Intern`;
 
 export const getATSHistory = async (req, res, next) => {
   try {
-    const userId = req.user?.userId || 'usr_default_namya';
-    const history = await FirestoreHelper.queryCollection('reports', 'userId', userId);
+    const userId = req.user.userId;
+    const history = await FirestoreHelper.queryCollection('ats_results', 'userId', userId);
     return sendSuccess(res, history, 'ATS history retrieved');
   } catch (err) {
     next(err);

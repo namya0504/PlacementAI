@@ -14,11 +14,16 @@ import technicalRoutes from './routes/technicalRoutes.js';
 import hrRoutes from './routes/hrRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import downloadRoutes from './routes/downloadRoutes.js';
+import companyRoutes from './routes/companyRoutes.js';
 
 const app = express();
 
 // Middlewares
-app.use(cors({ origin: true, credentials: true }));
+const allowedOrigins = process.env.NODE_ENV === 'production' 
+  ? [process.env.FRONTEND_URL || 'https://placementai.vercel.app'] 
+  : true;
+
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
@@ -41,6 +46,7 @@ app.use('/api/technical', technicalRoutes);
 app.use('/api/hr', hrRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/downloads', downloadRoutes);
+app.use('/api/company', companyRoutes);
 
 // Centralized Error Handling Middleware
 app.use(errorHandler);
