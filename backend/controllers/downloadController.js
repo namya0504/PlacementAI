@@ -6,7 +6,7 @@ export const recordDownload = async (req, res, next) => {
     const userId = req.user.userId;
     const { resumeId = 'res_1', fileName = 'Resume.pdf' } = req.body;
 
-    const downloadId = 'dl_' + Date.now();
+    const downloadId = 'dl_' + userId + '_' + Date.now();
     const record = {
       downloadId,
       userId,

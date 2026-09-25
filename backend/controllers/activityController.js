@@ -4,7 +4,7 @@ import { sendSuccess } from '../utils/responseHandler.js';
 export const logActivity = async (userId, activityType, description = '') => {
   if (!userId) return null;
   try {
-    const activityId = 'act_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+    const activityId = 'act_' + userId + '_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
     const doc = {
       activityId,
       userId,

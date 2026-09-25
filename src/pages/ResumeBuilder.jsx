@@ -19,82 +19,131 @@ import {
   Wand2
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
+import { useAuth } from '../context/AuthContext';
+import { API } from '../services/api';
 import { generateProfessionalSummary, generateProjectBulletPoints } from '../services/aiService';
 import html2pdf from 'html2pdf.js';
 
 export default function ResumeBuilder() {
   const [searchParams] = useSearchParams();
+  const { user } = useAuth();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [activeTab, setActiveTab] = useState('personal');
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [saveStatus, setSaveStatus] = useState('');
 
   const previewRef = useRef(null);
 
-  // Resume State
-  const [role, setRole] = useState('Software Developer');
+  // Resume State - Dynamic to authenticated user
+  const [role, setRole] = useState(user?.role || 'Software Developer');
   const [template, setTemplate] = useState(searchParams.get('template') || 'modern');
 
   const [personal, setPersonal] = useState({
-    fullName: 'Namya Shah',
-    email: 'namya@example.com',
-    phone: '+91 98765 43210',
-    location: 'Surat, Gujarat, India',
-    linkedin: 'https://linkedin.com/in/namya',
-    github: 'https://github.com/namya',
-    summary: 'Motivated and detail-oriented Software Developer with core expertise in building modern, scalable web applications using React, Node.js, and SQL. Passionate about writing clean code, solving complex algorithms, and implementing high-performance responsive web interfaces.'
+    fullName: user?.name || '',
+    email: user?.email || '',
+    phone: '',
+    location: '',
+    linkedin: '',
+    github: '',
+    summary: ''
   });
 
-  const [education, setEducation] = useState([
-    { id: 1, degree: 'Diploma in Information Technology', college: 'Government Polytechnic, Surat', cgpa: '8.5 CGPA', year: '2023 - 2026' }
-  ]);
-
-  const [skills, setSkills] = useState([
-    'JavaScript (ES6+)', 'React.js', 'Node.js', 'Python', 'SQL & PostgreSQL', 'Tailwind CSS', 'Git & GitHub', 'Data Structures & Algorithms'
-  ]);
+  const [education, setEducation] = useState([]);
+  const [skills, setSkills] = useState([]);
   const [newSkill, setNewSkill] = useState('');
-
-  const [projects, setProjects] = useState([
-    {
-      id: 1,
-      title: 'Grocery Store App (Flutter)',
-      tech: 'Flutter, Firebase',
-      description: 'Built a cross-platform grocery app with Firebase authentication, product management, cart and order placement.'
-    },
-    {
-      id: 2,
-      title: 'Notes App (Android)',
-      tech: 'Android, Kotlin, Room DB',
-      description: 'Created a simple local notes app for Android with CRUD operations and local storage.'
-    }
-  ]);
-
-  const [certifications, setCertifications] = useState([
-    'IBM AI Internship Certificate',
-    'Google Data Analytics Certificate'
-  ]);
+  const [projects, setProjects] = useState([]);
+  const [certifications, setCertifications] = useState([]);
   const [newCert, setNewCert] = useState('');
+  const [experience, setExperience] = useState([]);
 
-  const [experience, setExperience] = useState([
-    { id: 1, title: 'Software Developer Intern', company: 'TechSolutions Pvt Ltd', duration: 'May 2025 - Jul 2025', details: 'Assisted in building REST APIs and frontend React components.' }
-  ]);
+  // Pre-load saved resume or user profile
+  useEffect(() => {
+    let isMounted = true;
+    async function loadResumeData() {
+      try {
+        const resumes = await API.getResumes();
+        if (!isMounted) return;
+        if (Array.isArray(resumes) && resumes.length > 0) {
+          const latest = resumes[resumes.length - 1];
+          if (latest.personalInfo) {
+            setPersonal(prev => ({ ...prev, ...latest.personalInfo }));
+          }
+          if (latest.role) setRole(latest.role);
+          if (latest.templateId) setTemplate(latest.templateId);
+          if (Array.isArray(latest.education) && latest.education.length > 0) setEducation(latest.education);
+          if (Array.isArray(latest.skills) && latest.skills.length > 0) {
+            setSkills(latest.skills.map(s => typeof s === 'string' ? s : s.name));
+          }
+          if (Array.isArray(latest.projects) && latest.projects.length > 0) setProjects(latest.projects);
+          if (Array.isArray(latest.certificates) && latest.certificates.length > 0) {
+            setCertifications(latest.certificates.map(c => typeof c === 'string' ? c : (c.name || c.title)));
+          }
+          if (Array.isArray(latest.experience) && latest.experience.length > 0) setExperience(latest.experience);
+        } else {
+          // Pre-populate from user profile
+          const profile = await API.getProfile();
+          if (!isMounted || !profile) return;
+          setPersonal(prev => ({
+            ...prev,
+            fullName: profile.name || user?.name || prev.fullName,
+            email: profile.email || user?.email || prev.email,
+            phone: profile.phone || prev.phone,
+            location: profile.location || prev.location,
+            linkedin: profile.linkedIn || prev.linkedin,
+            github: profile.github || prev.github,
+            summary: profile.bio || prev.summary
+          }));
+          if (Array.isArray(profile.skills) && profile.skills.length > 0) {
+            setSkills(profile.skills);
+          }
+          if (profile.college || profile.branch) {
+            setEducation([{
+              id: 1,
+              degree: profile.branch ? `B.Tech in ${profile.branch}` : 'Bachelor of Engineering',
+              college: profile.college || 'Engineering College',
+              cgpa: '',
+              year: profile.passingYear ? `Graduating ${profile.passingYear}` : ''
+            }]);
+          }
+        }
+      } catch (e) {
+        console.warn('Preload resume error:', e.message);
+      }
+    }
+    loadResumeData();
+    return () => { isMounted = false; };
+  }, [user]);
 
-  // AI Generators
+  // AI Generators with Grok
   const handleAiSummary = async () => {
     setIsAiLoading(true);
-    const summaryText = await generateProfessionalSummary(role, skills.join(', '), 1);
-    setPersonal(prev => ({ ...prev, summary: summaryText }));
-    setIsAiLoading(false);
+    setAiError('');
+    try {
+      const summaryText = await generateProfessionalSummary(role, skills, 1);
+      setPersonal(prev => ({ ...prev, summary: summaryText }));
+    } catch (err) {
+      setAiError(err.message || 'AI generation failed. Please try again.');
+    } finally {
+      setIsAiLoading(false);
+    }
   };
 
   const handleAiProjectBullet = async (projId) => {
     setIsAiLoading(true);
+    setAiError('');
     const proj = projects.find(p => p.id === projId);
     if (proj) {
-      const bullets = await generateProjectBulletPoints(proj.title, proj.tech);
-      setProjects(projects.map(p => p.id === projId ? { ...p, description: bullets.join(' ') } : p));
+      try {
+        const bullets = await generateProjectBulletPoints(proj.title, proj.tech);
+        setProjects(projects.map(p => p.id === projId ? { ...p, description: bullets.join(' ') } : p));
+      } catch (err) {
+        setAiError(err.message || 'AI generation failed. Please try again.');
+      } finally {
+        setIsAiLoading(false);
+      }
     }
-    setIsAiLoading(false);
   };
 
   const handleDownloadPdf = async () => {

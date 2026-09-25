@@ -58,10 +58,12 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const loginWithSocial = async (providerName) => {
+  const loginWithSocial = async (providerName, profileInfo = {}) => {
     setLoading(true);
     try {
-      const user = await API.googleLogin({ providerName, name: 'Namya Shah', email: 'namya@example.com' });
+      const email = profileInfo.email || `candidate_${Date.now().toString(36)}@placementai.edu`;
+      const name = profileInfo.name || 'Student Candidate';
+      const user = await API.googleLogin({ providerName, name, email, photoURL: profileInfo.photoURL });
       setCurrentUser(user);
       localStorage.setItem('placement_ai_user', JSON.stringify(user));
       setLoading(false);

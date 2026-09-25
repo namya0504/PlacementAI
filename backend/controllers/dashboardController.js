@@ -1,4 +1,6 @@
 import { FirestoreHelper } from '../firebase/firestoreHelper.js';
+import { GrokService } from '../services/grokService.js';
+import { getStudentContext } from '../services/studentContext.js';
 import { sendSuccess } from '../utils/responseHandler.js';
 import { calculatePlacementReadiness } from '../utils/scoring.js';
 
@@ -18,7 +20,7 @@ export const getDashboardStats = async (req, res, next) => {
         testsCompleted: 0,
         certificatesEarned: 0,
         mockInterviews: 0,
-        streakDays: 0
+        streakDays: 1
       };
       readiness.overallReadiness = 0;
       await FirestoreHelper.setDoc('placement_readiness', 'readiness_' + userId, readiness);
@@ -37,14 +39,43 @@ export const getDashboardStats = async (req, res, next) => {
 
     const downloads = await FirestoreHelper.queryCollection('download_history', 'userId', userId);
 
-    const weeklyProgress = [];
-
     return sendSuccess(res, {
       stats: readiness,
       recentActivities,
-      recentDownloads: downloads.slice(-5),
-      weeklyProgress
+      recentDownloads: downloads.slice(-5)
     }, 'Dashboard statistics retrieved');
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Generates personalized AI placement recommendations and action plan based on actual student progress.
+ */
+export const getAIRecommendations = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const forceRefresh = req.query.refresh === 'true';
+
+    // Check if recent recommendations exist in Firestore (cached for 1 hour unless refresh requested)
+    const cached = await FirestoreHelper.getDoc('ai_recommendations', `rec_${userId}`);
+    const isFresh = cached && cached.generatedAt && (Date.now() - new Date(cached.generatedAt).getTime() < 3600000);
+
+    if (isFresh && !forceRefresh) {
+      return sendSuccess(res, cached.recommendations, 'Personalized recommendations retrieved (cached)');
+    }
+
+    const studentContext = await getStudentContext(userId);
+    const recommendations = await GrokService.generatePersonalizedRecommendations(studentContext);
+
+    // Cache the recommendations
+    await FirestoreHelper.setDoc('ai_recommendations', `rec_${userId}`, {
+      userId,
+      recommendations,
+      generatedAt: new Date().toISOString()
+    });
+
+    return sendSuccess(res, recommendations, 'Personalized recommendations generated');
   } catch (err) {
     next(err);
   }

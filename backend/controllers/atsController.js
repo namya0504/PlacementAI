@@ -1,6 +1,7 @@
 import { FirestoreHelper } from '../firebase/firestoreHelper.js';
 import { TextExtractorService } from '../services/textExtractorService.js';
-import { GeminiService } from '../services/geminiService.js';
+import { GrokService } from '../services/grokService.js';
+import { getStudentContext } from '../services/studentContext.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import { calculatePlacementReadiness } from '../utils/scoring.js';
 
@@ -18,9 +19,10 @@ export const analyzeResume = async (req, res, next) => {
       return sendError(res, 'Resume text extraction failed. Please upload a valid readable PDF.', 400);
     }
 
-    const report = await GeminiService.analyzeATS(resumeText, targetRole);
+    const studentContext = await getStudentContext(userId);
+    const report = await GrokService.analyzeATS(resumeText, targetRole, studentContext);
 
-    const reportId = 'ats_rep_' + Date.now();
+    const reportId = 'ats_rep_' + userId + '_' + Date.now();
     const reportDoc = {
       reportId,
       userId,

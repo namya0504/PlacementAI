@@ -11,19 +11,19 @@ export default function Profile() {
   const [loading, setLoading] = useState(false);
 
   const [profileData, setProfileData] = useState({
-    name: currentUser?.name || 'Namya Shah',
-    email: currentUser?.email || 'namya@example.com',
+    name: currentUser?.name || '',
+    email: currentUser?.email || '',
     role: currentUser?.role || 'Software Developer',
-    photoURL: currentUser?.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
-    phone: '+91 98765 43210',
-    location: 'Surat, Gujarat, India',
-    college: 'Government Polytechnic, Surat',
-    branch: 'Computer Engineering',
-    passingYear: '2025',
-    bio: 'Passionate Full Stack & AI Developer building placement AI platforms.',
-    linkedIn: 'https://linkedin.com',
-    github: 'https://github',
-    skills: ['React', 'Node.js', 'Python', 'Tailwind CSS']
+    photoURL: currentUser?.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(currentUser?.name || 'Student')}`,
+    phone: '',
+    location: '',
+    college: '',
+    branch: '',
+    passingYear: '',
+    bio: '',
+    linkedIn: '',
+    github: '',
+    skills: []
   });
 
   useEffect(() => {
@@ -133,7 +133,7 @@ export default function Profile() {
               
               <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-                  {currentUser?.stats?.resumesCreated || 3}
+                  {currentUser?.stats?.resumesCreated || 0}
                 </div>
                 <div>
                   <div className="text-xs font-bold text-slate-900">Resumes Created</div>
@@ -143,7 +143,7 @@ export default function Profile() {
 
               <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
-                  {currentUser?.stats?.testsCompleted || 24}
+                  {currentUser?.stats?.testsCompleted || 0}
                 </div>
                 <div>
                   <div className="text-xs font-bold text-slate-900">Tests Completed</div>
@@ -153,7 +153,7 @@ export default function Profile() {
 
               <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
-                  {currentUser?.stats?.certificatesEarned || 5}
+                  {currentUser?.stats?.certificatesEarned || 0}
                 </div>
                 <div>
                   <div className="text-xs font-bold text-slate-900">Certificates Earned</div>
@@ -163,7 +163,7 @@ export default function Profile() {
 
               <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
-                  {currentUser?.stats?.mockInterviews || 6}
+                  {currentUser?.stats?.mockInterviews || 0}
                 </div>
                 <div>
                   <div className="text-xs font-bold text-slate-900">Mock Interviews</div>

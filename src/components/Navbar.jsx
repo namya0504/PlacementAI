@@ -9,15 +9,14 @@ export default function Navbar() {
   const navigate = useNavigate();
   const { currentUser, logout } = useAuth();
 
-  const navLinks = [
-    { name: 'Home', path: '/' },
-    { name: 'Features', path: '/#features' },
+  // Links shown ONLY when the user is logged in
+  const authenticatedNavLinks = [
+    { name: 'Dashboard', path: '/dashboard' },
+    { name: 'Resume Builder', path: '/resume-builder' },
     { name: 'Resume Templates', path: '/templates' },
     { name: 'ATS Checker', path: '/ats-checker' },
     { name: 'Placement Prep', path: '/placement-prep' },
-    { name: 'Dashboard', path: '/dashboard' },
-    { name: 'About', path: '/about' },
-    { name: 'Contact', path: '/contact' },
+    { name: 'My Progress', path: '/my-progress' },
   ];
 
   const isActive = (path) => {
@@ -26,11 +25,16 @@ export default function Navbar() {
     return location.pathname.startsWith(path);
   };
 
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
+
   return (
-    <header className="sticky top-0 z-50 glass-nav transition-all duration-300">
+    <header className="relative z-50 glass-nav transition-all duration-300 border-b border-slate-200/70 bg-white/95">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
         
-        {/* Brand Logo */}
+        {/* Brand Logo - Preserved */}
         <Link to="/" className="flex items-center gap-3 group">
           <div className="relative flex items-center justify-center">
             <img src="/logo.svg" alt="PlacementAI Logo" className="w-10 h-10 group-hover:scale-105 transition-transform duration-300" />
@@ -45,25 +49,27 @@ export default function Navbar() {
           </div>
         </Link>
 
-        {/* Desktop Navigation Links */}
-        <nav className="hidden lg:flex items-center gap-1 xl:gap-2">
-          {navLinks.map((link) => {
-            const active = isActive(link.path);
-            return (
-              <Link
-                key={link.name}
-                to={link.path}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  active
-                    ? 'text-blue-600 bg-blue-50/80 font-semibold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
-                }`}
-              >
-                {link.name}
-              </Link>
-            );
-          })}
-        </nav>
+        {/* Desktop Navigation Links - Visible ONLY when logged in */}
+        {currentUser && (
+          <nav className="hidden lg:flex items-center gap-1 xl:gap-2">
+            {authenticatedNavLinks.map((link) => {
+              const active = isActive(link.path);
+              return (
+                <Link
+                  key={link.name}
+                  to={link.path}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    active
+                      ? 'text-blue-600 bg-blue-50/80 font-semibold'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                  }`}
+                >
+                  {link.name}
+                </Link>
+              );
+            })}
+          </nav>
+        )}
 
         {/* Action Buttons Right */}
         <div className="hidden lg:flex items-center gap-3">
@@ -79,15 +85,23 @@ export default function Navbar() {
 
               <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
                 <Link to="/profile" className="flex items-center gap-2 group">
-                  <img
-                    src={currentUser.photoURL}
-                    alt={currentUser.name}
-                    className="w-9 h-9 rounded-full ring-2 ring-blue-600/30 group-hover:ring-blue-600 transition"
-                  />
-                  <span className="text-sm font-semibold text-slate-800 group-hover:text-blue-600">{currentUser.name}</span>
+                  {currentUser.photoURL ? (
+                    <img
+                      src={currentUser.photoURL}
+                      alt={currentUser.name}
+                      className="w-9 h-9 rounded-full ring-2 ring-blue-600/30 group-hover:ring-blue-600 transition object-cover"
+                    />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs ring-2 ring-blue-600/30 group-hover:ring-blue-600 transition">
+                      {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                    </div>
+                  )}
+                  <span className="text-sm font-semibold text-slate-800 group-hover:text-blue-600">
+                    {currentUser.name || currentUser.email?.split('@')[0]}
+                  </span>
                 </Link>
                 <button
-                  onClick={logout}
+                  onClick={handleLogout}
                   className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
                   title="Logout"
                 >
@@ -96,7 +110,7 @@ export default function Navbar() {
               </div>
             </div>
           ) : (
-            <>
+            <div className="flex items-center gap-3">
               <Link
                 to="/login"
                 className="px-5 py-2.5 text-sm font-semibold text-slate-700 hover:text-blue-600 transition"
@@ -110,7 +124,7 @@ export default function Navbar() {
                 <Sparkles className="w-4 h-4 text-yellow-300 animate-pulse" />
                 Sign Up
               </Link>
-            </>
+            </div>
           )}
         </div>
 
@@ -127,25 +141,25 @@ export default function Navbar() {
       {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
         <div className="lg:hidden bg-white/95 backdrop-blur-xl border-b border-slate-200 px-4 pt-2 pb-6 space-y-2 shadow-xl animate-in slide-in-from-top-5 duration-200">
-          {navLinks.map((link) => (
-            <Link
-              key={link.name}
-              to={link.path}
-              onClick={() => setMobileMenuOpen(false)}
-              className={`flex items-center justify-between px-4 py-3 rounded-xl text-base font-medium transition ${
-                isActive(link.path)
-                  ? 'text-blue-600 bg-blue-50 font-semibold'
-                  : 'text-slate-700 hover:bg-slate-100'
-              }`}
-            >
-              <span>{link.name}</span>
-              <ChevronRight className="w-4 h-4 text-slate-400" />
-            </Link>
-          ))}
-          
-          <div className="pt-4 border-t border-slate-100 flex flex-col gap-2">
-            {currentUser ? (
-              <>
+          {currentUser ? (
+            <>
+              {authenticatedNavLinks.map((link) => (
+                <Link
+                  key={link.name}
+                  to={link.path}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center justify-between px-4 py-3 rounded-xl text-base font-medium transition ${
+                    isActive(link.path)
+                      ? 'text-blue-600 bg-blue-50 font-semibold'
+                      : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <span>{link.name}</span>
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                </Link>
+              ))}
+              
+              <div className="pt-4 border-t border-slate-100 flex flex-col gap-2">
                 <Link
                   to="/dashboard"
                   onClick={() => setMobileMenuOpen(false)}
@@ -154,33 +168,34 @@ export default function Navbar() {
                   <LayoutDashboard className="w-4 h-4" /> Go to Dashboard
                 </Link>
                 <button
-                  onClick={() => { logout(); setMobileMenuOpen(false); }}
+                  onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
                   className="w-full text-center py-3 text-red-600 font-medium hover:bg-red-50 rounded-xl"
                 >
                   Log out
                 </button>
-              </>
-            ) : (
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <Link
-                  to="/login"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="w-full text-center py-3 border border-slate-300 rounded-xl text-slate-700 font-semibold hover:bg-slate-50"
-                >
-                  Login
-                </Link>
-                <Link
-                  to="/signup"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="w-full text-center py-3 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl text-white font-semibold shadow-md"
-                >
-                  Sign Up
-                </Link>
               </div>
-            )}
-          </div>
+            </>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <Link
+                to="/login"
+                onClick={() => setMobileMenuOpen(false)}
+                className="w-full text-center py-3 border border-slate-300 rounded-xl text-slate-700 font-semibold hover:bg-slate-50"
+              >
+                Login
+              </Link>
+              <Link
+                to="/signup"
+                onClick={() => setMobileMenuOpen(false)}
+                className="w-full text-center py-3 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl text-white font-semibold shadow-md"
+              >
+                Sign Up
+              </Link>
+            </div>
+          )}
         </div>
       )}
     </header>
   );
 }
+

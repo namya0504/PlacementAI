@@ -14,7 +14,11 @@ import {
   CheckSquare,
   Square,
   ArrowUpRight,
-  Menu
+  Menu,
+  Sparkles,
+  RefreshCw,
+  Target,
+  AlertTriangle
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
@@ -26,21 +30,20 @@ export default function Dashboard() {
 
   const [dashboardData, setDashboardData] = useState({
     stats: currentUser?.stats || {
-      resumeScore: 85,
-      atsScore: 84,
-      aptitudeScore: 72,
-      technicalScore: 80,
-      hrScore: 82,
-      overallReadiness: 78
+      resumeScore: 0,
+      atsScore: 0,
+      aptitudeScore: 0,
+      technicalScore: 0,
+      hrScore: 0,
+      overallReadiness: 0,
+      testsCompleted: 0,
+      mockInterviews: 0
     },
     recentActivities: []
   });
 
-  const [goals, setGoals] = useState([
-    { id: 1, text: 'Complete Aptitude Stage 3', done: false },
-    { id: 2, text: 'Attempt Technical Stage 2', done: true },
-    { id: 3, text: 'Complete HR Round 3', done: false }
-  ]);
+  const [aiRecommendations, setAiRecommendations] = useState(null);
+  const [loadingRecs, setLoadingRecs] = useState(false);
 
   useEffect(() => {
     API.getDashboardStats()
@@ -50,21 +53,41 @@ export default function Dashboard() {
         }
       })
       .catch(err => console.warn('Dashboard stats notice:', err.message));
+
+    loadRecommendations(false);
   }, []);
 
-  const stats = dashboardData.stats || {};
-  const recentActivities = dashboardData.recentActivities?.length > 0 ? dashboardData.recentActivities : [
-    { title: 'Aptitude Intermediate Test Completed', score: '85%', time: '2h ago' },
-    { title: 'Technical Code Submission Accepted', score: '100%', time: '1d ago' },
-    { title: 'HR Interview Evaluation Completed', score: '82%', time: '3d ago' }
-  ];
-
-  const toggleGoal = (id) => {
-    setGoals(goals.map(g => g.id === id ? { ...g, done: !g.done } : g));
+  const loadRecommendations = async (refresh = false) => {
+    setLoadingRecs(true);
+    try {
+      const recs = await API.getAIRecommendations(refresh);
+      if (recs) {
+        setAiRecommendations(recs);
+      }
+    } catch (e) {
+      console.warn('AI recommendations load error:', e.message);
+    } finally {
+      setLoadingRecs(false);
+    }
   };
 
-  const overallReadiness = stats.overallReadiness || 78;
+  const stats = dashboardData.stats || {};
+  const recentActivities = dashboardData.recentActivities || [];
+
+  const overallReadiness = stats.overallReadiness || 0;
   const strokeOffset = Math.round(163 - (163 * overallReadiness) / 100);
+
+  // Dynamic stage calculations
+  const testsCompleted = stats.testsCompleted || 0;
+  const aptitudeStage = testsCompleted === 0 ? 1 : testsCompleted < 3 ? 2 : testsCompleted < 6 ? 3 : 4;
+
+  const techScore = stats.technicalScore || 0;
+  const techStage = techScore === 0 ? 1 : techScore < 40 ? 2 : techScore < 75 ? 3 : 4;
+
+  const interviewsCompleted = stats.mockInterviews || 0;
+  const hrRound = interviewsCompleted === 0 ? 1 : interviewsCompleted < 2 ? 2 : interviewsCompleted < 4 ? 3 : 4;
+
+  const companyPrepScore = Math.round(((stats.aptitudeScore || 0) + (stats.technicalScore || 0)) / 2);
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
@@ -82,9 +105,9 @@ export default function Dashboard() {
             </button>
             <div>
               <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 font-outfit flex items-center gap-2">
-                Hello, {currentUser?.name || 'Namya'} <span className="text-xl">👋</span>
+                Hello, {currentUser?.name || 'Student'} <span className="text-xl">👋</span>
               </h1>
-              <p className="text-xs text-slate-500 hidden sm:block">Let's continue your preparation today!</p>
+              <p className="text-xs text-slate-500 hidden sm:block">Track your personalized placement roadmap powered by Grok AI</p>
             </div>
           </div>
 
@@ -93,13 +116,13 @@ export default function Dashboard() {
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
               <input
                 type="text"
-                placeholder="Search modules, templates..."
+                placeholder="Search modules, companies..."
                 className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-600 w-64"
               />
             </div>
             <button className="p-2.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition relative">
               <Bell className="w-5 h-5" />
-              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500"></span>
+              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-blue-600"></span>
             </button>
           </div>
         </header>
@@ -107,85 +130,173 @@ export default function Dashboard() {
         {/* Dashboard Workspace */}
         <div className="p-4 sm:p-8 space-y-8 max-w-7xl mx-auto w-full">
           
-          {/* Top Score Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {/* Resume Score */}
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition">
-              <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-2">
-                <span>Resume Score</span>
-                <span className="text-xs px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 font-bold">
-                  {stats.resumeScore >= 80 ? 'Good' : 'Needs Work'}
-                </span>
+          {/* Top Banner: Placement Readiness Gauge */}
+          <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-800 rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden shadow-xl">
+            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+              
+              <div className="space-y-3 max-w-xl text-center md:text-left">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-semibold">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-200" />
+                  <span>AI Placement Officer Active</span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-black font-outfit tracking-tight">
+                  Placement Readiness Score
+                </h2>
+                <p className="text-blue-100 text-xs sm:text-sm leading-relaxed">
+                  Calculated dynamically from your verified performance in Resume, ATS, Aptitude tests, Technical challenges, and Mock HR interviews.
+                </p>
+                <div className="pt-2 flex flex-wrap items-center justify-center md:justify-start gap-4">
+                  <Link
+                    to="/aptitude"
+                    className="px-5 py-2.5 rounded-xl bg-white text-blue-700 font-bold text-xs hover:bg-blue-50 transition shadow-lg"
+                  >
+                    Take Adaptive Test
+                  </Link>
+                  <Link
+                    to="/company-prep"
+                    className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/20 transition"
+                  >
+                    Company Prep
+                  </Link>
+                </div>
               </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-extrabold text-slate-900 font-outfit">{stats.resumeScore || 85}</span>
-                <span className="text-xs text-slate-400">/100</span>
+
+              {/* Readiness Semi-Circle Gauge */}
+              <div className="flex flex-col items-center justify-center shrink-0">
+                <div className="relative w-36 h-28 flex items-center justify-center">
+                  <svg className="w-36 h-36 transform -rotate-90" viewBox="0 0 100 100">
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="40"
+                      stroke="rgba(255,255,255,0.2)"
+                      strokeWidth="10"
+                      fill="transparent"
+                      strokeDasharray="251.2"
+                      strokeDashoffset="125.6"
+                      strokeLinecap="round"
+                    />
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="40"
+                      stroke="#ffffff"
+                      strokeWidth="10"
+                      fill="transparent"
+                      strokeDasharray="251.2"
+                      strokeDashoffset={125.6 + (125.6 * (100 - overallReadiness)) / 100}
+                      strokeLinecap="round"
+                      className="transition-all duration-1000 ease-out"
+                    />
+                  </svg>
+                  <div className="absolute top-10 flex flex-col items-center">
+                    <span className="text-3xl font-black font-outfit">{overallReadiness}%</span>
+                    <span className="text-[10px] text-blue-200 uppercase font-bold tracking-wider">Readiness</span>
+                  </div>
+                </div>
               </div>
-              <Link to="/resume-builder" className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:underline">
-                View Details <ArrowUpRight className="w-3.5 h-3.5" />
-              </Link>
+
+            </div>
+          </div>
+
+          {/* GROK AI PERSONALIZED RECOMMENDATIONS SECTION */}
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 font-outfit">Personalized AI Insights & Strategy</h3>
+                  <p className="text-xs text-slate-500">Tailored by Grok AI based on your actual performance</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => loadRecommendations(true)}
+                disabled={loadingRecs}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold flex items-center gap-1.5 transition"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingRecs ? 'animate-spin text-purple-600' : ''}`} />
+                <span>{loadingRecs ? 'Analyzing...' : 'Refresh AI Plan'}</span>
+              </button>
             </div>
 
-            {/* ATS Score */}
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition">
-              <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-2">
-                <span>ATS Score</span>
-                <span className="text-xs px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 font-bold">
-                  {stats.atsScore >= 80 ? 'Good' : 'Needs Work'}
-                </span>
+            {loadingRecs ? (
+              <div className="py-8 text-center space-y-2">
+                <RefreshCw className="w-6 h-6 text-purple-600 animate-spin mx-auto" />
+                <p className="text-xs font-medium text-slate-500">Grok AI is analyzing your performance metrics...</p>
               </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-extrabold text-slate-900 font-outfit">{stats.atsScore || 84}</span>
-                <span className="text-xs text-slate-400">/100</span>
-              </div>
-              <Link to="/ats-checker" className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-purple-600 hover:underline">
-                View Details <ArrowUpRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
+            ) : aiRecommendations ? (
+              <div className="space-y-4 pt-2">
+                {aiRecommendations.placementReadinessAssessment && (
+                  <div className="p-4 rounded-xl bg-purple-50/70 border border-purple-100 text-xs text-purple-900 leading-relaxed font-medium">
+                    {aiRecommendations.placementReadinessAssessment}
+                  </div>
+                )}
 
-            {/* Aptitude Score */}
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition">
-              <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-2">
-                <span>Aptitude Score</span>
-                <span className="text-xs px-2 py-0.5 rounded bg-amber-50 text-amber-600 font-bold">
-                  {stats.aptitudeScore >= 75 ? 'Good' : 'Average'}
-                </span>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-extrabold text-slate-900 font-outfit">{stats.aptitudeScore || 72}</span>
-                <span className="text-xs text-slate-400">/100</span>
-              </div>
-              <Link to="/placement-prep/aptitude" className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-amber-600 hover:underline">
-                View Details <ArrowUpRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Strengths & Weaknesses */}
+                  {aiRecommendations.criticalWeaknesses?.length > 0 && (
+                    <div className="p-4 rounded-xl bg-amber-50/60 border border-amber-100 space-y-2">
+                      <div className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                        <span>High Priority Focus Areas</span>
+                      </div>
+                      <ul className="space-y-1">
+                        {aiRecommendations.criticalWeaknesses.map((w, idx) => (
+                          <li key={idx} className="text-xs text-amber-800 flex items-start gap-1.5">
+                            <span className="font-bold">•</span>
+                            <span>{w}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
-            {/* Overall Readiness Gauge */}
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition flex items-center justify-between">
-              <div>
-                <div className="text-xs text-slate-500 font-semibold mb-1">Overall Readiness</div>
-                <div className="text-3xl font-extrabold text-slate-900 font-outfit">{overallReadiness}%</div>
-                <div className="text-[11px] text-emerald-600 font-semibold mt-1">Keep practicing!</div>
+                  {/* Top Recommended Companies */}
+                  {aiRecommendations.topRecommendedCompanies?.length > 0 && (
+                    <div className="p-4 rounded-xl bg-blue-50/60 border border-blue-100 space-y-2">
+                      <div className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                        <Target className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Recommended Target Companies</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {aiRecommendations.topRecommendedCompanies.map((c, idx) => (
+                          <Link
+                            key={idx}
+                            to={`/company-prep?company=${encodeURIComponent(c)}`}
+                            className="px-3 py-1 rounded-lg bg-white border border-blue-200 text-xs font-bold text-blue-700 hover:bg-blue-600 hover:text-white transition"
+                          >
+                            {c} →
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* AI Action Plan Steps */}
+                {Array.isArray(aiRecommendations.actionPlan) && aiRecommendations.actionPlan.length > 0 && (
+                  <div className="space-y-2 pt-2">
+                    <div className="text-xs font-bold text-slate-700 uppercase tracking-wider">Recommended Next Actions</div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {aiRecommendations.actionPlan.map((step, idx) => (
+                        <div key={idx} className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                              {step.module || 'Action'}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono">Target: {step.targetScore || '80%+'}</span>
+                          </div>
+                          <p className="text-xs text-slate-800 font-medium leading-snug">{step.action}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-              {/* Circular SVG Meter */}
-              <div className="relative w-16 h-16 flex items-center justify-center">
-                <svg className="w-full h-full transform -rotate-90">
-                  <circle cx="32" cy="32" r="26" stroke="#f1f5f9" strokeWidth="6" fill="transparent" />
-                  <circle
-                    cx="32"
-                    cy="32"
-                    r="26"
-                    stroke="#22C55E"
-                    strokeWidth="6"
-                    strokeDasharray="163"
-                    strokeDashoffset={strokeOffset}
-                    strokeLinecap="round"
-                    fill="transparent"
-                  />
-                </svg>
-                <span className="absolute text-xs font-bold text-slate-800">{overallReadiness}%</span>
-              </div>
-            </div>
+            ) : null}
           </div>
 
           {/* Your Progress Stage Cards */}
@@ -193,70 +304,67 @@ export default function Dashboard() {
             <h3 className="text-lg font-bold text-slate-900 font-outfit">Your Progress</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-2">
+              <Link to="/aptitude" className="p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition border border-slate-100 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
                     <Brain className="w-4 h-4 text-blue-600" /> Aptitude
                   </div>
-                  <span className="text-xs font-bold text-blue-600">{stats.aptitudeScore || 72}%</span>
+                  <span className="text-xs font-bold text-blue-600">{stats.aptitudeScore || 0}%</span>
                 </div>
-                <div className="text-xs text-slate-500">Stage 2 of 4</div>
+                <div className="text-xs text-slate-500">Stage {aptitudeStage} of 4</div>
                 <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-600 rounded-full" style={{ width: `${stats.aptitudeScore || 72}%` }}></div>
+                  <div className="h-full bg-blue-600 rounded-full transition-all" style={{ width: `${stats.aptitudeScore || 0}%` }}></div>
                 </div>
-              </div>
+              </Link>
 
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-2">
+              <Link to="/technical" className="p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition border border-slate-100 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
                     <Code2 className="w-4 h-4 text-purple-600" /> Technical
                   </div>
-                  <span className="text-xs font-bold text-purple-600">{stats.technicalScore || 80}%</span>
+                  <span className="text-xs font-bold text-purple-600">{stats.technicalScore || 0}%</span>
                 </div>
-                <div className="text-xs text-slate-500">Stage 2 of 4</div>
+                <div className="text-xs text-slate-500">Stage {techStage} of 4</div>
                 <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-purple-600 rounded-full" style={{ width: `${stats.technicalScore || 80}%` }}></div>
+                  <div className="h-full bg-purple-600 rounded-full transition-all" style={{ width: `${stats.technicalScore || 0}%` }}></div>
                 </div>
-              </div>
+              </Link>
 
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-2">
+              <Link to="/hr-interview" className="p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition border border-slate-100 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
                     <Mic className="w-4 h-4 text-emerald-600" /> HR Interview
                   </div>
-                  <span className="text-xs font-bold text-emerald-600">{stats.hrScore || 82}%</span>
+                  <span className="text-xs font-bold text-emerald-600">{stats.hrScore || 0}%</span>
                 </div>
-                <div className="text-xs text-slate-500">Round 2 of 4</div>
+                <div className="text-xs text-slate-500">Round {hrRound} of 4</div>
                 <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-600 rounded-full" style={{ width: `${stats.hrScore || 82}%` }}></div>
+                  <div className="h-full bg-emerald-600 rounded-full transition-all" style={{ width: `${stats.hrScore || 0}%` }}></div>
                 </div>
-              </div>
+              </Link>
 
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-2">
+              <Link to="/company-prep" className="p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition border border-slate-100 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
                     <Building2 className="w-4 h-4 text-amber-600" /> Company Prep
                   </div>
-                  <span className="text-xs font-bold text-amber-600">80%</span>
+                  <span className="text-xs font-bold text-amber-600">{companyPrepScore}%</span>
                 </div>
-                <div className="text-xs text-slate-500">TCS & Infosys</div>
+                <div className="text-xs text-slate-500">Recruitment Ready</div>
                 <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-amber-600 rounded-full w-4/5"></div>
+                  <div className="h-full bg-amber-600 rounded-full transition-all" style={{ width: `${companyPrepScore}%` }}></div>
                 </div>
-              </div>
+              </Link>
 
             </div>
           </div>
 
-          {/* Bottom Grid: Recent Activity & Upcoming Goals */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            
-            {/* Recent Activity Feed */}
-            <div className="lg:col-span-7 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-              <h3 className="text-lg font-bold text-slate-900 font-outfit">Recent Activity</h3>
-              <div className="space-y-3">
-                
-                {recentActivities.map((act, idx) => (
+          {/* Bottom Grid: Recent Activity */}
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+            <h3 className="text-lg font-bold text-slate-900 font-outfit">Recent Activity</h3>
+            <div className="space-y-3">
+              {recentActivities.length > 0 ? (
+                recentActivities.map((act, idx) => (
                   <div key={idx} className="p-3.5 rounded-xl bg-slate-50 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="p-2 rounded-lg bg-blue-100 text-blue-700">
@@ -264,37 +372,20 @@ export default function Dashboard() {
                       </div>
                       <div>
                         <div className="text-xs font-bold text-slate-900">{act.title}</div>
-                        <div className="text-[11px] text-slate-500">Score/Result: {act.score}</div>
+                        <div className="text-[11px] text-slate-500">{act.score}</div>
                       </div>
                     </div>
-                    <span className="text-[11px] text-slate-400">Recent</span>
-                  </div>
-                ))}
-
-              </div>
-            </div>
-
-            {/* Upcoming Goals Checklist */}
-            <div className="lg:col-span-5 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-              <h3 className="text-lg font-bold text-slate-900 font-outfit">Upcoming Goals</h3>
-              <div className="space-y-3">
-                {goals.map((g) => (
-                  <div
-                    key={g.id}
-                    onClick={() => toggleGoal(g.id)}
-                    className="p-3.5 rounded-xl bg-slate-50 hover:bg-slate-100 cursor-pointer flex items-center gap-3 transition"
-                  >
-                    <button className="text-blue-600 focus:outline-none">
-                      {g.done ? <CheckSquare className="w-4 h-4 text-emerald-600" /> : <Square className="w-4 h-4 text-slate-400" />}
-                    </button>
-                    <span className={`text-xs font-medium ${g.done ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                      {g.text}
+                    <span className="text-[11px] text-slate-400">
+                      {act.time ? new Date(act.time).toLocaleDateString() : 'Recent'}
                     </span>
                   </div>
-                ))}
-              </div>
+                ))
+              ) : (
+                <div className="text-center py-6 text-slate-400 text-xs">
+                  No activities recorded yet. Complete an aptitude test or resume to see your history here!
+                </div>
+              )}
             </div>
-
           </div>
 
         </div>
@@ -302,4 +393,3 @@ export default function Dashboard() {
     </div>
   );
 }
-

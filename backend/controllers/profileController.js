@@ -1,5 +1,5 @@
 import { FirestoreHelper } from '../firebase/firestoreHelper.js';
-import { storage, isMockFirebase } from '../firebase/firebaseAdmin.js';
+import { storage } from '../firebase/firebaseAdmin.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 
 export const getProfile = async (req, res, next) => {
@@ -114,7 +114,7 @@ export const uploadAvatar = async (req, res, next) => {
 
     let photoURL = '';
 
-    if (!isMockFirebase && storage) {
+    if (storage) {
       const bucket = storage.bucket();
       const fileExt = req.file.mimetype.split('/')[1] || 'jpeg';
       const fileName = `profile-images/${userId}_${Date.now()}.${fileExt}`;
@@ -126,8 +126,7 @@ export const uploadAvatar = async (req, res, next) => {
       await file.makePublic();
       photoURL = file.publicUrl();
     } else {
-      // Fallback for local mock development
-      photoURL = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+      throw new Error('Firebase storage is not configured.');
     }
 
     await FirestoreHelper.setDoc('users', userId, { photoURL }, true);

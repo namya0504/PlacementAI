@@ -14,7 +14,7 @@ export const config = {
     storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'placementai-app.appspot.com'
   },
   ai: {
-    geminiKey: process.env.GEMINI_API_KEY || '',
-    grokKey: process.env.GROK_API_KEY || ''
+    xaiKey: process.env.XAI_API_KEY || process.env.GROK_API_KEY || '',
+    judge0Key: process.env.JUDGE0_API_KEY || ''
   }
 };

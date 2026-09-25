@@ -16,19 +16,14 @@ export const Judge0Service = {
     // In a real environment with a RapidAPI Key, we'd loop through test cases
     // and make requests to https://judge0-ce.p.rapidapi.com/submissions
 
-    const isMockMode = !config.ai?.judge0Key;
+    if (!config.ai?.judge0Key) {
+      throw new Error('Judge0 API Key is not configured. Please set JUDGE0_API_KEY in .env');
+    }
 
     for (const testCase of testCases) {
-      if (isMockMode) {
-        // Simple mock evaluation: if code isn't empty, assume it passes
-        // This prevents the server from crashing if API key is absent
-        if (code && code.trim().length > 10) {
-          passCount++;
-        }
-      } else {
-        // Real integration (Requires node 18+ for native fetch)
-        try {
-          const response = await fetch('https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=false&wait=true', {
+      // Real integration (Requires node 18+ for native fetch)
+      try {
+        const response = await fetch('https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=false&wait=true', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

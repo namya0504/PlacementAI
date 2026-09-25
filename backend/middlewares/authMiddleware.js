@@ -22,7 +22,7 @@ export const protectRoute = async (req, res, next) => {
       return next();
     } catch (jwtErr) {
       // 2. Fallback to Firebase ID token verification if Admin SDK is configured
-      if (!isMockFirebase && auth) {
+      if (auth) {
         try {
           const fbUser = await auth.verifyIdToken(token);
           req.user = {

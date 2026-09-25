@@ -1,5 +1,5 @@
 // PlacementAI Central API Client Layer
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 const getAuthHeaders = () => {
   const savedUser = localStorage.getItem('placement_ai_user');
@@ -76,11 +76,17 @@ export const API = {
   submitTechnicalCode: (payload) => apiCall('/technical/submit-code', 'POST', payload),
 
   // HR Interview
-  getHRQuestions: (round = 1) => apiCall(`/hr/questions?round=${round}`, 'GET'),
+  getHRQuestions: (round = 1, generate = false) => apiCall(`/hr/questions?round=${round}${generate ? '&generate=true' : ''}`, 'GET'),
   evaluateHRAnswer: (payload) => apiCall('/hr/evaluate', 'POST', payload),
 
-  // Dashboard & Downloads
+  // Company Prep
+  getCompanies: () => apiCall('/company', 'GET'),
+  getCompanyById: (id) => apiCall(`/company/${id}`, 'GET'),
+  getCompanyPrepGuide: (companyName, refresh = false) => apiCall(`/company/prep/${encodeURIComponent(companyName)}${refresh ? '?refresh=true' : ''}`, 'GET'),
+
+  // Dashboard & Recommendations
   getDashboardStats: () => apiCall('/dashboard/stats', 'GET'),
+  getAIRecommendations: (refresh = false) => apiCall(`/dashboard/recommendations${refresh ? '?refresh=true' : ''}`, 'GET'),
   recordDownload: (payload) => apiCall('/downloads/record', 'POST', payload),
   getDownloadHistory: () => apiCall('/downloads/history', 'GET')
 };

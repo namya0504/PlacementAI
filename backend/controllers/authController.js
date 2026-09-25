@@ -23,16 +23,18 @@ export const registerUser = async (req, res, next) => {
 
     const userId = 'usr_' + Date.now();
     const hashedPassword = await bcrypt.hash(password, 10);
+    const displayName = name || email.split('@')[0];
+    const avatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}`;
 
     // Sync with Firebase Auth Service if live Firebase is active
     try {
-      const { auth, isMockFirebase } = await import('../firebase/firebaseAdmin.js');
-      if (auth && !isMockFirebase) {
+      const { auth } = await import('../firebase/firebaseAdmin.js');
+      if (auth) {
         await auth.createUser({
           uid: userId,
           email,
           password,
-          displayName: name
+          displayName
         });
       }
     } catch (fbAuthErr) {
@@ -41,11 +43,11 @@ export const registerUser = async (req, res, next) => {
 
     const newUser = {
       userId,
-      name: name || email.split('@')[0],
+      name: displayName,
       email,
       password: hashedPassword,
       role,
-      photoURL: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+      photoURL: avatar,
       createdAt: new Date().toISOString()
     };
 
@@ -63,23 +65,23 @@ export const registerUser = async (req, res, next) => {
       github: '',
       bio: '',
       interests: [],
-      skills: ['JavaScript', 'React']
+      skills: []
     });
 
-    // Initial Readiness Score
+    // Real initial readiness (no fake mock scores)
     const initialStats = {
-      resumeScore: 85,
-      atsScore: 84,
-      aptitudeScore: 72,
-      technicalScore: 80,
-      hrScore: 82,
-      resumesCreated: 1,
+      resumeScore: 0,
+      atsScore: 0,
+      aptitudeScore: 0,
+      technicalScore: 0,
+      hrScore: 0,
+      resumesCreated: 0,
       testsCompleted: 0,
       certificatesEarned: 0,
       mockInterviews: 0,
-      streakDays: 1
+      streakDays: 1,
+      overallReadiness: 0
     };
-    initialStats.overallReadiness = calculatePlacementReadiness(initialStats);
 
     await FirestoreHelper.setDoc('placement_readiness', 'readiness_' + userId, {
       readinessId: 'readiness_' + userId,
@@ -140,8 +142,10 @@ export const loginUser = async (req, res, next) => {
         testsCompleted: 0,
         certificatesEarned: 0,
         mockInterviews: 0,
-        streakDays: 0
+        streakDays: 1
       };
+    } else {
+      readinessDoc.overallReadiness = calculatePlacementReadiness(readinessDoc);
     }
 
     const userResponse = {
@@ -163,21 +167,43 @@ export const loginUser = async (req, res, next) => {
 export const googleLogin = async (req, res, next) => {
   try {
     const { email, name, photoURL } = req.body;
-    const userEmail = email || 'google.user@example.com';
+    const userEmail = email || 'student@placementai.edu';
     const users = await FirestoreHelper.queryCollection('users', 'email', userEmail);
     let user = users[0];
+    const displayName = name || userEmail.split('@')[0];
+    const avatar = photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}`;
 
     if (!user) {
       const userId = 'usr_google_' + Date.now();
       user = {
         userId,
-        name: name || 'Google User',
+        name: displayName,
         email: userEmail,
-        photoURL: photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+        photoURL: avatar,
         role: 'Software Developer',
         createdAt: new Date().toISOString()
       };
       await FirestoreHelper.setDoc('users', userId, user);
+
+      // Create initial readiness
+      const initialStats = {
+        resumeScore: 0,
+        atsScore: 0,
+        aptitudeScore: 0,
+        technicalScore: 0,
+        hrScore: 0,
+        resumesCreated: 0,
+        testsCompleted: 0,
+        certificatesEarned: 0,
+        mockInterviews: 0,
+        streakDays: 1,
+        overallReadiness: 0
+      };
+      await FirestoreHelper.setDoc('placement_readiness', 'readiness_' + userId, {
+        readinessId: 'readiness_' + userId,
+        userId,
+        ...initialStats
+      });
     }
 
     const token = generateToken(user.userId, user.email, user.role);
@@ -195,8 +221,10 @@ export const googleLogin = async (req, res, next) => {
         testsCompleted: 0,
         certificatesEarned: 0,
         mockInterviews: 0,
-        streakDays: 0
+        streakDays: 1
       };
+    } else {
+      readinessDoc.overallReadiness = calculatePlacementReadiness(readinessDoc);
     }
 
     return sendSuccess(res, {
@@ -241,6 +269,9 @@ export const getCurrentUser = async (req, res, next) => {
     }
 
     let readinessDoc = await FirestoreHelper.getDoc('placement_readiness', 'readiness_' + userId);
+    if (readinessDoc) {
+      readinessDoc.overallReadiness = calculatePlacementReadiness(readinessDoc);
+    }
 
     return sendSuccess(res, {
       uid: user.userId,
