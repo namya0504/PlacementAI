@@ -9,6 +9,8 @@ export const protectRoute = async (req, res, next) => {
 
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.split(' ')[1];
+    } else if (req.cookies && req.cookies.token) {
+      token = req.cookies.token;
     }
 
     if (!token) {

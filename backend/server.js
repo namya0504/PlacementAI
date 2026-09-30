@@ -4,6 +4,9 @@ import { config } from './config/env.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { seedInitialData } from './firebase/seedData.js';
 
+import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
+
 // Route Imports
 import authRoutes from './routes/authRoutes.js';
 import profileRoutes from './routes/profileRoutes.js';
@@ -18,14 +21,30 @@ import companyRoutes from './routes/companyRoutes.js';
 
 const app = express();
 
-// Middlewares
+// Security & Middleware Configuration
 const allowedOrigins = process.env.NODE_ENV === 'production' 
-  ? [process.env.FRONTEND_URL || 'https://placementai.vercel.app'] 
-  : true;
+  ? [process.env.FRONTEND_URL].filter(Boolean) 
+  : ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000', 'http://127.0.0.1:3000'];
 
-app.use(cors({ origin: allowedOrigins, credentials: true }));
-app.use(express.json({ limit: '15mb' }));
-app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
+app.use(cors({ 
+  origin: (origin, callback) => {
+    // Allow server-to-server or non-browser tools (no origin header)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS policy violation: Origin ${origin} is not allowed`));
+  }, 
+  credentials: true 
+}));
+
+app.use(cookieParser());
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Health Check Endpoint
 app.get('/api/health', (req, res) => {

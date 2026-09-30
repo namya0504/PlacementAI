@@ -24,6 +24,7 @@ export const apiCall = async (endpoint, method = 'GET', body = null, isFormData 
   const config = {
     method,
     headers,
+    credentials: 'include',
     ...(body ? { body: isFormData ? body : JSON.stringify(body) } : {})
   };
 
@@ -47,6 +48,8 @@ export const API = {
   googleLogin: (socialData) => apiCall('/auth/google-login', 'POST', socialData),
   logout: () => apiCall('/auth/logout', 'POST'),
   getCurrentUser: () => apiCall('/auth/me', 'GET'),
+  resendVerification: (data = {}) => apiCall('/auth/resend-verification', 'POST', data),
+  verifyEmail: () => apiCall('/auth/verify-email', 'POST'),
 
   // Profile
   getProfile: () => apiCall('/profile', 'GET'),

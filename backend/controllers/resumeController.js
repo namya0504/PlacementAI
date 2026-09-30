@@ -220,16 +220,29 @@ export const generateAIContent = async (req, res, next) => {
 
 export const generatePDF = async (req, res, next) => {
   try {
-    const userId = req.user?.userId || 'usr_anon';
+    const userId = req.user?.userId;
+    if (!userId) {
+      return sendError(res, 'Authentication required to generate PDF', 401);
+    }
+
     const resumeData = req.body;
+    const resumeId = resumeData.resumeId || 'res_' + userId + '_' + Date.now();
+
+    // IDOR Defense: If an existing resumeId is supplied, verify ownership
+    if (resumeData.resumeId) {
+      const existing = await FirestoreHelper.getDoc('resumes', resumeData.resumeId);
+      if (existing && existing.userId && existing.userId !== userId) {
+        return sendError(res, 'Access denied: You do not have permission to modify this resume', 403);
+      }
+    }
+
     const pdfBuffer = await PDFService.generateResumePDF(resumeData);
     
     let pdfUrl = '';
-    const resumeId = resumeData.resumeId || 'res_' + userId + '_' + Date.now();
 
     if (storage) {
       const bucket = storage.bucket();
-      const fileName = `resumes/${resumeId}_${Date.now()}.pdf`;
+      const fileName = `resumes/${userId}/${resumeId}_${Date.now()}.pdf`;
       const file = bucket.file(fileName);
       
       await file.save(pdfBuffer, {
@@ -241,7 +254,7 @@ export const generatePDF = async (req, res, next) => {
       throw new Error('Firebase storage is not configured.');
     }
 
-    await FirestoreHelper.setDoc('resumes', resumeId, { pdfUrl }, true);
+    await FirestoreHelper.setDoc('resumes', resumeId, { pdfUrl, userId }, true);
 
     return sendSuccess(res, { pdfUrl, fileName: `${resumeData.personalInfo?.fullName || 'Resume'}.pdf` }, 'PDF generated successfully');
   } catch (err) {

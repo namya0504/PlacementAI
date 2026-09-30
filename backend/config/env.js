@@ -3,10 +3,19 @@ import path from 'path';
 dotenv.config();
 dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env') });
 
+const rawJwtSecret = process.env.JWT_SECRET;
+if (!rawJwtSecret || rawJwtSecret.length < 32) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('FATAL: JWT_SECRET environment variable is missing or insecure (< 32 characters). Server halted.');
+  } else {
+    console.warn('⚠️ WARNING: JWT_SECRET is missing or insecure (< 32 chars). Set a strong secret in production.');
+  }
+}
+
 export const config = {
   port: process.env.PORT || 5000,
   nodeEnv: process.env.NODE_ENV || 'development',
-  jwtSecret: process.env.JWT_SECRET || 'placement_ai_secret_key_2026',
+  jwtSecret: rawJwtSecret || 'dev_fallback_placement_ai_secret_key_minimum_32_chars',
   firebase: {
     projectId: process.env.FIREBASE_PROJECT_ID || 'placementai-app',
     clientEmail: process.env.FIREBASE_CLIENT_EMAIL || '',

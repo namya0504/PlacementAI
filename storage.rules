@@ -2,21 +2,69 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    match /profile-images/{imageId} {
-      allow read: if true;
-      allow write: if request.auth != null;
+    function isAuthenticated() {
+      return request.auth != null;
     }
 
+    // Profile avatar images
+    match /profile-images/{userId}/{imageId} {
+      allow read: if true;
+      allow write: if isAuthenticated() 
+        && request.auth.uid == userId
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+
+    // Legacy or flat avatar image fallback
+    match /profile-images/{imageId} {
+      allow read: if true;
+      allow write: if isAuthenticated() 
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+
+    // Resumes (Namespaced by userId)
+    match /resumes/{userId}/{resumePdfId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated() 
+        && request.auth.uid == userId
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
+    }
+
+    // Flat legacy resume path
     match /resumes/{resumePdfId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isAuthenticated() 
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
+    }
+
+    // Uploaded resumes for ATS scanning
+    match /uploaded-resumes/{userId}/{uploadPdfId} {
+      allow read, write: if isAuthenticated() 
+        && request.auth.uid == userId
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
     }
 
     match /uploaded-resumes/{uploadPdfId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isAuthenticated() 
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
+    }
+
+    // Readiness & Diagnostic Reports
+    match /reports/{userId}/{reportPdfId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated() 
+        && request.auth.uid == userId
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
     }
 
     match /reports/{reportPdfId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isAuthenticated() 
+        && request.resource.size < 10 * 1024 * 1024;
     }
   }
 }

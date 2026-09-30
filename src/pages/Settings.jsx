@@ -1,25 +1,47 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Lock, Bell, Shield, Moon, Globe, Save, Menu } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
+import { API } from '../services/api';
 
 export default function Settings() {
   const { currentUser, updateProfileData } = useAuth();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('account');
 
-  const [name, setName] = useState(currentUser?.name || 'Namya Shah');
-  const [email, setEmail] = useState(currentUser?.email || 'namya@example.com');
-  const [phone, setPhone] = useState('+91 98765 43210');
-  const [location, setLocation] = useState('Surat, Gujarat, India');
+  const [name, setName] = useState(currentUser?.name || '');
+  const [email, setEmail] = useState(currentUser?.email || '');
+  const [phone, setPhone] = useState(currentUser?.phone || '');
+  const [location, setLocation] = useState(currentUser?.location || '');
   const [language, setLanguage] = useState('English');
   const [savedMsg, setSavedMsg] = useState(false);
 
-  const handleSave = (e) => {
+  useEffect(() => {
+    API.getProfile()
+      .then(profile => {
+        if (profile) {
+          if (profile.name) setName(profile.name);
+          if (profile.email) setEmail(profile.email);
+          if (profile.phone) setPhone(profile.phone);
+          if (profile.location) setLocation(profile.location);
+        }
+      })
+      .catch(err => console.warn('Settings profile load error:', err.message));
+  }, [currentUser]);
+
+  const handleSave = async (e) => {
     e.preventDefault();
-    updateProfileData({ name, email });
-    setSavedMsg(true);
-    setTimeout(() => setSavedMsg(false), 3000);
+    try {
+      await API.updateProfile({ name, email, phone, location });
+      updateProfileData({ name, email, phone, location });
+      setSavedMsg(true);
+      setTimeout(() => setSavedMsg(false), 3000);
+    } catch (err) {
+      console.warn('Settings save notice:', err.message);
+      updateProfileData({ name, email, phone, location });
+      setSavedMsg(true);
+      setTimeout(() => setSavedMsg(false), 3000);
+    }
   };
 
   return (
@@ -88,6 +110,7 @@ export default function Settings() {
                       <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Full Name</label>
                       <input
                         type="text"
+                        placeholder="e.g. John Doe"
                         value={name}
                         onChange={e => setName(e.target.value)}
                         className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
@@ -97,6 +120,7 @@ export default function Settings() {
                       <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Email</label>
                       <input
                         type="email"
+                        placeholder="e.g. user@example.com"
                         value={email}
                         onChange={e => setEmail(e.target.value)}
                         className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
@@ -106,6 +130,7 @@ export default function Settings() {
                       <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Phone</label>
                       <input
                         type="text"
+                        placeholder="e.g. +91 98765 43210"
                         value={phone}
                         onChange={e => setPhone(e.target.value)}
                         className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
@@ -115,6 +140,7 @@ export default function Settings() {
                       <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Location</label>
                       <input
                         type="text"
+                        placeholder="e.g. Bangalore, India"
                         value={location}
                         onChange={e => setLocation(e.target.value)}
                         className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"

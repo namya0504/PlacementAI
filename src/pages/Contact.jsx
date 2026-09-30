@@ -57,11 +57,11 @@ export default function Contact() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Your Name</label>
-                  <input required type="text" className="w-full p-3 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-600" placeholder="Namya Shah" />
+                  <input required type="text" className="w-full p-3 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-600" placeholder="e.g. John Doe" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Email Address</label>
-                  <input required type="email" className="w-full p-3 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-600" placeholder="namya@example.com" />
+                  <input required type="email" className="w-full p-3 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-600" placeholder="e.g. user@example.com" />
                 </div>
               </div>
 

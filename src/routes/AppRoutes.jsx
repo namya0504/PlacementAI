@@ -16,27 +16,33 @@ import Profile from '../pages/Profile';
 import Settings from '../pages/Settings';
 import About from '../pages/About';
 import Contact from '../pages/Contact';
+import ProtectedRoute from '../components/ProtectedRoute';
 
 export default function AppRoutes() {
   return (
     <Routes>
+      {/* Public Pages */}
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
-      <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/resume-builder" element={<ResumeBuilder />} />
-      <Route path="/templates" element={<Templates />} />
-      <Route path="/ats-checker" element={<ATSChecker />} />
-      <Route path="/placement-prep" element={<Aptitude />} />
-      <Route path="/placement-prep/aptitude" element={<Aptitude />} />
-      <Route path="/placement-prep/technical" element={<Technical />} />
-      <Route path="/placement-prep/hr-interview" element={<HRInterview />} />
-      <Route path="/placement-prep/company" element={<CompanyPrep />} />
-      <Route path="/my-progress" element={<MyProgress />} />
-      <Route path="/profile" element={<Profile />} />
-      <Route path="/settings" element={<Settings />} />
       <Route path="/about" element={<About />} />
       <Route path="/contact" element={<Contact />} />
+
+      {/* Authenticated Pages */}
+      <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/resume-builder" element={<ProtectedRoute><ResumeBuilder /></ProtectedRoute>} />
+      <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
+      <Route path="/ats-checker" element={<ProtectedRoute><ATSChecker /></ProtectedRoute>} />
+      <Route path="/placement-prep" element={<ProtectedRoute><Aptitude /></ProtectedRoute>} />
+      <Route path="/placement-prep/aptitude" element={<ProtectedRoute><Aptitude /></ProtectedRoute>} />
+      <Route path="/placement-prep/technical" element={<ProtectedRoute><Technical /></ProtectedRoute>} />
+      <Route path="/placement-prep/hr-interview" element={<ProtectedRoute><HRInterview /></ProtectedRoute>} />
+      <Route path="/placement-prep/company" element={<ProtectedRoute><CompanyPrep /></ProtectedRoute>} />
+      <Route path="/my-progress" element={<ProtectedRoute><MyProgress /></ProtectedRoute>} />
+      <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+
+      {/* Catch-all */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

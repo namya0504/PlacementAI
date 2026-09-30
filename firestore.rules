@@ -11,64 +11,83 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Users Collection
+    function isDocOwner() {
+      return isAuthenticated() && (
+        (resource == null && request.resource.data.userId == request.auth.uid) ||
+        (resource != null && resource.data.userId == request.auth.uid)
+      );
+    }
+
+    // Users Collection - User can read authenticated profiles, but only edit their own
     match /users/{userId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
     }
 
-    // Profiles Collection
+    // Profiles Collection - Strict owner enforcement
     match /profiles/{profileId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
 
-    // Resumes Collection
+    // Resumes Collection - Owner only read and write
     match /resumes/{resumeId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
 
     // Skills, Projects, Certificates
     match /skills/{skillId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow write: if isDocOwner();
     }
     match /projects/{projectId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow write: if isDocOwner();
     }
     match /certificates/{certificateId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow write: if isDocOwner();
     }
 
     // Mock Tests & Aptitude
     match /mock_tests/{testId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if isDocOwner();
     }
     match /aptitude_questions/{qId} {
-      allow read: if true;
-      allow write: if isAuthenticated();
+      allow read: if isAuthenticated();
+      // Questions are managed via backend Admin SDK / seeding only
+      allow write: if false;
     }
 
     // Technical Practice
     match /technical_practice/{submissionId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if isDocOwner();
     }
     match /technical_questions/{qId} {
-      allow read: if true;
-      allow write: if isAuthenticated();
+      allow read: if isAuthenticated();
+      // Questions are managed via backend Admin SDK / seeding only
+      allow write: if false;
     }
 
     // HR Interviews
     match /hr_interviews/{interviewId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if isDocOwner();
     }
 
-    // Placement Readiness & Download History
+    // Placement Readiness - User can only read their own score, writes strictly by backend
     match /placement_readiness/{readinessId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow write: if false;
     }
+
     match /download_history/{downloadId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if isDocOwner();
     }
     match /reports/{reportId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if isDocOwner();
     }
   }
 }

@@ -1,44 +1,81 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, Sparkles, ArrowRight, AlertCircle } from 'lucide-react';
+import { Mail, Lock, Sparkles, ArrowRight, AlertCircle, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import { FaGoogle, FaMicrosoft } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
+import { API } from '../services/api';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [infoMessage, setInfoMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
   const { login, loginWithSocial } = useAuth();
   const navigate = useNavigate();
 
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+    setInfoMessage('');
+
     if (!email || !password) {
-      setError('Please fill in all fields');
+      setError('Please fill in both email and password');
       return;
     }
+
+    if (!isEmailValid) {
+      setError('Please provide a valid email format');
+      return;
+    }
+
     try {
-      setError('');
       setLoading(true);
-      await login(email, password);
+      await login(email.trim(), password);
       navigate('/dashboard');
     } catch (err) {
-      setError('Failed to log in. Please check credentials.');
+      setError(err.message || 'Failed to log in. Please check your credentials.');
     } finally {
       setLoading(false);
     }
   };
 
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setError('');
+    setInfoMessage('');
+
+    if (!email.trim() || !isEmailValid) {
+      setError('Please enter your email address first to receive password reset instructions.');
+      return;
+    }
+
+    try {
+      setForgotLoading(true);
+      const res = await API.apiCall('/auth/forgot-password', 'POST', { email: email.trim() });
+      setInfoMessage(res.message || 'Password reset instructions have been dispatched.');
+    } catch (err) {
+      setError(err.message || 'Unable to request password reset.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
   const handleSocialLogin = async (provider) => {
     try {
+      setError('');
+      setInfoMessage('');
       setLoading(true);
       await loginWithSocial(provider);
       navigate('/dashboard');
     } catch (err) {
-      setError('Social authentication failed');
+      setError(err.message || 'Social authentication failed');
     } finally {
       setLoading(false);
     }
@@ -62,15 +99,29 @@ export default function Login() {
           </div>
 
           {error && (
-            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
+            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2 animate-in fade-in">
+              <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
               <span>{error}</span>
+            </div>
+          )}
+
+          {infoMessage && (
+            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+              <span>{infoMessage}</span>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Email Address</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Email Address</label>
+                {email && (
+                  <span className={`text-[11px] font-medium ${isEmailValid ? 'text-emerald-600' : 'text-red-500'}`}>
+                    {isEmailValid ? '✓ Valid' : 'Invalid email'}
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                 <input
@@ -78,7 +129,7 @@ export default function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
-                  placeholder="abc@example.com"
+                  placeholder="e.g. candidate@domain.com"
                   required
                 />
               </div>
@@ -87,25 +138,40 @@ export default function Login() {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Password</label>
-                <a href="#" className="text-xs text-blue-600 hover:underline">Forgot Password?</a>
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  disabled={forgotLoading}
+                  className="text-xs text-blue-600 hover:underline font-medium disabled:opacity-50"
+                >
+                  {forgotLoading ? 'Sending...' : 'Forgot Password?'}
+                </button>
               </div>
               <div className="relative">
                 <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
-                  placeholder="Enter Password"
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
+                  placeholder="Enter your password"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 focus:outline-none"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-sm shadow-md shadow-blue-500/25 hover:shadow-lg transition flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-sm shadow-md shadow-blue-500/25 hover:shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {loading ? 'Logging in...' : <>Login <ArrowRight className="w-4 h-4" /></>}
             </button>

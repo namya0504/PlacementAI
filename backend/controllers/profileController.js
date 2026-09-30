@@ -64,11 +64,10 @@ export const updateProfile = async (req, res, next) => {
       skills
     } = req.body;
 
-    // Update user info
+    // Update user info - Prevent role mass assignment / privilege escalation
     const userUpdates = {};
-    if (name) userUpdates.name = name;
-    if (role) userUpdates.role = role;
-    if (photoURL) userUpdates.photoURL = photoURL;
+    if (typeof name === 'string') userUpdates.name = name.trim().slice(0, 80);
+    if (typeof photoURL === 'string') userUpdates.photoURL = photoURL.trim().slice(0, 500);
 
     if (Object.keys(userUpdates).length > 0) {
       await FirestoreHelper.setDoc('users', userId, userUpdates, true);
@@ -78,14 +77,14 @@ export const updateProfile = async (req, res, next) => {
     const profileUpdates = {
       profileId,
       userId,
-      ...(college !== undefined && { college }),
-      ...(branch !== undefined && { branch }),
-      ...(passingYear !== undefined && { passingYear }),
-      ...(linkedIn !== undefined && { linkedIn }),
-      ...(github !== undefined && { github }),
-      ...(bio !== undefined && { bio }),
-      ...(interests !== undefined && { interests }),
-      ...(skills !== undefined && { skills })
+      ...(college !== undefined && { college: String(college).slice(0, 100) }),
+      ...(branch !== undefined && { branch: String(branch).slice(0, 100) }),
+      ...(passingYear !== undefined && { passingYear: String(passingYear).slice(0, 10) }),
+      ...(linkedIn !== undefined && { linkedIn: String(linkedIn).slice(0, 200) }),
+      ...(github !== undefined && { github: String(github).slice(0, 200) }),
+      ...(bio !== undefined && { bio: String(bio).slice(0, 1000) }),
+      ...(Array.isArray(interests) && { interests: interests.slice(0, 30) }),
+      ...(Array.isArray(skills) && { skills: skills.slice(0, 50) })
     };
 
     const updatedProfile = await FirestoreHelper.setDoc('profiles', profileId, profileUpdates, true);
@@ -96,7 +95,7 @@ export const updateProfile = async (req, res, next) => {
       uid: userId,
       name: userDoc?.name || name,
       email: userDoc?.email,
-      role: userDoc?.role || role,
+      role: userDoc?.role || 'Software Developer',
       photoURL: userDoc?.photoURL || photoURL,
       ...updatedProfile
     }, 'Profile updated successfully');
@@ -112,12 +111,18 @@ export const uploadAvatar = async (req, res, next) => {
       return sendError(res, 'No image file uploaded', 400);
     }
 
+    // Validate image mime type
+    const validImageMimes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!validImageMimes.includes(req.file.mimetype)) {
+      return sendError(res, 'Invalid image format. Only JPEG, PNG, and WebP are allowed.', 400);
+    }
+
     let photoURL = '';
 
     if (storage) {
       const bucket = storage.bucket();
-      const fileExt = req.file.mimetype.split('/')[1] || 'jpeg';
-      const fileName = `profile-images/${userId}_${Date.now()}.${fileExt}`;
+      const fileExt = req.file.mimetype === 'image/png' ? 'png' : req.file.mimetype === 'image/webp' ? 'webp' : 'jpeg';
+      const fileName = `profile-images/${userId}/${Date.now()}.${fileExt}`;
       const file = bucket.file(fileName);
       
       await file.save(req.file.buffer, {

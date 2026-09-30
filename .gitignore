@@ -25,11 +25,46 @@ dist-ssr
 
 # Environment & Secret Files
 .env
+.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 *.env
+*.env.*
 backend/.env
+backend/.env.*
+!.env.example
+!backend/.env.example
+
+# Service Account Keys & Cloud Credentials
+*firebase-adminsdk*.json
+*serviceAccount*.json
+*service-account*.json
+*credentials*.json
+google-services.json
+GoogleService-Info.plist
+
+# Private Keys, Certificates, & Secrets
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+*.secret
+*.secrets
+
+# Local Databases
+*.sqlite
+*.sqlite3
+*.db
+
+# All other JSON files ignored by default except specified config files
 *.json
 !package.json
 !package-lock.json
 !.oxlintrc.json
 !firebase.json
+
 

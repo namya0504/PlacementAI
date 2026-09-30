@@ -1,43 +1,70 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Mail, Lock, Sparkles, ArrowRight, AlertCircle, CheckSquare, Square } from 'lucide-react';
+import { User, Mail, Lock, Sparkles, ArrowRight, AlertCircle, CheckSquare, Square, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import { FaGoogle, FaMicrosoft } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import PasswordValidator, { validatePasswordCriteria } from '../components/PasswordValidator';
 
 export default function Signup() {
-  const [name, setName] = useState('Namya Shah');
-  const [email, setEmail] = useState('namya@example.com');
-  const [password, setPassword] = useState('password123');
-  const [confirmPassword, setConfirmPassword] = useState('password123');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreed, setAgreed] = useState(true);
   const [error, setError] = useState('');
+  const [successNotice, setSuccessNotice] = useState('');
   const [loading, setLoading] = useState(false);
   const { signup, loginWithSocial } = useAuth();
   const navigate = useNavigate();
 
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const { isValid: isPasswordValid } = validatePasswordCriteria(password);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name || !email || !password || !confirmPassword) {
-      setError('Please fill in all fields');
+    setError('');
+    setSuccessNotice('');
+
+    if (!name.trim()) {
+      setError('Please provide your full name');
       return;
     }
+
+    if (!email.trim() || !isEmailValid) {
+      setError('Please provide a valid email address (e.g., student@university.edu)');
+      return;
+    }
+
+    if (!isPasswordValid) {
+      setError('Please ensure your password satisfies all 5 security criteria below');
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError('Passwords do not match');
       return;
     }
+
     if (!agreed) {
       setError('Please agree to Terms & Conditions');
       return;
     }
+
     try {
-      setError('');
       setLoading(true);
-      await signup(name, email, password);
-      navigate('/dashboard');
+      const user = await signup(name.trim(), email.trim(), password);
+      
+      // If server returned a verification link or created user
+      setSuccessNotice('Account created successfully! We sent a verification email.');
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 1500);
     } catch (err) {
-      setError('Failed to create account');
+      setError(err.message || 'Failed to create account. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -45,11 +72,12 @@ export default function Signup() {
 
   const handleSocialLogin = async (provider) => {
     try {
+      setError('');
       setLoading(true);
       await loginWithSocial(provider);
       navigate('/dashboard');
     } catch (err) {
-      setError('Social authentication failed');
+      setError(err.message || 'Social authentication failed');
     } finally {
       setLoading(false);
     }
@@ -73,13 +101,21 @@ export default function Signup() {
           </div>
 
           {error && (
-            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
+            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2 animate-in fade-in">
+              <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
               <span>{error}</span>
             </div>
           )}
 
+          {successNotice && (
+            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+              <span>{successNotice}</span>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Full Name */}
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Full Name</label>
               <div className="relative">
@@ -89,56 +125,87 @@ export default function Signup() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-sm"
-                  placeholder="Namya Shah"
+                  placeholder="e.g. Raj Sharma"
                   required
                 />
               </div>
             </div>
 
+            {/* Email Address */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Email Address</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Email Address</label>
+                {email && (
+                  <span className={`text-[11px] font-medium ${isEmailValid ? 'text-emerald-600' : 'text-red-500'}`}>
+                    {isEmailValid ? '✓ Valid format' : 'Invalid email'}
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-sm"
-                  placeholder="namya@example.com"
+                  className={`w-full pl-10 pr-4 py-2.5 rounded-xl border ${
+                    email && !isEmailValid ? 'border-red-300 bg-red-50/20' : 'border-slate-200'
+                  } focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-sm`}
+                  placeholder="e.g. raj@example.com"
                   required
                 />
               </div>
             </div>
 
+            {/* Password */}
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Password</label>
               <div className="relative">
                 <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-sm"
-                  placeholder="••••••••"
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-sm"
+                  placeholder="Create a strong password"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 focus:outline-none"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 
+            {/* Confirm Password */}
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Confirm Password</label>
               <div className="relative">
                 <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                 <input
-                  type="password"
+                  type={showConfirmPassword ? 'text' : 'password'}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-sm"
-                  placeholder="••••••••"
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-sm"
+                  placeholder="Re-enter password"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 focus:outline-none"
+                  tabIndex={-1}
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
+
+            {/* Live Password Validator Widget */}
+            <PasswordValidator password={password} confirmPassword={confirmPassword} showAlways={password.length > 0} />
 
             <div className="flex items-center gap-2 pt-1">
               <button
@@ -154,7 +221,7 @@ export default function Signup() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-sm shadow-md shadow-purple-500/25 hover:shadow-lg transition flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-sm shadow-md shadow-purple-500/25 hover:shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {loading ? 'Creating Account...' : <>Create Account <ArrowRight className="w-4 h-4" /></>}
             </button>
