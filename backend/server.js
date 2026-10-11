@@ -48,8 +48,8 @@ app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-// Health Check Endpoint
-app.get('/api/health', (req, res) => {
+// Health Check Endpoints
+app.get(['/health', '/api/health'], (req, res) => {
   res.status(200).json({
     status: 'OK',
     service: 'PlacementAI Backend API',
@@ -57,20 +57,27 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// API Routes Mounting
-app.use('/api/auth', authRoutes);
-app.use('/api/profile', profileRoutes);
-app.use('/api/resume', resumeRoutes);
-app.use('/api/ats', atsRoutes);
-app.use('/api/aptitude', aptitudeRoutes);
-app.use('/api/mock-tests', aptitudeRoutes);
-app.use('/api/technical', technicalRoutes);
-app.use('/api/hr', hrRoutes);
-app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/downloads', downloadRoutes);
-app.use('/api/company', companyRoutes);
-app.use('/api/storage', storageRoutes);
-app.use('/api/onboarding', onboardingRoutes);
+// API Routes Mounting (with and without /api prefix for cloud hosting tolerance)
+const routes = [
+  ['auth', authRoutes],
+  ['profile', profileRoutes],
+  ['resume', resumeRoutes],
+  ['ats', atsRoutes],
+  ['aptitude', aptitudeRoutes],
+  ['mock-tests', aptitudeRoutes],
+  ['technical', technicalRoutes],
+  ['hr', hrRoutes],
+  ['dashboard', dashboardRoutes],
+  ['downloads', downloadRoutes],
+  ['company', companyRoutes],
+  ['storage', storageRoutes],
+  ['onboarding', onboardingRoutes]
+];
+
+routes.forEach(([path, router]) => {
+  app.use(`/api/${path}`, router);
+  app.use(`/${path}`, router);
+});
 
 // Centralized Error Handling Middleware
 app.use(errorHandler);

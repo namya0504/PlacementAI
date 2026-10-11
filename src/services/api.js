@@ -1,5 +1,8 @@
 // PlacementAI Central API Client Layer
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+const rawApiBase = (import.meta.env.VITE_API_BASE_URL || '/api').trim().replace(/\/+$/, '');
+const API_BASE_URL = rawApiBase.endsWith('/api')
+  ? rawApiBase
+  : (rawApiBase ? `${rawApiBase}/api` : '/api');
 
 const getAuthHeaders = () => {
   const savedUser = localStorage.getItem('placement_ai_user');
