@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { config } from '../config/env.js';
 import { FirestoreHelper } from '../firebase/firestoreHelper.js';
+import { getFileUrl } from '../services/storageService.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import { calculatePlacementReadiness } from '../utils/scoring.js';
 
@@ -84,6 +85,12 @@ export const registerUser = async (req, res, next) => {
       role,
       photoURL: avatar,
       emailVerified: false,
+      onboarding: {
+        status: 'not_started',
+        currentStep: 1,
+        completedAt: null,
+        skippedAt: null
+      },
       createdAt: new Date().toISOString()
     };
 
@@ -135,6 +142,8 @@ export const registerUser = async (req, res, next) => {
       photoURL: newUser.photoURL,
       role: newUser.role,
       emailVerified: false,
+      onboarding: newUser.onboarding,
+      isNewUser: true,
       verificationLink: process.env.NODE_ENV !== 'production' ? verificationLink : undefined,
       token,
       stats: initialStats
@@ -196,6 +205,8 @@ export const loginUser = async (req, res, next) => {
       photoURL: user.photoURL,
       role: user.role,
       emailVerified: user.emailVerified ?? false,
+      onboarding: user.onboarding || null,
+      isNewUser: false,
       token,
       stats: readinessDoc
     };
@@ -246,7 +257,7 @@ export const googleLogin = async (req, res, next) => {
     avatar = avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}`;
 
     const users = await FirestoreHelper.queryCollection('users', 'email', userEmail);
-    let user = users[0];
+    const isNewUser = !user;
 
     if (!user) {
       const userId = 'usr_google_' + (googleUid || Date.now());
@@ -257,6 +268,12 @@ export const googleLogin = async (req, res, next) => {
         photoURL: avatar,
         role: 'Software Developer',
         emailVerified: true,
+        onboarding: {
+          status: 'not_started',
+          currentStep: 1,
+          completedAt: null,
+          skippedAt: null
+        },
         createdAt: new Date().toISOString()
       };
       await FirestoreHelper.setDoc('users', userId, user);
@@ -326,6 +343,8 @@ export const googleLogin = async (req, res, next) => {
       photoURL: user.photoURL,
       role: user.role,
       emailVerified: user.emailVerified ?? true,
+      onboarding: user.onboarding || null,
+      isNewUser,
       token,
       stats: readinessDoc
     }, 'Google Login successful');
@@ -385,13 +404,23 @@ export const getCurrentUser = async (req, res, next) => {
       readinessDoc.overallReadiness = calculatePlacementReadiness(readinessDoc);
     }
 
+    let photoURL = user.photoURL || '';
+    if (user.storageProvider === 'supabase' && user.storagePath) {
+      try {
+        photoURL = await getFileUrl(user, 'photoURL');
+      } catch (err) {
+        // Keep fallback photoURL
+      }
+    }
+
     return sendSuccess(res, {
       uid: user.userId,
       name: user.name,
       email: user.email,
-      photoURL: user.photoURL,
+      photoURL,
       role: user.role,
       emailVerified: user.emailVerified ?? false,
+      onboarding: user.onboarding || null,
       stats: readinessDoc || {
         resumeScore: 0,
         atsScore: 0,

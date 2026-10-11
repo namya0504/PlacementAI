@@ -37,8 +37,12 @@ export default function Login() {
 
     try {
       setLoading(true);
-      await login(email.trim(), password);
-      navigate('/dashboard');
+      const user = await login(email.trim(), password);
+      if (user?.onboarding?.status === 'in_progress' || user?.onboarding?.status === 'not_started') {
+        navigate('/onboarding');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError(err.message || 'Failed to log in. Please check your credentials.');
     } finally {
@@ -72,8 +76,12 @@ export default function Login() {
       setError('');
       setInfoMessage('');
       setLoading(true);
-      await loginWithSocial(provider);
-      navigate('/dashboard');
+      const user = await loginWithSocial(provider);
+      if (user?.isNewUser || user?.onboarding?.status === 'in_progress' || user?.onboarding?.status === 'not_started') {
+        navigate('/onboarding');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError(err.message || 'Social authentication failed');
     } finally {

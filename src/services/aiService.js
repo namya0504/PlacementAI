@@ -1,7 +1,13 @@
 import { API } from './api';
 
-export const generateProfessionalSummary = async (role, skills = [], experienceYears = 0) => {
-  const res = await API.generateAIContent({ type: 'summary', role, skills, experienceYears });
+export const generateProfessionalSummary = async (paramsOrRole, skills = [], experienceYears = 0) => {
+  let payload;
+  if (typeof paramsOrRole === 'object' && paramsOrRole !== null) {
+    payload = { type: 'summary', ...paramsOrRole };
+  } else {
+    payload = { type: 'summary', role: paramsOrRole, skills, experienceYears };
+  }
+  const res = await API.generateAIContent(payload);
   if (res?.summary) return res.summary;
   throw new Error('AI was unable to generate summary. Please try again.');
 };

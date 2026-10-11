@@ -7,8 +7,17 @@ export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(() => {
-    const savedUser = localStorage.getItem('placement_ai_user');
-    return savedUser ? JSON.parse(savedUser) : null;
+    try {
+      const savedUser = localStorage.getItem('placement_ai_user');
+      if (!savedUser) return null;
+      const parsed = JSON.parse(savedUser);
+      if (parsed?.photoURL && (parsed.photoURL.includes('base.') || !parsed.photoURL.startsWith('http'))) {
+        parsed.photoURL = '';
+      }
+      return parsed;
+    } catch {
+      return null;
+    }
   });
 
   const [loading, setLoading] = useState(false);
@@ -26,8 +35,15 @@ export const AuthProvider = ({ children }) => {
             });
           }
         })
-        .catch(err => console.warn('User session sync notice:', err.message));
+        .catch(err => {
+          console.warn('User session sync notice:', err.message);
+          if (err.message && (err.message.includes('401') || err.message.toLowerCase().includes('token') || err.message.toLowerCase().includes('unauthorized'))) {
+            setCurrentUser(null);
+            localStorage.removeItem('placement_ai_user');
+          }
+        });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const login = async (email, password) => {
@@ -89,6 +105,18 @@ export const AuthProvider = ({ children }) => {
     });
   };
 
+  const updateOnboardingState = (onboardingData) => {
+    setCurrentUser(prev => {
+      if (!prev) return prev;
+      const updated = {
+        ...prev,
+        onboarding: { ...(prev.onboarding || {}), ...onboardingData }
+      };
+      localStorage.setItem('placement_ai_user', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   const value = {
     currentUser,
     loading,
@@ -96,7 +124,8 @@ export const AuthProvider = ({ children }) => {
     signup,
     loginWithSocial,
     logout,
-    updateProfileData
+    updateProfileData,
+    updateOnboardingState
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

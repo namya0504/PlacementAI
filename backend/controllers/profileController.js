@@ -1,5 +1,13 @@
 import { FirestoreHelper } from '../firebase/firestoreHelper.js';
-import { storage } from '../firebase/firebaseAdmin.js';
+import {
+  uploadFile,
+  validateFile,
+  generateStoragePath,
+  getSignedDownloadUrl,
+  deleteFile,
+  parseStoragePath,
+  isOwnedByUser
+} from '../services/storageService.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 
 export const getProfile = async (req, res, next) => {
@@ -30,12 +38,26 @@ export const getProfile = async (req, res, next) => {
       await FirestoreHelper.setDoc('profiles', profileId, profileDoc);
     }
 
+    // Resolve avatar URL (signed Supabase URL for new records, legacy URL for old)
+    let photoURL = userDoc.photoURL || '';
+    if (userDoc.storageProvider === 'supabase' && userDoc.storagePath) {
+      try {
+        const { bucket, filePath } = parseStoragePath(userDoc.storagePath);
+        photoURL = await getSignedDownloadUrl(bucket, filePath, 3600); // 1 hour for profile display
+      } catch (err) {
+        console.warn('[Profile] Signed URL fallback:', err.message);
+        // Keep the existing photoURL as fallback
+      }
+    }
+
     const combined = {
       uid: userId,
       name: userDoc.name || '',
       email: userDoc.email || '',
       role: userDoc.role || 'Software Developer',
-      photoURL: userDoc.photoURL || '',
+      photoURL,
+      storageProvider: userDoc.storageProvider || null,
+      storagePath: userDoc.storagePath || null,
       ...profileDoc
     };
 
@@ -91,12 +113,23 @@ export const updateProfile = async (req, res, next) => {
 
     const userDoc = await FirestoreHelper.getDoc('users', userId);
 
+    // Resolve avatar URL for response
+    let resolvedPhotoURL = userDoc?.photoURL || photoURL;
+    if (userDoc?.storageProvider === 'supabase' && userDoc?.storagePath) {
+      try {
+        const { bucket, filePath } = parseStoragePath(userDoc.storagePath);
+        resolvedPhotoURL = await getSignedDownloadUrl(bucket, filePath, 3600);
+      } catch (err) {
+        // Keep existing photoURL
+      }
+    }
+
     return sendSuccess(res, {
       uid: userId,
       name: userDoc?.name || name,
       email: userDoc?.email,
       role: userDoc?.role || 'Software Developer',
-      photoURL: userDoc?.photoURL || photoURL,
+      photoURL: resolvedPhotoURL,
       ...updatedProfile
     }, 'Profile updated successfully');
   } catch (err) {
@@ -111,33 +144,49 @@ export const uploadAvatar = async (req, res, next) => {
       return sendError(res, 'No image file uploaded', 400);
     }
 
-    // Validate image mime type
-    const validImageMimes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!validImageMimes.includes(req.file.mimetype)) {
-      return sendError(res, 'Invalid image format. Only JPEG, PNG, and WebP are allowed.', 400);
+    // Server-side validation
+    const validation = validateFile('profile-images', req.file.mimetype, req.file.size);
+    if (!validation.valid) {
+      return sendError(res, validation.error, 400);
     }
 
-    let photoURL = '';
+    // Generate safe storage path
+    const storagePath = generateStoragePath('profile-images', userId, req.file.mimetype);
 
-    if (storage) {
-      const bucket = storage.bucket();
-      const fileExt = req.file.mimetype === 'image/png' ? 'png' : req.file.mimetype === 'image/webp' ? 'webp' : 'jpeg';
-      const fileName = `profile-images/${userId}/${Date.now()}.${fileExt}`;
-      const file = bucket.file(fileName);
-      
-      await file.save(req.file.buffer, {
-        metadata: { contentType: req.file.mimetype }
-      });
-      await file.makePublic();
-      photoURL = file.publicUrl();
-    } else {
-      throw new Error('Firebase storage is not configured.');
+    // Delete previous Supabase avatar if one exists
+    const currentUser = await FirestoreHelper.getDoc('users', userId);
+    if (currentUser?.storageProvider === 'supabase' && currentUser?.storagePath) {
+      try {
+        const { bucket: oldBucket, filePath: oldPath } = parseStoragePath(currentUser.storagePath);
+        if (isOwnedByUser(oldPath, userId)) {
+          await deleteFile(oldBucket, oldPath);
+        }
+      } catch (delErr) {
+        console.warn('[Profile] Old avatar cleanup notice:', delErr.message);
+        // Non-blocking — continue with upload
+      }
     }
 
-    await FirestoreHelper.setDoc('users', userId, { photoURL }, true);
+    // Upload to Supabase Storage
+    const result = await uploadFile('profile-images', storagePath, req.file.buffer, req.file.mimetype);
 
-    return sendSuccess(res, { photoURL }, 'Profile picture uploaded successfully');
+    // Get a signed URL to return to the frontend
+    const signedUrl = await getSignedDownloadUrl('profile-images', storagePath, 3600);
+
+    // Update Firestore with both legacy and new fields
+    await FirestoreHelper.setDoc('users', userId, {
+      photoURL: signedUrl,
+      storageProvider: 'supabase',
+      storagePath: result.storagePath,
+      avatarFileName: storagePath.split('/').pop(),
+      avatarFileType: req.file.mimetype,
+      avatarFileSize: req.file.size,
+      avatarUploadedAt: new Date().toISOString()
+    }, true);
+
+    return sendSuccess(res, { photoURL: signedUrl }, 'Profile picture uploaded successfully');
   } catch (err) {
     next(err);
   }
 };
+

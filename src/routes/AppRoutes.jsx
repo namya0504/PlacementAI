@@ -16,6 +16,7 @@ import Profile from '../pages/Profile';
 import Settings from '../pages/Settings';
 import About from '../pages/About';
 import Contact from '../pages/Contact';
+import Onboarding from '../pages/Onboarding';
 import ProtectedRoute from '../components/ProtectedRoute';
 
 export default function AppRoutes() {
@@ -29,6 +30,7 @@ export default function AppRoutes() {
       <Route path="/contact" element={<Contact />} />
 
       {/* Authenticated Pages */}
+      <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/resume-builder" element={<ProtectedRoute><ResumeBuilder /></ProtectedRoute>} />
       <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />

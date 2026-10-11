@@ -30,11 +30,31 @@ export const apiCall = async (endpoint, method = 'GET', body = null, isFormData 
 
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result.message || 'API request failed');
+    const contentType = response.headers.get('content-type') || '';
+    let result = null;
+
+    if (contentType.includes('application/json')) {
+      try {
+        result = await response.json();
+      } catch {
+        result = null;
+      }
+    } else {
+      const text = await response.text();
+      try {
+        result = JSON.parse(text);
+      } catch {
+        result = { message: text || '' };
+      }
     }
-    return result.data || result;
+
+    if (!response.ok) {
+      const defaultMessage = response.status === 502
+        ? 'Backend server is not running or unreachable (502 Bad Gateway). Please make sure the backend is started.'
+        : `Request failed with status ${response.status}`;
+      throw new Error(result?.message || defaultMessage);
+    }
+    return result?.data ?? result;
   } catch (err) {
     console.warn(`API Call Error (${endpoint}):`, err.message);
     throw err;
@@ -61,6 +81,7 @@ export const API = {
   getResumeById: (id) => apiCall(`/resume/${id}`, 'GET'),
   saveResume: (resumeData) => apiCall('/resume', 'POST', resumeData),
   updateResume: (id, data) => apiCall(`/resume/${id}`, 'PUT', data),
+  setPrimaryResume: (id) => apiCall(`/resume/${id}/primary`, 'PUT'),
   deleteResume: (id) => apiCall(`/resume/${id}`, 'DELETE'),
   generateAIContent: (payload) => apiCall('/resume/generate-ai', 'POST', payload),
   generatePDF: (resumeData) => apiCall('/resume/generate-pdf', 'POST', resumeData),
@@ -71,7 +92,11 @@ export const API = {
 
   // Mock Tests & Aptitude
   getAptitudeQuestions: (params = '') => apiCall(`/mock-tests/questions${params}`, 'GET'),
-  submitAptitudeTest: (results) => apiCall('/mock-tests/submit', 'POST', results),
+  submitAptitudeTest: (results) => apiCall('/aptitude/submit', 'POST', results),
+  startAptitudeTest: (payload) => apiCall('/aptitude/start', 'POST', payload),
+  getActiveAptitudeTest: () => apiCall('/aptitude/active', 'GET'),
+  abandonAptitudeTest: (payload) => apiCall('/aptitude/abandon', 'POST', payload),
+  getAptitudeStats: () => apiCall('/aptitude/stats', 'GET'),
 
   // Technical Practice
   getTechnicalQuestions: (params = '') => apiCall(`/technical/questions${params}`, 'GET'),
@@ -91,5 +116,19 @@ export const API = {
   getDashboardStats: () => apiCall('/dashboard/stats', 'GET'),
   getAIRecommendations: (refresh = false) => apiCall(`/dashboard/recommendations${refresh ? '?refresh=true' : ''}`, 'GET'),
   recordDownload: (payload) => apiCall('/downloads/record', 'POST', payload),
-  getDownloadHistory: () => apiCall('/downloads/history', 'GET')
+  getDownloadHistory: () => apiCall('/downloads/history', 'GET'),
+
+  // Storage
+  getStorageDownloadUrl: (storagePath) => apiCall(`/storage/download-url?storagePath=${encodeURIComponent(storagePath)}`, 'GET'),
+  deleteStorageFile: (payload) => apiCall('/storage/file', 'DELETE', payload),
+
+  // Onboarding
+  uploadOnboardingResume: (formData) => apiCall('/onboarding/resume', 'POST', formData, true),
+  analyzeOnboarding: (payload) => apiCall('/onboarding/analyze', 'POST', payload),
+  confirmOnboarding: (payload) => apiCall('/onboarding/confirm', 'POST', payload),
+  saveOnboardingStep: (payload) => apiCall('/onboarding/step', 'POST', payload),
+  skipOnboarding: () => apiCall('/onboarding/skip', 'POST', {}),
+  getOnboardingState: () => apiCall('/onboarding/state', 'GET'),
+  toggleStudyPlanTask: (payload) => apiCall('/onboarding/study-plan/task', 'PUT', payload),
+  getStudyPlan: () => apiCall('/onboarding/plan', 'GET')
 };

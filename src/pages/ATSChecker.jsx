@@ -1,14 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { UploadCloud, CheckCircle2, AlertTriangle, Download, Sparkles, FileText, Menu, RefreshCw } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { API } from '../services/api';
 
 export default function ATSChecker() {
+  const [searchParams] = useSearchParams();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
   const [targetRole, setTargetRole] = useState('Software Developer');
   const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    const resumeId = searchParams.get('resumeId');
+    if (resumeId) {
+      handleAnalyzeSavedResume(resumeId);
+    }
+  }, [searchParams]);
 
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -39,6 +48,37 @@ export default function ATSChecker() {
     } catch (err) {
       console.error('ATS API Error:', err.message);
       setErrorMessage(err.message || 'Failed to analyze resume. Please ensure the file is readable.');
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const handleAnalyzeSavedResume = async (specificResumeId = null) => {
+    setIsScanning(true);
+    setErrorMessage('');
+    setScanResult(null);
+
+    try {
+      const payload = { targetRole };
+      if (specificResumeId) {
+        payload.resumeId = specificResumeId;
+      }
+      const result = await API.analyzeATS(payload);
+      if (result && typeof result.overallScore === 'number') {
+        setScanResult({
+          score: result.overallScore,
+          goodPoints: result.summary?.goodPoints || [],
+          needsImprovement: result.summary?.needsImprovement || [],
+          metrics: result.metrics || { keywordMatch: 0, contentQuality: 0, formatting: 0, readability: 0 },
+          missingKeywords: result.missingKeywords || [],
+          actionableSuggestions: result.actionableSuggestions || []
+        });
+      } else {
+        throw new Error('Invalid analysis response received from server.');
+      }
+    } catch (err) {
+      console.error('ATS API Error:', err.message);
+      setErrorMessage(err.message || 'Failed to analyze resume. Please make sure you have saved a resume in PlacementAI.');
     } finally {
       setIsScanning(false);
     }
@@ -78,9 +118,9 @@ export default function ATSChecker() {
               <UploadCloud className="w-8 h-8" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-900 font-outfit">Upload Resume for Analysis</h3>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-                Upload your PDF or text resume to test ATS keyword match, content quality, and structure.
+              <h3 className="text-lg font-bold text-slate-900 font-outfit">Upload or Select Resume for Analysis</h3>
+              <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
+                Upload your downloaded PDF resume or directly analyze the resume created in PlacementAI.
               </p>
             </div>
 
@@ -95,7 +135,7 @@ export default function ATSChecker() {
               />
             </div>
             
-            <div>
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
               <label className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-xs cursor-pointer shadow-md hover:shadow-lg transition ${isScanning ? 'opacity-70 pointer-events-none' : ''}`}>
                 {isScanning ? (
                   <>
@@ -105,11 +145,21 @@ export default function ATSChecker() {
                 ) : (
                   <>
                     <FileText className="w-4 h-4" />
-                    <span>Choose Resume File</span>
+                    <span>Upload Resume (PDF / DOCX)</span>
                   </>
                 )}
-                <input type="file" accept=".pdf,.txt" onChange={handleFileUpload} className="hidden" disabled={isScanning} />
+                <input type="file" accept=".pdf,.docx,.doc,.txt" onChange={handleFileUpload} className="hidden" disabled={isScanning} />
               </label>
+
+              <button
+                type="button"
+                onClick={handleAnalyzeSavedResume}
+                disabled={isScanning}
+                className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition border border-slate-200 shadow-sm disabled:opacity-50"
+              >
+                <Sparkles className="w-4 h-4 text-purple-600" />
+                <span>Analyze My Created Resume</span>
+              </button>
             </div>
 
             {errorMessage && (

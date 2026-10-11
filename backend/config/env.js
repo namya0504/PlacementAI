@@ -22,6 +22,10 @@ export const config = {
     privateKey: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : '',
     storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'placementai-app.appspot.com'
   },
+  supabase: {
+    url: process.env.SUPABASE_URL || '',
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  },
   ai: {
     xaiKey: process.env.XAI_API_KEY || process.env.GROK_API_KEY || '',
     judge0Key: process.env.JUDGE0_API_KEY || ''

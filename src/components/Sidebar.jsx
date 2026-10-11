@@ -71,13 +71,26 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
         {/* User Card Mini */}
         {currentUser && (
           <div className="mx-4 my-4 p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-3">
-            <img
-              src={currentUser.photoURL}
-              alt={currentUser.name}
-              className="w-10 h-10 rounded-full ring-2 ring-blue-500/20 shrink-0"
-            />
+            {currentUser.photoURL ? (
+              <img
+                src={currentUser.photoURL}
+                alt={currentUser.name || 'User'}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  const fallback = e.currentTarget.nextElementSibling;
+                  if (fallback) fallback.style.display = 'flex';
+                }}
+                className="w-10 h-10 rounded-full ring-2 ring-blue-500/20 shrink-0 object-cover"
+              />
+            ) : null}
+            <div
+              style={{ display: currentUser.photoURL ? 'none' : 'flex' }}
+              className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 text-white font-bold text-sm items-center justify-center shrink-0 shadow-sm ring-2 ring-blue-500/20"
+            >
+              {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+            </div>
             <div className="flex flex-col min-w-0 flex-1">
-              <span className="text-xs font-bold text-slate-900 truncate">{currentUser.name}</span>
+              <span className="text-xs font-bold text-slate-900 truncate">{currentUser.name || 'Student'}</span>
               <span className="text-[11px] text-slate-500 truncate">{currentUser.role || 'Student'}</span>
             </div>
           </div>

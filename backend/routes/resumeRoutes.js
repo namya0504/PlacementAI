@@ -6,7 +6,8 @@ import {
   updateResume,
   deleteResume,
   generateAIContent,
-  generatePDF
+  generatePDF,
+  setPrimaryResume
 } from '../controllers/resumeController.js';
 import { protectRoute } from '../middlewares/authMiddleware.js';
 
@@ -16,6 +17,7 @@ router.get('/', protectRoute, getResumes);
 router.get('/:id', protectRoute, getResumeById);
 router.post('/', protectRoute, createResume);
 router.put('/:id', protectRoute, updateResume);
+router.put('/:id/primary', protectRoute, setPrimaryResume);
 router.delete('/:id', protectRoute, deleteResume);
 router.post('/generate-ai', protectRoute, generateAIContent);
 router.post('/generate-pdf', protectRoute, generatePDF);

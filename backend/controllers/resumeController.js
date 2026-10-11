@@ -1,8 +1,15 @@
 import { FirestoreHelper } from '../firebase/firestoreHelper.js';
-import { storage } from '../firebase/firebaseAdmin.js';
+import {
+  uploadFile,
+  validateFile,
+  generateStoragePath,
+  getSignedDownloadUrl,
+  getFileUrl
+} from '../services/storageService.js';
 import { GrokService } from '../services/grokService.js';
 import { getStudentContext } from '../services/studentContext.js';
 import { PDFService } from '../services/pdfService.js';
+import { SocialProfileService } from '../services/socialProfileService.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import { calculatePlacementReadiness } from '../utils/scoring.js';
 
@@ -29,7 +36,41 @@ export const getResumes = async (req, res, next) => {
   try {
     const userId = req.user.userId;
     const list = await FirestoreHelper.queryCollection('resumes', 'userId', userId);
-    return sendSuccess(res, list, 'Resumes retrieved successfully');
+    const enriched = await Promise.all(
+      list.map(async (r) => {
+        let downloadUrl = r.pdfUrl || '';
+        if (r.storageProvider === 'supabase' && r.storagePath) {
+          try {
+            downloadUrl = await getSignedDownloadUrl(r.bucketName || 'resumes', r.storagePath, 3600);
+          } catch (e) {
+            // fallback
+          }
+        }
+        return {
+          ...r,
+          downloadUrl: downloadUrl || r.pdfUrl || ''
+        };
+      })
+    );
+    return sendSuccess(res, enriched, 'Resumes retrieved successfully');
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const setPrimaryResume = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const { id } = req.params;
+    const list = await FirestoreHelper.queryCollection('resumes', 'userId', userId);
+    const exists = list.find(r => r.resumeId === id);
+    if (!exists) {
+      return sendError(res, 'Resume not found', 404);
+    }
+    for (const r of list) {
+      await FirestoreHelper.setDoc('resumes', r.resumeId, { isPrimary: r.resumeId === id }, true);
+    }
+    return sendSuccess(res, { primaryResumeId: id }, 'Primary resume updated successfully');
   } catch (err) {
     next(err);
   }
@@ -52,8 +93,19 @@ export const getResumeById = async (req, res, next) => {
     const projects = await FirestoreHelper.queryCollection('projects', 'resumeId', id);
     const certificates = await FirestoreHelper.queryCollection('certificates', 'resumeId', id);
 
+    // Resolve PDF URL (signed URL for Supabase records, legacy URL for old)
+    let pdfUrl = resume.pdfUrl || '';
+    if (resume.storageProvider === 'supabase' && resume.storagePath) {
+      try {
+        pdfUrl = await getFileUrl(resume, 'pdfUrl');
+      } catch (err) {
+        // Keep existing pdfUrl
+      }
+    }
+
     return sendSuccess(res, {
       ...resume,
+      pdfUrl,
       skills: skills.length > 0 ? skills : resume.skills || [],
       projects: projects.length > 0 ? projects : resume.projects || [],
       certificates: certificates.length > 0 ? certificates : resume.certificates || []
@@ -195,11 +247,51 @@ export const generateAIContent = async (req, res, next) => {
   try {
     const userId = req.user?.userId;
     const studentContext = await getStudentContext(userId);
-    const { type, role, skills, experienceYears, projectName, techStack } = req.body;
+    const { 
+      type, 
+      role, 
+      skills, 
+      experienceYears, 
+      projectName, 
+      techStack,
+      education,
+      projects,
+      certifications,
+      experience,
+      github,
+      linkedin
+    } = req.body;
 
     if (type === 'summary') {
-      const summary = await GrokService.generateSummary(role, skills, experienceYears, studentContext);
-      return sendSuccess(res, { summary }, 'Professional summary generated');
+      const targetGithub = github || studentContext?.profile?.github;
+      const targetLinkedin = linkedin || studentContext?.profile?.linkedIn;
+
+      let socialContext = null;
+      if (targetGithub || targetLinkedin) {
+        try {
+          socialContext = await SocialProfileService.getSocialProfileContext(targetGithub, targetLinkedin);
+        } catch (socialErr) {
+          console.warn('[ResumeController] Social profile lookup notice:', socialErr.message);
+        }
+      }
+
+      const summary = await GrokService.generateSummary({
+        role,
+        skills,
+        experienceYears,
+        education,
+        projects,
+        certifications,
+        experience,
+        github: targetGithub,
+        linkedin: targetLinkedin,
+        socialContext,
+        studentContext
+      });
+      return sendSuccess(res, { 
+        summary, 
+        socialEnriched: !!(socialContext?.github || socialContext?.linkedin) 
+      }, 'Professional summary generated');
     }
 
     if (type === 'projectBullets') {
@@ -238,25 +330,36 @@ export const generatePDF = async (req, res, next) => {
 
     const pdfBuffer = await PDFService.generateResumePDF(resumeData);
     
-    let pdfUrl = '';
-
-    if (storage) {
-      const bucket = storage.bucket();
-      const fileName = `resumes/${userId}/${resumeId}_${Date.now()}.pdf`;
-      const file = bucket.file(fileName);
-      
-      await file.save(pdfBuffer, {
-        metadata: { contentType: 'application/pdf' }
-      });
-      await file.makePublic();
-      pdfUrl = file.publicUrl();
-    } else {
-      throw new Error('Firebase storage is not configured.');
+    // Validate the generated PDF
+    const validation = validateFile('resumes', 'application/pdf', pdfBuffer.length);
+    if (!validation.valid) {
+      return sendError(res, validation.error, 400);
     }
 
-    await FirestoreHelper.setDoc('resumes', resumeId, { pdfUrl, userId }, true);
+    // Generate safe storage path and upload to Supabase
+    const storagePath = generateStoragePath('resumes', userId, 'application/pdf', resumeId);
+    const result = await uploadFile('resumes', storagePath, pdfBuffer, 'application/pdf');
 
-    return sendSuccess(res, { pdfUrl, fileName: `${resumeData.personalInfo?.fullName || 'Resume'}.pdf` }, 'PDF generated successfully');
+    // Get a signed URL to return to the frontend
+    const signedUrl = await getSignedDownloadUrl('resumes', storagePath, 300);
+
+    // Update Firestore with both legacy and new fields
+    await FirestoreHelper.setDoc('resumes', resumeId, {
+      pdfUrl: signedUrl,
+      userId,
+      storageProvider: 'supabase',
+      storagePath: result.storagePath,
+      pdfFileName: storagePath.split('/').pop(),
+      pdfFileType: 'application/pdf',
+      pdfFileSize: pdfBuffer.length,
+      pdfUploadedAt: new Date().toISOString()
+    }, true);
+
+    return sendSuccess(res, {
+      pdfUrl: signedUrl,
+      fileName: `${resumeData.personalInfo?.fullName || 'Resume'}.pdf`,
+      storagePath: result.storagePath
+    }, 'PDF generated successfully');
   } catch (err) {
     next(err);
   }

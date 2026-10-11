@@ -13,7 +13,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.116.0",
     "canvas-confetti": "^1.9.4",
     "framer-motion": "^13.0.0",
     "html2pdf.js": "^0.14.0",

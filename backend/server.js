@@ -18,6 +18,8 @@ import hrRoutes from './routes/hrRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import downloadRoutes from './routes/downloadRoutes.js';
 import companyRoutes from './routes/companyRoutes.js';
+import storageRoutes from './routes/storageRoutes.js';
+import onboardingRoutes from './routes/onboardingRoutes.js';
 
 const app = express();
 
@@ -60,21 +62,25 @@ app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/resume', resumeRoutes);
 app.use('/api/ats', atsRoutes);
+app.use('/api/aptitude', aptitudeRoutes);
 app.use('/api/mock-tests', aptitudeRoutes);
 app.use('/api/technical', technicalRoutes);
 app.use('/api/hr', hrRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/downloads', downloadRoutes);
 app.use('/api/company', companyRoutes);
+app.use('/api/storage', storageRoutes);
+app.use('/api/onboarding', onboardingRoutes);
 
 // Centralized Error Handling Middleware
 app.use(errorHandler);
 
-// Seed Initial Data & Start Server
+// Start Server & Seed Initial Data in background
 const PORT = config.port;
 
-seedInitialData().then(() => {
-  app.listen(PORT, () => {
-    console.log(`🚀 PlacementAI Server running on port ${PORT} [${config.nodeEnv}]`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 PlacementAI Server running on port ${PORT} [${config.nodeEnv}]`);
+  seedInitialData().catch(err => {
+    console.warn('⚠️ Initial data seeding notice:', err.message);
   });
 });

@@ -4,7 +4,9 @@ const ALLOWED_MIME_TYPES = [
   'image/jpeg',
   'image/png',
   'image/webp',
-  'application/pdf'
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/msword'
 ];
 
 export const uploadFile = multer({
@@ -16,7 +18,7 @@ export const uploadFile = multer({
     if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only JPEG, PNG, WEBP, and PDF documents are allowed.'), false);
+      cb(new Error('Invalid file type. Only JPEG, PNG, WEBP, PDF, and DOCX documents are allowed.'), false);
     }
   }
 });

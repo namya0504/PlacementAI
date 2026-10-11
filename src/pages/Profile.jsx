@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Mail, Phone, MapPin, Award, Edit3, CheckCircle, Menu, Upload, X, Save } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Award, Edit3, CheckCircle, Menu, Upload, X, Save, Loader2 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../services/api';
@@ -9,6 +9,7 @@ export default function Profile() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   const [profileData, setProfileData] = useState({
     name: currentUser?.name || '',
@@ -37,29 +38,34 @@ export default function Profile() {
   }, []);
 
   const handleAvatarChange = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
+
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      alert('Unsupported file format. Please upload a JPEG, PNG, or WebP image.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size exceeds 5 MB. Please select a smaller image.');
+      return;
+    }
 
     const formData = new FormData();
     formData.append('avatar', file);
 
     try {
-      setLoading(true);
+      setAvatarUploading(true);
       const res = await API.uploadAvatar(formData);
       if (res?.photoURL) {
         setProfileData(prev => ({ ...prev, photoURL: res.photoURL }));
         updateProfileData({ photoURL: res.photoURL });
       }
     } catch (err) {
-      alert('Avatar upload notice: Saved locally');
-      const reader = new FileReader();
-      reader.onload = () => {
-        setProfileData(prev => ({ ...prev, photoURL: reader.result }));
-        updateProfileData({ photoURL: reader.result });
-      };
-      reader.readAsDataURL(file);
+      console.error('Avatar upload failed:', err);
+      alert(err.message || 'Avatar upload failed. Please try again.');
     } finally {
-      setLoading(false);
+      setAvatarUploading(false);
     }
   };
 
@@ -102,13 +108,27 @@ export default function Profile() {
             <div className="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left">
               <div className="relative group">
                 <img
-                  src={profileData.photoURL}
+                  src={profileData.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(profileData.name || 'Student')}`}
                   alt="User Avatar"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(profileData.name || 'Student')}`;
+                  }}
                   className="w-20 h-20 rounded-full ring-4 ring-blue-500/20 object-cover shadow-md"
                 />
-                <label className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition">
-                  <Upload className="w-5 h-5 text-white" />
-                  <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+                <label className={`absolute inset-0 bg-black/40 rounded-full flex items-center justify-center ${avatarUploading ? 'opacity-100 cursor-wait' : 'opacity-0 group-hover:opacity-100 cursor-pointer'} transition`}>
+                  {avatarUploading ? (
+                    <Loader2 className="w-5 h-5 text-white animate-spin" />
+                  ) : (
+                    <Upload className="w-5 h-5 text-white" />
+                  )}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    disabled={avatarUploading}
+                    onChange={handleAvatarChange}
+                  />
                 </label>
               </div>
               <div className="space-y-1">

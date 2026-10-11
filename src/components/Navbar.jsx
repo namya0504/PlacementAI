@@ -89,13 +89,20 @@ export default function Navbar() {
                     <img
                       src={currentUser.photoURL}
                       alt={currentUser.name}
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        const fallback = e.currentTarget.nextElementSibling;
+                        if (fallback) fallback.style.display = 'flex';
+                      }}
                       className="w-9 h-9 rounded-full ring-2 ring-blue-600/30 group-hover:ring-blue-600 transition object-cover"
                     />
-                  ) : (
-                    <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs ring-2 ring-blue-600/30 group-hover:ring-blue-600 transition">
-                      {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
-                    </div>
-                  )}
+                  ) : null}
+                  <div
+                    style={{ display: currentUser.photoURL ? 'none' : 'flex' }}
+                    className="w-9 h-9 rounded-full bg-blue-600 text-white items-center justify-center font-bold text-xs ring-2 ring-blue-600/30 group-hover:ring-blue-600 transition"
+                  >
+                    {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                  </div>
                   <span className="text-sm font-semibold text-slate-800 group-hover:text-blue-600">
                     {currentUser.name || currentUser.email?.split('@')[0]}
                   </span>

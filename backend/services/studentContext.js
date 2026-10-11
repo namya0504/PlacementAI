@@ -54,17 +54,66 @@ export async function getStudentContext(userId) {
       });
     }
 
-    const targetRole = latestResume?.role || profile.targetRole || 'Software Engineer';
-    const college = profile.college || 'Engineering College';
-    const branch = profile.branch || 'Computer Science & Engineering';
+    // 5. Gather practiced topics from technical submissions
+    const techTopics = [];
+    if (techAttempts.length > 0) {
+      techAttempts.slice(-10).forEach(att => {
+        if (att.category && !techTopics.includes(att.category)) {
+          techTopics.push(att.category);
+        }
+        if (att.language && !techTopics.includes(att.language)) {
+          techTopics.push(att.language);
+        }
+      });
+    }
+
+    // 6. Fetch Student Onboarding Analysis & Verified Projects
+    let onboardingAnalysis = null;
+    let verifiedProjects = [];
+    try {
+      const analysisDocs = await FirestoreHelper.queryCollection('student_analysis', 'userId', userId);
+      if (analysisDocs && analysisDocs.length > 0) {
+        onboardingAnalysis = analysisDocs[analysisDocs.length - 1];
+        if (Array.isArray(onboardingAnalysis.detectedProjects)) {
+          verifiedProjects = onboardingAnalysis.detectedProjects.map(p => p.title + (p.technologies ? ` (${p.technologies})` : ''));
+        }
+        if (Array.isArray(onboardingAnalysis.starterQuestions?.aptitudeTopics)) {
+          onboardingAnalysis.starterQuestions.aptitudeTopics.forEach(t => {
+            if (!weakAreas.some(w => w.includes(t))) weakAreas.push(`Priority Onboarding Topic: ${t}`);
+          });
+        }
+      }
+      // Also check projects collection directly
+      const projectsDocs = await FirestoreHelper.queryCollection('projects', 'userId', userId);
+      if (projectsDocs && projectsDocs.length > 0) {
+        projectsDocs.forEach(p => {
+          const title = p.title || p.name;
+          if (title && !verifiedProjects.some(vp => vp.startsWith(title))) {
+            verifiedProjects.push(title + (p.tech ? ` (${p.tech})` : ''));
+          }
+        });
+      }
+    } catch (anErr) {
+      console.warn('[StudentContext] Analysis lookup notice:', anErr.message);
+    }
+
+    const targetRole = latestResume?.role || profile.role || profile.targetRole || 'Software Developer';
+    const college = profile.college?.trim() || '';
+    const branch = profile.branch?.trim() || '';
+    const educationSummary = (college && branch)
+      ? `${branch} student at ${college}`
+      : (branch || college || 'Student / Recent Graduate');
 
     const promptSnippet = `
 Student Background:
-- College/Branch: ${college}, ${branch}
+- Status: Entry-level student / fresher candidate preparing for campus placement
+- Education: ${educationSummary}
 - Target Role: ${targetRole}
-- Skills: ${allSkills.length > 0 ? allSkills.join(', ') : 'Data Structures, Algorithms, JavaScript, Python'}
-- Readiness Scores: Aptitude: ${readiness.aptitudeScore ?? 'Not taken'}%, Technical: ${readiness.technicalScore ?? 'Not taken'}%, HR: ${readiness.hrScore ?? 'Not taken'}%, ATS Resume: ${readiness.atsScore ?? 'Not evaluated'}%
-${weakAreas.length > 0 ? `- Weak Areas needing improvement: ${weakAreas.slice(0, 3).join(', ')}` : ''}
+- Explicit Skills: ${allSkills.length > 0 ? allSkills.join(', ') : 'None explicitly specified yet'}
+${verifiedProjects.length > 0 ? `- Candidate's Real Evidenced Projects: ${verifiedProjects.slice(0, 4).join('; ')}` : ''}
+${techTopics.length > 0 ? `- Topics Practiced on Platform: ${techTopics.join(', ')}` : ''}
+- Readiness Scores: Aptitude: ${readiness.aptitudeScore ?? 'Not evaluated'}%, Technical: ${readiness.technicalScore ?? 'Not evaluated'}%, HR: ${readiness.hrScore ?? 'Not evaluated'}%, ATS Resume: ${readiness.atsScore ?? 'Not evaluated'}%
+${weakAreas.length > 0 ? `- Weak/Priority Areas needing improvement: ${weakAreas.slice(0, 4).join(', ')}` : ''}
 ${strongAreas.length > 0 ? `- Demonstrated Strengths: ${strongAreas.slice(0, 3).join(', ')}` : ''}
 `.trim();
 
@@ -74,10 +123,12 @@ ${strongAreas.length > 0 ? `- Demonstrated Strengths: ${strongAreas.slice(0, 3).
       targetRole,
       college,
       branch,
+      educationSummary,
       skills: allSkills,
       readiness,
       weakAreas,
       strongAreas,
+      technicalTopicsPracticed: techTopics,
       recentAttempts: {
         aptitude: aptitudeAttempts.length,
         technical: techAttempts.length,
@@ -90,11 +141,15 @@ ${strongAreas.length > 0 ? `- Demonstrated Strengths: ${strongAreas.slice(0, 3).
     return {
       userId,
       skills: [],
-      branch: 'Computer Science',
-      targetRole: 'Software Engineer',
+      branch: '',
+      college: '',
+      educationSummary: 'Student / Recent Graduate',
+      targetRole: 'Software Developer',
       scores: {},
       weakAreas: [],
-      promptSnippet: 'Candidate is an aspiring Software Engineer with foundational knowledge in Computer Science.'
+      strongAreas: [],
+      technicalTopicsPracticed: [],
+      promptSnippet: 'Candidate is an entry-level student / fresher preparing for campus placement.'
     };
   }
 }

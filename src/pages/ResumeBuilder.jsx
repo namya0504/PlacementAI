@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   FileText,
   Sparkles,
@@ -16,7 +16,14 @@ import {
   Award,
   Code,
   User,
-  Wand2
+  Wand2,
+  FolderOpen,
+  Star,
+  Upload,
+  X,
+  FileCheck,
+  RefreshCw,
+  Check
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
@@ -26,13 +33,22 @@ import html2pdf from 'html2pdf.js';
 
 export default function ResumeBuilder() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [activeTab, setActiveTab] = useState('personal');
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
-  const [saveStatus, setSaveStatus] = useState('');
+
+  // My Resumes Drawer / Modal State
+  const [myResumes, setMyResumes] = useState([]);
+  const [activeResumeId, setActiveResumeId] = useState(null);
+  const [showMyResumesModal, setShowMyResumesModal] = useState(false);
+  const [settingPrimaryId, setSettingPrimaryId] = useState(null);
+  const [deletingResumeId, setDeletingResumeId] = useState(null);
+  const [uploadingResumeFile, setUploadingResumeFile] = useState(false);
+  const [uploadError, setUploadError] = useState('');
 
   const previewRef = useRef(null);
 
@@ -180,51 +196,58 @@ export default function ResumeBuilder() {
         };
 
         if (Array.isArray(resumes) && resumes.length > 0) {
-          const latest = resumes[resumes.length - 1];
-          if (latest.personalInfo) {
-            setPersonal(prev => ({
-              ...prev,
-              fullName: latest.personalInfo.fullName || prev.fullName || '',
-              email: latest.personalInfo.email || prev.email || '',
-              phone: latest.personalInfo.phone || '',
-              location: latest.personalInfo.location || '',
-              linkedin: latest.personalInfo.linkedin || '',
-              github: latest.personalInfo.github || '',
-              summary: (latest.personalInfo.summary && !latest.personalInfo.summary.includes('Results-driven Software Developer'))
-                ? latest.personalInfo.summary
-                : ''
-            }));
-          }
-          if (latest.role) setRole(latest.role);
-          if (latest.templateId) setTemplate(latest.templateId);
+          setMyResumes(resumes);
+          const primaryResume = resumes.find(r => r.isPrimary && r.personalInfo) ||
+                               [...resumes].reverse().find(r => r.personalInfo) ||
+                               resumes[resumes.length - 1];
 
-          if (Array.isArray(latest.education) && latest.education.length > 0) {
-            const cleanEdu = latest.education.filter(e => !isMockEdu(e));
-            if (cleanEdu.length > 0) {
-              setEducation(cleanEdu);
+          if (primaryResume) {
+            setActiveResumeId(primaryResume.resumeId);
+            if (primaryResume.personalInfo) {
+              setPersonal(prev => ({
+                ...prev,
+                fullName: primaryResume.personalInfo.fullName || prev.fullName || '',
+                email: primaryResume.personalInfo.email || prev.email || '',
+                phone: primaryResume.personalInfo.phone || '',
+                location: primaryResume.personalInfo.location || '',
+                linkedin: primaryResume.personalInfo.linkedin || '',
+                github: primaryResume.personalInfo.github || '',
+                summary: (primaryResume.personalInfo.summary && !primaryResume.personalInfo.summary.includes('Results-driven Software Developer'))
+                  ? primaryResume.personalInfo.summary
+                  : ''
+              }));
             }
-          }
-          if (Array.isArray(latest.skills) && latest.skills.length > 0) {
-            setSkills(latest.skills.map(s => typeof s === 'string' ? s : s.name));
-          }
-          if (Array.isArray(latest.projects) && latest.projects.length > 0) {
-            const cleanProj = latest.projects.filter(p => !isMockProj(p));
-            if (cleanProj.length > 0) {
-              setProjects(cleanProj);
+            if (primaryResume.role) setRole(primaryResume.role);
+            if (primaryResume.templateId) setTemplate(primaryResume.templateId);
+
+            if (Array.isArray(primaryResume.education) && primaryResume.education.length > 0) {
+              const cleanEdu = primaryResume.education.filter(e => !isMockEdu(e));
+              if (cleanEdu.length > 0) {
+                setEducation(cleanEdu);
+              }
             }
-          }
-          if (Array.isArray(latest.certificates) && latest.certificates.length > 0) {
-            const cleanCerts = latest.certificates
-              .map(c => typeof c === 'string' ? c : (c.name || c.title))
-              .filter(c => !isMockCert(c));
-            if (cleanCerts.length > 0) {
-              setCertifications(cleanCerts);
+            if (Array.isArray(primaryResume.skills) && primaryResume.skills.length > 0) {
+              setSkills(primaryResume.skills.map(s => typeof s === 'string' ? s : s.name));
             }
-          }
-          if (Array.isArray(latest.experience) && latest.experience.length > 0) {
-            const cleanExp = latest.experience.filter(ex => !isMockExp(ex));
-            if (cleanExp.length > 0) {
-              setExperience(cleanExp);
+            if (Array.isArray(primaryResume.projects) && primaryResume.projects.length > 0) {
+              const cleanProj = primaryResume.projects.filter(p => !isMockProj(p));
+              if (cleanProj.length > 0) {
+                setProjects(cleanProj);
+              }
+            }
+            if (Array.isArray(primaryResume.certificates) && primaryResume.certificates.length > 0) {
+              const cleanCerts = primaryResume.certificates
+                .map(c => typeof c === 'string' ? c : (c.name || c.title))
+                .filter(c => !isMockCert(c));
+              if (cleanCerts.length > 0) {
+                setCertifications(cleanCerts);
+              }
+            }
+            if (Array.isArray(primaryResume.experience) && primaryResume.experience.length > 0) {
+              const cleanExp = primaryResume.experience.filter(ex => !isMockExp(ex));
+              if (cleanExp.length > 0) {
+                setExperience(cleanExp);
+              }
             }
           }
         } else {
@@ -248,7 +271,7 @@ export default function ResumeBuilder() {
             setEducation([
               {
                 id: 'edu_prof_1',
-                degree: profile.branch ? `B.Tech in ${profile.branch}` : '',
+                degree: profile.degree ? `${profile.degree} in ${profile.branch || ''}`.trim() : (profile.branch || ''),
                 college: profile.college || '',
                 cgpa: profile.cgpa || '',
                 year: profile.passingYear ? `${profile.passingYear}` : ''
@@ -264,12 +287,177 @@ export default function ResumeBuilder() {
     return () => { isMounted = false; };
   }, [user]);
 
-  // AI Generators with Grok
+  const refreshResumesList = async () => {
+    try {
+      const list = await API.getResumes();
+      if (Array.isArray(list)) {
+        setMyResumes(list);
+      }
+    } catch (err) {
+      console.warn('Failed to refresh resumes:', err.message);
+    }
+  };
+
+  const handleSetPrimary = async (resumeId) => {
+    setSettingPrimaryId(resumeId);
+    try {
+      await API.setPrimaryResume(resumeId);
+      setMyResumes(prev => prev.map(r => ({ ...r, isPrimary: r.resumeId === resumeId })));
+    } catch (err) {
+      console.error('Failed to set primary resume:', err);
+    } finally {
+      setSettingPrimaryId(null);
+    }
+  };
+
+  const handleDeleteResume = async (resumeId) => {
+    if (!window.confirm('Are you sure you want to delete this resume?')) return;
+    setDeletingResumeId(resumeId);
+    try {
+      await API.deleteResume(resumeId);
+      setMyResumes(prev => prev.filter(r => r.resumeId !== resumeId));
+      if (activeResumeId === resumeId) {
+        setActiveResumeId(null);
+      }
+    } catch (err) {
+      console.error('Failed to delete resume:', err);
+    } finally {
+      setDeletingResumeId(null);
+    }
+  };
+
+  const handleUploadNewResume = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingResumeFile(true);
+    setUploadError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('resume', file);
+      formData.append('isPrimary', 'true');
+
+      const result = await API.uploadOnboardingResume(formData);
+      if (result) {
+        await refreshResumesList();
+      }
+    } catch (err) {
+      console.error('Failed to upload resume file:', err);
+      setUploadError(err.message || 'Failed to upload resume file. Please ensure it is a valid PDF or DOCX (max 5 MB).');
+    } finally {
+      setUploadingResumeFile(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleCreateNewResume = async () => {
+    setActiveResumeId(null);
+    setShowMyResumesModal(false);
+    setCurrentStep(1);
+
+    // Pre-populate clean slate from profile
+    try {
+      const profile = await API.getProfile();
+      if (profile) {
+        setPersonal({
+          fullName: profile.name || user?.name || '',
+          email: profile.email || user?.email || '',
+          phone: profile.phone || '',
+          location: profile.location || '',
+          linkedin: profile.linkedIn || '',
+          github: profile.github || '',
+          summary: profile.bio || ''
+        });
+        if (profile.targetRole || profile.role) {
+          setRole(profile.targetRole || profile.role);
+        }
+        if (Array.isArray(profile.skills) && profile.skills.length > 0) {
+          setSkills(profile.skills.map(s => typeof s === 'string' ? s : s.name));
+        }
+        if (profile.college || profile.branch || profile.passingYear) {
+          setEducation([
+            {
+              id: 'edu_new_1',
+              degree: profile.degree ? `${profile.degree} in ${profile.branch || ''}`.trim() : (profile.branch || ''),
+              college: profile.college || '',
+              cgpa: profile.cgpa || '',
+              year: profile.passingYear ? `${profile.passingYear}` : ''
+            }
+          ]);
+        }
+      }
+    } catch (e) {
+      console.warn('Profile load notice for new resume:', e.message);
+    }
+  };
+
+  const handleLoadResume = (resume) => {
+    setActiveResumeId(resume.resumeId);
+    if (resume.personalInfo) {
+      setPersonal(prev => ({ ...prev, ...resume.personalInfo }));
+    }
+    if (resume.role) setRole(resume.role);
+    if (resume.templateId) setTemplate(resume.templateId);
+    if (Array.isArray(resume.education)) setEducation(resume.education);
+    if (Array.isArray(resume.skills)) setSkills(resume.skills.map(s => typeof s === 'string' ? s : s.name));
+    if (Array.isArray(resume.projects)) setProjects(resume.projects);
+    if (Array.isArray(resume.certificates)) {
+      setCertifications(resume.certificates.map(c => typeof c === 'string' ? c : (c.name || c.title)));
+    }
+    if (Array.isArray(resume.experience)) setExperience(resume.experience);
+
+    setShowMyResumesModal(false);
+    setCurrentStep(2);
+  };
+
+  // AI Generators with Grok - Grounded strictly in student's verified learning & coursework
   const handleAiSummary = async () => {
     setIsAiLoading(true);
     setAiError('');
     try {
-      const summaryText = await generateProfessionalSummary(role, skills, 1);
+      const validExperience = Array.isArray(experience)
+        ? experience.filter(e => e && ((e.title && e.title.trim()) || (e.company && e.company.trim())))
+        : [];
+
+      const realExpYears = validExperience.reduce((acc, exp) => {
+        const num = parseFloat(exp.duration) || 0;
+        return acc + num;
+      }, 0);
+
+      const validEducation = Array.isArray(education)
+        ? education.filter(e => e && ((e.degree && e.degree.trim()) || (e.college && e.college.trim())))
+        : [];
+
+      const validProjects = Array.isArray(projects)
+        ? projects.filter(p => p && p.title && p.title.trim())
+        : [];
+
+      const validSkills = Array.isArray(skills) ? skills.filter(Boolean) : [];
+      const validCerts = Array.isArray(certifications) ? certifications.filter(Boolean) : [];
+
+      const summaryPayload = {
+        role: role || 'Software Developer',
+        skills: validSkills,
+        experienceYears: realExpYears,
+        github: personal.github?.trim() || '',
+        linkedin: personal.linkedin?.trim() || '',
+        education: validEducation.map(e => ({
+          degree: e.degree?.trim() || '',
+          college: e.college?.trim() || '',
+          year: e.year?.trim() || '',
+          cgpa: e.cgpa?.trim() || ''
+        })),
+        projects: validProjects.map(p => ({
+          title: p.title?.trim() || '',
+          tech: p.tech?.trim() || '',
+          description: p.description?.trim() || ''
+        })),
+        certifications: validCerts,
+        experience: validExperience
+      };
+
+      const summaryText = await generateProfessionalSummary(summaryPayload);
       setPersonal(prev => ({ ...prev, summary: summaryText }));
     } catch (err) {
       setAiError(err.message || 'AI generation failed. Please try again.');
@@ -297,7 +485,7 @@ export default function ResumeBuilder() {
   const handleDownloadPdf = async () => {
     const element = previewRef.current;
     if (!element) return;
-    const fileName = `${personal.fullName.replace(/\s+/g, '_')}_Resume.pdf`;
+    const fileName = `${(personal.fullName || 'Candidate').replace(/\s+/g, '_')}_Resume.pdf`;
     const opt = {
       margin: 0.3,
       filename: fileName,
@@ -306,7 +494,45 @@ export default function ResumeBuilder() {
       jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
     };
 
-    html2pdf().from(element).set(opt).save();
+    // Construct structured text summary for ATS parsers
+    const textSummary = [
+      personal.fullName,
+      [personal.email, personal.phone, personal.location].filter(Boolean).join(' | '),
+      personal.linkedIn || personal.github ? [personal.linkedIn, personal.github].filter(Boolean).join(' ') : '',
+      role ? `Target Role: ${role}` : '',
+      personal.summary ? `PROFESSIONAL SUMMARY\n${personal.summary}` : '',
+      skills.length ? `TECHNICAL SKILLS\n${skills.map(s => typeof s === 'string' ? s : s.name).join(', ')}` : '',
+      experience.length ? `EXPERIENCE\n${experience.map(e => `${e.title} at ${e.company} (${e.duration})\n${e.description || ''}`).join('\n\n')}` : '',
+      projects.length ? `PROJECTS\n${projects.map(p => `${p.title} (${p.technologies || ''})\n${p.description || ''}`).join('\n\n')}` : '',
+      education.length ? `EDUCATION\n${education.map(ed => `${ed.degree} - ${ed.institution} (${ed.year}) ${ed.gpa ? `GPA: ${ed.gpa}` : ''}`).join('\n')}` : '',
+      certifications.length ? `CERTIFICATIONS\n${certifications.map(c => typeof c === 'string' ? c : c.name).join(', ')}` : ''
+    ].filter(Boolean).join('\n\n');
+
+    // Generate hybrid ATS-compliant PDF: visual render + embedded text layer + metadata
+    html2pdf()
+      .from(element)
+      .set(opt)
+      .toPdf()
+      .get('pdf')
+      .then((pdf) => {
+        try {
+          pdf.setProperties({
+            title: `${personal.fullName || 'Candidate'} - Resume`,
+            subject: textSummary,
+            author: personal.fullName || 'PlacementAI',
+            keywords: skills.map(s => typeof s === 'string' ? s : s.name).join(', ')
+          });
+          // Hidden text layer for ATS parsers (Taleo, Workday, pdf-parse)
+          pdf.setFontSize(6);
+          pdf.setTextColor(255, 255, 255);
+          const splitLines = pdf.splitTextToSize(textSummary, 7.5);
+          pdf.text(splitLines, 0.2, 0.2);
+        } catch (e) {
+          console.warn('PDF text layer injection:', e);
+        }
+      })
+      .save();
+
 
     // Persist resume document & record download in backend
     try {
@@ -323,11 +549,19 @@ export default function ResumeBuilder() {
         certificates: certifications
       };
 
-      const saved = await API.saveResume(resumePayload);
+      let saved;
+      if (activeResumeId) {
+        saved = await API.updateResume(activeResumeId, resumePayload);
+      } else {
+        saved = await API.saveResume(resumePayload);
+        if (saved?.resumeId) setActiveResumeId(saved.resumeId);
+      }
+
       await API.recordDownload({
-        resumeId: saved?.resumeId || 'res_' + Date.now(),
+        resumeId: saved?.resumeId || activeResumeId || 'res_' + Date.now(),
         fileName
       });
+      refreshResumesList();
     } catch (err) {
       console.warn('Backend sync notice:', err.message);
     }
@@ -352,14 +586,30 @@ export default function ResumeBuilder() {
             </div>
           </div>
 
-          {currentStep === 3 && (
+          <div className="flex items-center gap-3">
             <button
-              onClick={handleDownloadPdf}
-              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md flex items-center gap-2 transition"
+              type="button"
+              onClick={() => setShowMyResumesModal(true)}
+              className="px-4 py-2 rounded-xl border border-slate-200 hover:border-purple-300 bg-white hover:bg-purple-50 text-slate-700 hover:text-purple-700 text-xs font-bold flex items-center gap-2 transition shadow-xs"
             >
-              <Download className="w-4 h-4" /> Download PDF
+              <FolderOpen className="w-4 h-4 text-purple-600" />
+              <span>My Resumes</span>
+              {myResumes.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 text-[10px] font-mono">
+                  {myResumes.length}
+                </span>
+              )}
             </button>
-          )}
+
+            {currentStep === 3 && (
+              <button
+                onClick={handleDownloadPdf}
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md flex items-center gap-2 transition"
+              >
+                <Download className="w-4 h-4" /> Download PDF
+              </button>
+            )}
+          </div>
         </header>
 
         <div className="p-4 sm:p-8 space-y-8 max-w-7xl mx-auto w-full">
@@ -544,7 +794,14 @@ export default function ResumeBuilder() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 uppercase mb-1">GitHub / Portfolio</label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-xs font-bold text-slate-700 uppercase">GitHub / Portfolio</label>
+                          {personal.github && (
+                            <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                              ● Auto-analyzes repos
+                            </span>
+                          )}
+                        </div>
                         <input
                           type="text"
                           placeholder="e.g. https://github.com/yourname"
@@ -552,6 +809,9 @@ export default function ResumeBuilder() {
                           onChange={e => setPersonal({ ...personal, github: e.target.value })}
                           className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
                         />
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          AI reads your public repositories and bio to ground your summary in your actual coding work.
+                        </p>
                       </div>
                     </div>
 
@@ -559,13 +819,22 @@ export default function ResumeBuilder() {
                       <div className="flex items-center justify-between mb-1">
                         <label className="block text-xs font-bold text-slate-700 uppercase">Professional Summary</label>
                         <button
+                          type="button"
                           onClick={handleAiSummary}
                           disabled={isAiLoading}
-                          className="text-xs font-bold text-purple-600 hover:text-purple-700 flex items-center gap-1 bg-purple-50 px-2.5 py-1 rounded-lg"
+                          className="text-xs font-bold text-purple-600 hover:text-purple-700 flex items-center gap-1.5 bg-purple-50 hover:bg-purple-100 transition px-2.5 py-1 rounded-lg disabled:opacity-50"
+                          title="Generate a truthful summary matching your actual GitHub repos, coursework & learning"
                         >
-                          <Wand2 className="w-3.5 h-3.5" /> {isAiLoading ? 'Generating...' : 'AI Generate Summary'}
+                          <Wand2 className="w-3.5 h-3.5" /> {isAiLoading ? 'Analyzing...' : 'AI Generate Summary'}
                         </button>
                       </div>
+
+                      {aiError && (
+                        <div className="mb-2 p-2 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs">
+                          {aiError}
+                        </div>
+                      )}
+
                       <textarea
                         rows={4}
                         placeholder="Write a concise overview of your professional background, key technical strengths, and career ambitions..."
@@ -573,6 +842,19 @@ export default function ResumeBuilder() {
                         onChange={e => setPersonal({ ...personal, summary: e.target.value })}
                         className="w-full p-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
                       />
+
+                      <div className="mt-1 flex items-center justify-between text-[11px] text-slate-400">
+                        <span>
+                          {personal.github ? (
+                            <span className="text-purple-600 font-medium">🐙 Incorporates your GitHub bio, repositories & tech stack.</span>
+                          ) : skills.length === 0 && (!education.some(e => e.degree || e.college)) ? (
+                            '💡 Tip: Add your GitHub link or details in Education & Skills to tailor this summary.'
+                          ) : (
+                            '✨ Summary grounded strictly in your coursework, projects & learning.'
+                          )}
+                        </span>
+                        <span>{personal.summary ? `${personal.summary.trim().split(/\s+/).filter(Boolean).length} words` : '0 words'}</span>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1196,6 +1478,199 @@ export default function ResumeBuilder() {
 
         </div>
       </main>
+
+      {/* My Resumes Drawer / Modal */}
+      {showMyResumesModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                  <FolderOpen className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 font-outfit">My Resumes</h3>
+                  <p className="text-xs text-slate-500">Manage your uploaded and builder-generated resumes</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMyResumesModal(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Actions Toolbar */}
+            <div className="px-6 py-3 bg-slate-50 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+              <span className="text-xs text-slate-500 font-medium">
+                {myResumes.length} {myResumes.length === 1 ? 'resume' : 'resumes'} saved
+              </span>
+
+              <div className="flex items-center gap-2">
+                <label className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition shadow-xs">
+                  <Upload className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Upload PDF/DOCX</span>
+                  <input
+                    type="file"
+                    accept=".pdf,.docx,.doc"
+                    className="hidden"
+                    onChange={handleUploadNewResume}
+                    disabled={uploadingResumeFile}
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={handleCreateNewResume}
+                  className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Create New Resume</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body / List */}
+            <div className="p-6 overflow-y-auto space-y-3 flex-1">
+              {uploadingResumeFile && (
+                <div className="p-4 rounded-xl bg-purple-50 border border-purple-200 text-center space-y-2">
+                  <RefreshCw className="w-5 h-5 text-purple-600 animate-spin mx-auto" />
+                  <p className="text-xs font-semibold text-purple-800">Uploading and processing resume file...</p>
+                </div>
+              )}
+
+              {uploadError && (
+                <div className="p-3 rounded-xl bg-red-50 text-red-700 text-xs border border-red-200 flex items-center justify-between">
+                  <span>{uploadError}</span>
+                  <button onClick={() => setUploadError('')}><X className="w-3.5 h-3.5" /></button>
+                </div>
+              )}
+
+              {myResumes.length > 0 ? (
+                myResumes.map((resume) => {
+                  const isPrimary = !!resume.isPrimary;
+                  const isUploaded = resume.source === 'uploaded';
+
+                  return (
+                    <div
+                      key={resume.resumeId}
+                      className={`p-4 rounded-2xl border transition-all space-y-3 ${
+                        isPrimary
+                          ? 'border-purple-300 bg-purple-50/40 shadow-xs ring-1 ring-purple-400/20'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className={`p-2.5 rounded-xl shrink-0 ${isUploaded ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'}`}>
+                            <FileText className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-bold text-sm text-slate-900">
+                                {resume.title || (isUploaded ? 'Uploaded Resume' : 'PlacementAI Resume')}
+                              </h4>
+                              {isPrimary && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-600 text-white text-[10px] font-bold shadow-xs">
+                                  <Star className="w-2.5 h-2.5 fill-white" /> Primary
+                                </span>
+                              )}
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                isUploaded ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'
+                              }`}>
+                                {isUploaded ? 'Uploaded file' : 'Built in Builder'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-1">
+                              Role: <span className="font-medium text-slate-700">{resume.role || 'Software Developer'}</span>
+                              {resume.createdAt && (
+                                <span> • {new Date(resume.createdAt).toLocaleDateString()}</span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteResume(resume.resumeId)}
+                          disabled={deletingResumeId === resume.resumeId}
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                          title="Delete resume"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Resume Action Buttons */}
+                      <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
+                        {!isPrimary ? (
+                          <button
+                            type="button"
+                            onClick={() => handleSetPrimary(resume.resumeId)}
+                            disabled={settingPrimaryId === resume.resumeId}
+                            className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-purple-300 text-slate-700 hover:text-purple-700 text-xs font-bold transition flex items-center gap-1.5"
+                          >
+                            <Star className="w-3.5 h-3.5 text-amber-500" />
+                            <span>Set as Primary</span>
+                          </button>
+                        ) : (
+                          <span className="px-3 py-1.5 rounded-xl bg-purple-100/70 text-purple-800 text-xs font-bold flex items-center gap-1.5">
+                            <Check className="w-3.5 h-3.5 text-purple-600" />
+                            <span>Active Primary</span>
+                          </span>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowMyResumesModal(false);
+                            navigate(`/ats-checker?resumeId=${resume.resumeId}`);
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition flex items-center gap-1.5"
+                        >
+                          <FileCheck className="w-3.5 h-3.5" />
+                          <span>Run ATS Check</span>
+                        </button>
+
+                        {(resume.downloadUrl || resume.pdfUrl) && (
+                          <a
+                            href={resume.downloadUrl || resume.pdfUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition flex items-center gap-1.5"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Download PDF</span>
+                          </a>
+                        )}
+
+                        {!isUploaded && (
+                          <button
+                            type="button"
+                            onClick={() => handleLoadResume(resume)}
+                            className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center gap-1.5"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>Edit in Builder</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="py-12 text-center space-y-3 text-slate-400">
+                  <FileText className="w-12 h-12 text-slate-300 mx-auto" />
+                  <p className="text-xs">No resumes saved yet. Build your first resume or upload a file above!</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

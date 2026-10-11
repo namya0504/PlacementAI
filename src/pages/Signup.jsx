@@ -58,11 +58,11 @@ export default function Signup() {
       setLoading(true);
       const user = await signup(name.trim(), email.trim(), password);
       
-      // If server returned a verification link or created user
-      setSuccessNotice('Account created successfully! We sent a verification email.');
+      // New user registration proceeds straight to Onboarding
+      setSuccessNotice('Account created successfully! Welcome to PlacementAI.');
       setTimeout(() => {
-        navigate('/dashboard');
-      }, 1500);
+        navigate('/onboarding');
+      }, 800);
     } catch (err) {
       setError(err.message || 'Failed to create account. Please try again.');
     } finally {
@@ -74,8 +74,12 @@ export default function Signup() {
     try {
       setError('');
       setLoading(true);
-      await loginWithSocial(provider);
-      navigate('/dashboard');
+      const user = await loginWithSocial(provider);
+      if (user?.isNewUser || user?.onboarding?.status === 'not_started' || user?.onboarding?.status === 'in_progress') {
+        navigate('/onboarding');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError(err.message || 'Social authentication failed');
     } finally {

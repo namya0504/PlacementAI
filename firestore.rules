@@ -54,7 +54,20 @@ service cloud.firestore {
 
     // Mock Tests & Aptitude
     match /mock_tests/{testId} {
-      allow read, write: if isDocOwner();
+      allow read: if isDocOwner();
+      allow write: if false; // graded and written strictly by backend
+    }
+    match /aptitude_tests/{testId} {
+      allow read: if isDocOwner();
+      allow write: if false; // test sessions managed strictly by backend
+    }
+    match /aptitude_history/{histId} {
+      allow read: if isDocOwner();
+      allow write: if false; // managed strictly by backend
+    }
+    match /aptitude_attempts/{attemptId} {
+      allow read: if isDocOwner();
+      allow write: if false;
     }
     match /aptitude_questions/{qId} {
       allow read: if isAuthenticated();
@@ -88,6 +101,16 @@ service cloud.firestore {
     }
     match /reports/{reportId} {
       allow read, write: if isDocOwner();
+    }
+
+    // Student Onboarding Analysis & Study Plans
+    match /student_analysis/{analysisId} {
+      allow read: if isDocOwner();
+      allow write: if false; // Generated strictly by backend Admin SDK
+    }
+    match /study_plans/{planId} {
+      allow read: if isDocOwner();
+      allow write: if isDocOwner();
     }
   }
 }

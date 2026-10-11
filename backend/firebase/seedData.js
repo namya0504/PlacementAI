@@ -60,7 +60,7 @@ export const seedInitialData = async () => {
       await FirestoreHelper.setDoc('aptitude_questions', q.questionId, q);
     }
 
-    // Seed Technical Questions (MCQ & Coding)
+    // Seed Technical Questions (MCQ & Coding with minimum 3 test cases each)
     const technicalQuestions = [
       {
         questionId: 'tech_mcq_1',
@@ -88,28 +88,65 @@ export const seedInitialData = async () => {
         questionId: 'tech_code_1',
         type: 'Coding',
         category: 'Algorithms',
-        language: 'javascript',
+        language: 'python',
         difficulty: 'Easy',
         title: 'Two Sum Problem',
-        description: 'Given an array of integers `nums` and an integer `target`, return indices of the two numbers such that they add up to target.',
-        initialCode: `function twoSum(nums, target) {\n  // Write your solution here\n}`,
+        description: 'Given an array of integers `nums` and an integer `target`, return indices of the two numbers such that they add up to target. You may assume that each input would have exactly one solution.',
+        starterCode: `def twoSum(nums, target):\n    # Write your solution here\n    pass`,
+        starterCodes: {
+          python: `def twoSum(nums, target):\n    # Write your solution here\n    pass`,
+          java: `public class Solution {\n    public int[] twoSum(int[] nums, int target) {\n        // Write your solution here\n        return new int[]{};\n    }\n}`,
+          cpp: `class Solution {\npublic:\n    vector<int> twoSum(vector<int>& nums, int target) {\n        // Write your solution here\n        return {};\n    }\n};`,
+          javascript: `function twoSum(nums, target) {\n  // Write your solution here\n}`,
+          sql: `-- Write your SQL query here\nSELECT * FROM numbers;`
+        },
         testCases: [
-          { input: 'nums = [2,7,11,15], target = 9', expectedOutput: '[0,1]' },
-          { input: 'nums = [3,2,4], target = 6', expectedOutput: '[1,2]' }
+          { input: 'nums = [2,7,11,15], target = 9', expectedOutput: '[0, 1]' },
+          { input: 'nums = [3,2,4], target = 6', expectedOutput: '[1, 2]' },
+          { input: 'nums = [3,3], target = 6', expectedOutput: '[0, 1]' }
         ]
       },
       {
         questionId: 'tech_code_2',
         type: 'Coding',
         category: 'String Manipulation',
-        language: 'javascript',
+        language: 'python',
         difficulty: 'Medium',
         title: 'Valid Palindrome',
         description: 'A phrase is a palindrome if, after converting all uppercase letters into lowercase letters and removing all non-alphanumeric characters, it reads the same forward and backward.',
-        initialCode: `function isPalindrome(s) {\n  // Write your solution here\n}`,
+        starterCode: `def isPalindrome(s: str) -> bool:\n    # Write your solution here\n    pass`,
+        starterCodes: {
+          python: `def isPalindrome(s: str) -> bool:\n    # Write your solution here\n    pass`,
+          java: `public class Solution {\n    public boolean isPalindrome(String s) {\n        // Write your solution here\n        return false;\n    }\n}`,
+          cpp: `class Solution {\npublic:\n    bool isPalindrome(string s) {\n        // Write your solution here\n        return false;\n    }\n};`,
+          javascript: `function isPalindrome(s) {\n  // Write your solution here\n}`,
+          sql: `-- Write query\nSELECT * FROM strings;`
+        },
         testCases: [
           { input: 's = "A man, a plan, a canal: Panama"', expectedOutput: 'true' },
-          { input: 's = "race a car"', expectedOutput: 'false' }
+          { input: 's = "race a car"', expectedOutput: 'false' },
+          { input: 's = " "', expectedOutput: 'true' }
+        ]
+      },
+      {
+        questionId: 'tech_code_3',
+        type: 'Coding',
+        category: 'Java',
+        language: 'java',
+        difficulty: 'Medium',
+        title: 'Kth Smallest Element in BST',
+        description: 'Given the root of a binary search tree (BST) and an integer k, return the kth smallest element in the BST. Constraints: 1 <= k <= number of nodes.',
+        starterCode: `public class Solution {\n    public int kthSmallest(TreeNode root, int k) {\n        // Write your code here\n        return -1;\n    }\n    public static class TreeNode {\n        int val;\n        TreeNode left;\n        TreeNode right;\n        TreeNode(int x) { val = x; }\n    }\n}`,
+        starterCodes: {
+          java: `public class Solution {\n    public int kthSmallest(TreeNode root, int k) {\n        // Write your code here\n        return -1;\n    }\n    public static class TreeNode {\n        int val;\n        TreeNode left;\n        TreeNode right;\n        TreeNode(int x) { val = x; }\n    }\n}`,
+          python: `class TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\nclass Solution:\n    def kthSmallest(self, root: TreeNode, k: int) -> int:\n        # Write your code here\n        pass`,
+          cpp: `struct TreeNode {\n    int val;\n    TreeNode *left;\n    TreeNode *right;\n    TreeNode(int x) : val(x), left(NULL), right(NULL) {}\n};\n\nclass Solution {\npublic:\n    int kthSmallest(TreeNode* root, int k) {\n        // Write your code here\n        return -1;\n    }\n};`,
+          javascript: `function kthSmallest(root, k) {\n  // Write your code here\n}`
+        },
+        testCases: [
+          { input: 'root = [5,3,6,2,4,null,null,1], k = 3', expectedOutput: '3' },
+          { input: 'root = [3,1,4,null,2], k = 1', expectedOutput: '1' },
+          { input: 'root = [2,1,3], k = 2', expectedOutput: '2' }
         ]
       }
     ];
