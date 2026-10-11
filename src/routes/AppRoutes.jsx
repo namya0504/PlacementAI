@@ -18,14 +18,35 @@ import About from '../pages/About';
 import Contact from '../pages/Contact';
 import Onboarding from '../pages/Onboarding';
 import ProtectedRoute from '../components/ProtectedRoute';
+import { useAuth } from '../context/AuthContext';
+
+/**
+ * Route Guard for guest/public-only pages (Home, Login, Signup).
+ * If a student is already authenticated, redirect them directly to /dashboard.
+ */
+function PublicOnlyRoute({ children }) {
+  const { currentUser, loading } = useAuth();
+  if (loading) {
+    return null;
+  }
+  if (currentUser) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return children;
+}
+
+function CatchAllRoute() {
+  const { currentUser } = useAuth();
+  return <Navigate to={currentUser ? '/dashboard' : '/'} replace />;
+}
 
 export default function AppRoutes() {
   return (
     <Routes>
-      {/* Public Pages */}
-      <Route path="/" element={<Home />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/signup" element={<Signup />} />
+      {/* Public Pages (Redirects authenticated students to /dashboard) */}
+      <Route path="/" element={<PublicOnlyRoute><Home /></PublicOnlyRoute>} />
+      <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
+      <Route path="/signup" element={<PublicOnlyRoute><Signup /></PublicOnlyRoute>} />
       <Route path="/about" element={<About />} />
       <Route path="/contact" element={<Contact />} />
 
@@ -45,7 +66,7 @@ export default function AppRoutes() {
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
       {/* Catch-all */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<CatchAllRoute />} />
     </Routes>
   );
 }

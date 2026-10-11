@@ -57,7 +57,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
       >
         {/* Brand Header */}
         <div className="h-20 px-6 flex items-center border-b border-slate-100">
-          <Link to="/" className="flex items-center gap-3">
+          <Link to="/dashboard" className="flex items-center gap-3">
             <img src="/logo.svg" alt="PlacementAI" className="w-9 h-9" />
             <div className="flex flex-col">
               <span className="text-lg font-extrabold tracking-tight text-slate-900 font-outfit">
