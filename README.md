@@ -98,6 +98,7 @@ The platform combines AI-assisted resume generation, ATS analysis, aptitude prac
 ## Database
 
 - Firebase Firestore
+- Supabase Storage
 
 ## Authentication
 
@@ -107,11 +108,11 @@ The platform combines AI-assisted resume generation, ATS analysis, aptitude prac
 
 ## Storage
 
-- Firebase Storage
+- Supabase Storage
 
 ## AI Integration
 
-- Google Gemini API
+- GrokAI API
 
 ## Deployment
 
