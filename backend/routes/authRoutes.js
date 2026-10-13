@@ -24,6 +24,7 @@ const authLimiter = rateLimiter({
 router.post('/register', authLimiter, registerUser);
 router.post('/login', authLimiter, loginUser);
 router.post('/google-login', authLimiter, googleLogin);
+router.post('/google', authLimiter, googleLogin);
 router.post('/forgot-password', authLimiter, forgotPassword);
 router.post('/resend-verification', authLimiter, resendVerificationEmail);
 router.post('/verify-email', protectRoute, confirmEmailVerification);

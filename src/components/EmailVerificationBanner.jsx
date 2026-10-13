@@ -19,8 +19,14 @@ export default function EmailVerificationBanner() {
       setLoading(true);
       setMessage('');
       const res = await API.resendVerification({ email: currentUser.email });
+      try {
+        const { triggerFirebaseEmailVerification } = await import('../services/firebase/authService');
+        await triggerFirebaseEmailVerification();
+      } catch (clientMailErr) {
+        // Handled silently
+      }
       setMessageType('success');
-      setMessage(res.message || 'Verification link sent to your email! Please check your inbox.');
+      setMessage(res.message || 'Verification email sent to your inbox! Please check your email.');
     } catch (err) {
       setMessageType('error');
       setMessage(err.message || 'Failed to send verification link.');

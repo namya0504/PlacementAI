@@ -63,7 +63,7 @@ export default function CompanyPrep() {
             </button>
             <div>
               <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 font-outfit">Company Preparation</h1>
-              <p className="text-xs text-slate-500">Grok AI-generated recruitment blueprints and interview questions</p>
+              <p className="text-xs text-slate-500">Curated recruitment blueprints and company-specific interview patterns</p>
             </div>
           </div>
 
@@ -169,7 +169,7 @@ export default function CompanyPrep() {
             {loading ? (
               <div className="py-20 text-center space-y-3">
                 <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mx-auto" />
-                <div className="text-sm font-bold text-slate-700">Generating {selectedCompany} Prep Blueprint with Grok AI...</div>
+                <div className="text-sm font-bold text-slate-700">Generating {selectedCompany} Prep Blueprint...</div>
                 <div className="text-xs text-slate-400">Synthesizing interview rounds, cutoff criteria, and technical questions</div>
               </div>
             ) : error ? (

@@ -18,21 +18,50 @@ const getAuthHeaders = () => {
   };
 };
 
+// Fast in-memory GET cache with short TTL (15s) to eliminate duplicate calls during navigation
+const getCache = new Map();
+const CACHE_TTL_MS = 15000;
+
+export const clearApiCache = () => {
+  getCache.clear();
+};
+
 export const apiCall = async (endpoint, method = 'GET', body = null, isFormData = false) => {
+  const isGet = method.toUpperCase() === 'GET';
+  const cacheKey = `${endpoint}`;
+
+  // Serve from cache if available and fresh
+  if (isGet) {
+    const cached = getCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return cached.data;
+    }
+  } else {
+    // Invalidate GET cache on mutations
+    getCache.clear();
+  }
+
   const headers = getAuthHeaders();
   if (isFormData) {
     delete headers['Content-Type'];
   }
 
+  // 15-second timeout to prevent requests from hanging indefinitely
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
   const config = {
     method,
     headers,
     credentials: 'include',
+    signal: controller.signal,
     ...(body ? { body: isFormData ? body : JSON.stringify(body) } : {})
   };
 
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+    clearTimeout(timeoutId);
+
     const contentType = response.headers.get('content-type') || '';
     let result = null;
 
@@ -57,8 +86,18 @@ export const apiCall = async (endpoint, method = 'GET', body = null, isFormData 
         : `Request failed with status ${response.status}`;
       throw new Error(result?.message || defaultMessage);
     }
-    return result?.data ?? result;
+
+    const outputData = result?.data ?? result;
+    if (isGet) {
+      getCache.set(cacheKey, { timestamp: Date.now(), data: outputData });
+    }
+    return outputData;
   } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      console.warn(`API Timeout (${endpoint}): Request took more than 15s`);
+      throw new Error('Server request timed out. Please check your network connection.');
+    }
     console.warn(`API Call Error (${endpoint}):`, err.message);
     throw err;
   }

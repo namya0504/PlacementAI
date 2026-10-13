@@ -60,10 +60,13 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const signup = async (name, email, password) => {
+  const signup = async (nameOrData, email, password, extraData = {}) => {
     setLoading(true);
     try {
-      const user = await API.register({ name, email, password });
+      const payload = (typeof nameOrData === 'object' && nameOrData !== null)
+        ? nameOrData
+        : { name: nameOrData, email, password, ...extraData };
+      const user = await API.register(payload);
       setCurrentUser(user);
       localStorage.setItem('placement_ai_user', JSON.stringify(user));
       setLoading(false);
@@ -77,9 +80,42 @@ export const AuthProvider = ({ children }) => {
   const loginWithSocial = async (providerName, profileInfo = {}) => {
     setLoading(true);
     try {
-      const email = profileInfo.email || `candidate_${Date.now().toString(36)}@placementai.edu`;
-      const name = profileInfo.name || 'Student Candidate';
-      const user = await API.googleLogin({ providerName, name, email, photoURL: profileInfo.photoURL });
+      let idToken = null;
+      let email = profileInfo.email;
+      let name = profileInfo.name;
+      let photoURL = profileInfo.photoURL;
+
+      if (providerName && providerName.toLowerCase() === 'google') {
+        const { signInWithGooglePopup } = await import('../services/firebase/authService');
+        const googleRes = await signInWithGooglePopup();
+
+        if (googleRes.success) {
+          idToken = googleRes.idToken;
+          email = googleRes.user.email;
+          name = googleRes.user.displayName;
+          photoURL = googleRes.user.photoURL;
+        } else if (googleRes.error === 'auth/popup-closed-by-user' || googleRes.error === 'auth/cancelled-popup-request') {
+          setLoading(false);
+          throw new Error('Google sign-in popup was closed.');
+        } else {
+          console.warn('Google popup notice:', googleRes.message);
+          if (!email) {
+            throw new Error(googleRes.message || 'Google sign-in was unable to complete. Please check your browser popup settings.');
+          }
+        }
+      }
+
+      email = email || `candidate_${Date.now().toString(36)}@placementai.edu`;
+      name = name || 'Student Candidate';
+
+      const user = await API.googleLogin({
+        idToken,
+        providerName,
+        name,
+        email,
+        photoURL
+      });
+
       setCurrentUser(user);
       localStorage.setItem('placement_ai_user', JSON.stringify(user));
       setLoading(false);

@@ -26,9 +26,13 @@ export const getProfile = async (req, res, next) => {
       profileDoc = {
         profileId,
         userId,
-        college: '',
-        branch: '',
-        passingYear: '',
+        phone: userDoc.phone || '',
+        location: userDoc.location || '',
+        college: userDoc.college || '',
+        branch: userDoc.branch || '',
+        passingYear: userDoc.passingYear || '',
+        role: userDoc.role || '',
+        targetRole: userDoc.targetRole || userDoc.role || '',
         linkedIn: '',
         github: '',
         bio: '',
@@ -54,7 +58,13 @@ export const getProfile = async (req, res, next) => {
       uid: userId,
       name: userDoc.name || '',
       email: userDoc.email || '',
-      role: userDoc.role || 'Software Developer',
+      role: profileDoc.role || userDoc.role || '',
+      targetRole: profileDoc.targetRole || profileDoc.role || userDoc.role || '',
+      phone: profileDoc.phone || userDoc.phone || '',
+      location: profileDoc.location || userDoc.location || '',
+      college: profileDoc.college || userDoc.college || '',
+      branch: profileDoc.branch || userDoc.branch || '',
+      passingYear: profileDoc.passingYear || userDoc.passingYear || '',
       photoURL,
       storageProvider: userDoc.storageProvider || null,
       storagePath: userDoc.storagePath || null,
@@ -75,6 +85,9 @@ export const updateProfile = async (req, res, next) => {
     const {
       name,
       role,
+      targetRole,
+      phone,
+      location,
       photoURL,
       college,
       branch,
@@ -86,9 +99,20 @@ export const updateProfile = async (req, res, next) => {
       skills
     } = req.body;
 
-    // Update user info - Prevent role mass assignment / privilege escalation
+    const assignedRole = role || targetRole;
+
+    // Update user info
     const userUpdates = {};
     if (typeof name === 'string') userUpdates.name = name.trim().slice(0, 80);
+    if (typeof assignedRole === 'string') {
+      userUpdates.role = assignedRole.trim().slice(0, 80);
+      userUpdates.targetRole = assignedRole.trim().slice(0, 80);
+    }
+    if (typeof phone === 'string') userUpdates.phone = phone.trim().slice(0, 25);
+    if (typeof location === 'string') userUpdates.location = location.trim().slice(0, 100);
+    if (typeof college === 'string') userUpdates.college = college.trim().slice(0, 150);
+    if (typeof branch === 'string') userUpdates.branch = branch.trim().slice(0, 100);
+    if (typeof passingYear === 'string') userUpdates.passingYear = passingYear.trim().slice(0, 10);
     if (typeof photoURL === 'string') userUpdates.photoURL = photoURL.trim().slice(0, 500);
 
     if (Object.keys(userUpdates).length > 0) {
@@ -99,7 +123,10 @@ export const updateProfile = async (req, res, next) => {
     const profileUpdates = {
       profileId,
       userId,
-      ...(college !== undefined && { college: String(college).slice(0, 100) }),
+      ...(assignedRole !== undefined && { role: String(assignedRole).slice(0, 80), targetRole: String(assignedRole).slice(0, 80) }),
+      ...(phone !== undefined && { phone: String(phone).slice(0, 25) }),
+      ...(location !== undefined && { location: String(location).slice(0, 100) }),
+      ...(college !== undefined && { college: String(college).slice(0, 150) }),
       ...(branch !== undefined && { branch: String(branch).slice(0, 100) }),
       ...(passingYear !== undefined && { passingYear: String(passingYear).slice(0, 10) }),
       ...(linkedIn !== undefined && { linkedIn: String(linkedIn).slice(0, 200) }),
@@ -128,7 +155,13 @@ export const updateProfile = async (req, res, next) => {
       uid: userId,
       name: userDoc?.name || name,
       email: userDoc?.email,
-      role: userDoc?.role || 'Software Developer',
+      role: updatedProfile.role || userDoc?.role || '',
+      targetRole: updatedProfile.targetRole || updatedProfile.role || userDoc?.role || '',
+      phone: updatedProfile.phone || userDoc?.phone || '',
+      location: updatedProfile.location || userDoc?.location || '',
+      college: updatedProfile.college || userDoc?.college || '',
+      branch: updatedProfile.branch || userDoc?.branch || '',
+      passingYear: updatedProfile.passingYear || userDoc?.passingYear || '',
       photoURL: resolvedPhotoURL,
       ...updatedProfile
     }, 'Profile updated successfully');

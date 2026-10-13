@@ -68,10 +68,12 @@ export default function Onboarding() {
   // Step 1: Manual form
   const [manualData, setManualData] = useState({
     fullName: currentUser?.name || '',
-    college: '',
-    branch: '',
-    passingYear: '2026',
-    targetRole: 'Software Developer',
+    college: currentUser?.college || '',
+    branch: currentUser?.branch || '',
+    passingYear: currentUser?.passingYear || '',
+    targetRole: currentUser?.role || currentUser?.targetRole || '',
+    phone: currentUser?.phone || '',
+    location: currentUser?.location || '',
     skills: '',
     projects: [
       { title: '', technologies: '', description: '' }
@@ -81,7 +83,7 @@ export default function Onboarding() {
   // Step 2: Online profiles
   const [githubInput, setGithubInput] = useState('');
   const [linkedinInput, setLinkedinInput] = useState('');
-  const [targetRole, setTargetRole] = useState('Software Developer');
+  const [targetRole, setTargetRole] = useState(currentUser?.role || currentUser?.targetRole || '');
   const [customRole, setCustomRole] = useState('');
   const [linkedinText, setLinkedinText] = useState('');
   const [showLinkedInTextarea, setShowLinkedInTextarea] = useState(false);
@@ -261,7 +263,7 @@ export default function Onboarding() {
     navigate('/resume-builder?from=onboarding');
   };
 
-  // Step 2 -> Step 3: Trigger Grok Analysis
+  // Step 2 -> Step 3: Trigger Profile Analysis
   const handleStartAnalysis = async () => {
     setErrorMessage('');
     if (!consentAgreed) {
@@ -269,7 +271,7 @@ export default function Onboarding() {
       return;
     }
 
-    const selectedRole = targetRole === 'Custom' ? (customRole.trim() || 'Software Developer') : targetRole;
+    const selectedRole = targetRole === 'Custom' ? customRole.trim() : targetRole;
 
     setStep(3);
     setAnalysisFailed(false);
@@ -283,7 +285,7 @@ export default function Onboarding() {
           setAnalysisMessage('Analyzing GitHub activity & repositories...');
           return prev + 12;
         } else if (prev < 75) {
-          setAnalysisMessage('Evaluating profile alignment with Grok AI...');
+          setAnalysisMessage('Evaluating profile alignment & industry benchmarks...');
           return prev + 10;
         } else if (prev < 90) {
           setAnalysisMessage('Synthesizing 4-week study plan & questions...');
@@ -352,7 +354,7 @@ export default function Onboarding() {
       setLoading(true);
       setErrorMessage('');
 
-      const selectedRole = targetRole === 'Custom' ? (customRole.trim() || 'Software Developer') : targetRole;
+      const selectedRole = targetRole === 'Custom' ? customRole.trim() : targetRole;
 
       await API.confirmOnboarding({
         confirmedSkills: reviewedSkills,
@@ -587,7 +589,7 @@ export default function Onboarding() {
                       type="text"
                       value={manualData.passingYear}
                       onChange={(e) => setManualData({ ...manualData, passingYear: e.target.value })}
-                      placeholder="2026"
+                      placeholder="e.g. 2026"
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-600 outline-none"
                     />
                   </div>

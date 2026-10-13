@@ -1,24 +1,35 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import Home from '../pages/Home';
-import Login from '../pages/Login';
-import Signup from '../pages/Signup';
-import Dashboard from '../pages/Dashboard';
-import ResumeBuilder from '../pages/ResumeBuilder';
-import Templates from '../pages/Templates';
-import ATSChecker from '../pages/ATSChecker';
-import Aptitude from '../pages/Aptitude';
-import Technical from '../pages/Technical';
-import HRInterview from '../pages/HRInterview';
-import CompanyPrep from '../pages/CompanyPrep';
-import MyProgress from '../pages/MyProgress';
-import Profile from '../pages/Profile';
-import Settings from '../pages/Settings';
-import About from '../pages/About';
-import Contact from '../pages/Contact';
-import Onboarding from '../pages/Onboarding';
 import ProtectedRoute from '../components/ProtectedRoute';
 import { useAuth } from '../context/AuthContext';
+
+// Dynamic code-splitting: routes are fetched on demand instead of all at once
+const Home = lazy(() => import('../pages/Home'));
+const Login = lazy(() => import('../pages/Login'));
+const Signup = lazy(() => import('../pages/Signup'));
+const Dashboard = lazy(() => import('../pages/Dashboard'));
+const ResumeBuilder = lazy(() => import('../pages/ResumeBuilder'));
+const Templates = lazy(() => import('../pages/Templates'));
+const ATSChecker = lazy(() => import('../pages/ATSChecker'));
+const Aptitude = lazy(() => import('../pages/Aptitude'));
+const Technical = lazy(() => import('../pages/Technical'));
+const HRInterview = lazy(() => import('../pages/HRInterview'));
+const CompanyPrep = lazy(() => import('../pages/CompanyPrep'));
+const MyProgress = lazy(() => import('../pages/MyProgress'));
+const Profile = lazy(() => import('../pages/Profile'));
+const Settings = lazy(() => import('../pages/Settings'));
+const About = lazy(() => import('../pages/About'));
+const Contact = lazy(() => import('../pages/Contact'));
+const Onboarding = lazy(() => import('../pages/Onboarding'));
+
+function PageLoader() {
+  return (
+    <div className="min-h-[50vh] flex flex-col items-center justify-center p-8">
+      <div className="w-9 h-9 border-3 border-purple-500/20 border-t-purple-600 rounded-full animate-spin mb-3"></div>
+      <p className="text-xs font-semibold text-slate-500 animate-pulse">Loading...</p>
+    </div>
+  );
+}
 
 /**
  * Route Guard for guest/public-only pages (Home, Login, Signup).
@@ -42,31 +53,33 @@ function CatchAllRoute() {
 
 export default function AppRoutes() {
   return (
-    <Routes>
-      {/* Public Pages (Redirects authenticated students to /dashboard) */}
-      <Route path="/" element={<PublicOnlyRoute><Home /></PublicOnlyRoute>} />
-      <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
-      <Route path="/signup" element={<PublicOnlyRoute><Signup /></PublicOnlyRoute>} />
-      <Route path="/about" element={<About />} />
-      <Route path="/contact" element={<Contact />} />
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        {/* Public Pages (Redirects authenticated students to /dashboard) */}
+        <Route path="/" element={<PublicOnlyRoute><Home /></PublicOnlyRoute>} />
+        <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
+        <Route path="/signup" element={<PublicOnlyRoute><Signup /></PublicOnlyRoute>} />
+        <Route path="/about" element={<About />} />
+        <Route path="/contact" element={<Contact />} />
 
-      {/* Authenticated Pages */}
-      <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
-      <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-      <Route path="/resume-builder" element={<ProtectedRoute><ResumeBuilder /></ProtectedRoute>} />
-      <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
-      <Route path="/ats-checker" element={<ProtectedRoute><ATSChecker /></ProtectedRoute>} />
-      <Route path="/placement-prep" element={<ProtectedRoute><Aptitude /></ProtectedRoute>} />
-      <Route path="/placement-prep/aptitude" element={<ProtectedRoute><Aptitude /></ProtectedRoute>} />
-      <Route path="/placement-prep/technical" element={<ProtectedRoute><Technical /></ProtectedRoute>} />
-      <Route path="/placement-prep/hr-interview" element={<ProtectedRoute><HRInterview /></ProtectedRoute>} />
-      <Route path="/placement-prep/company" element={<ProtectedRoute><CompanyPrep /></ProtectedRoute>} />
-      <Route path="/my-progress" element={<ProtectedRoute><MyProgress /></ProtectedRoute>} />
-      <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-      <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+        {/* Authenticated Pages */}
+        <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/resume-builder" element={<ProtectedRoute><ResumeBuilder /></ProtectedRoute>} />
+        <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
+        <Route path="/ats-checker" element={<ProtectedRoute><ATSChecker /></ProtectedRoute>} />
+        <Route path="/placement-prep" element={<ProtectedRoute><Aptitude /></ProtectedRoute>} />
+        <Route path="/placement-prep/aptitude" element={<ProtectedRoute><Aptitude /></ProtectedRoute>} />
+        <Route path="/placement-prep/technical" element={<ProtectedRoute><Technical /></ProtectedRoute>} />
+        <Route path="/placement-prep/hr-interview" element={<ProtectedRoute><HRInterview /></ProtectedRoute>} />
+        <Route path="/placement-prep/company" element={<ProtectedRoute><CompanyPrep /></ProtectedRoute>} />
+        <Route path="/my-progress" element={<ProtectedRoute><MyProgress /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
-      {/* Catch-all */}
-      <Route path="*" element={<CatchAllRoute />} />
-    </Routes>
+        {/* Catch-all */}
+        <Route path="*" element={<CatchAllRoute />} />
+      </Routes>
+    </Suspense>
   );
 }

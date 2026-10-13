@@ -53,7 +53,7 @@ export default function Dashboard() {
   const [aiRecommendations, setAiRecommendations] = useState(null);
   const [loadingRecs, setLoadingRecs] = useState(false);
 
-  // Personalized Study Plan & Grok Analysis
+  // Personalized Study Plan & AI Analysis
   const [studyPlanData, setStudyPlanData] = useState(null);
   const [loadingPlan, setLoadingPlan] = useState(false);
   const [selectedWeek, setSelectedWeek] = useState(1);
@@ -195,7 +195,7 @@ export default function Dashboard() {
               <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 font-outfit flex items-center gap-2">
                 Hello, {currentUser?.name || 'Student'} <span className="text-xl">👋</span>
               </h1>
-              <p className="text-xs text-slate-500 hidden sm:block">Track your personalized placement roadmap powered by Grok AI</p>
+              <p className="text-xs text-slate-500 hidden sm:block">Track your personalized placement roadmap and skill development</p>
             </div>
           </div>
 
@@ -227,7 +227,7 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <h3 className="font-bold text-sm sm:text-base font-outfit flex items-center gap-2">
-                    Unlock Your Tailored Grok AI Study Roadmap
+                    Unlock Your Tailored Placement Study Roadmap
                     <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px] uppercase font-bold tracking-wider text-purple-100">Recommended</span>
                   </h3>
                   <p className="text-xs text-purple-100 mt-0.5 max-w-2xl leading-relaxed">
@@ -269,20 +269,7 @@ export default function Dashboard() {
                 <p className="text-blue-100 text-xs sm:text-sm leading-relaxed">
                   Calculated dynamically from your verified performance in Resume, ATS, Aptitude tests, Technical challenges, and Mock HR interviews.
                 </p>
-                <div className="pt-2 flex flex-wrap items-center justify-center md:justify-start gap-4">
-                  <Link
-                    to="/aptitude"
-                    className="px-5 py-2.5 rounded-xl bg-white text-blue-700 font-bold text-xs hover:bg-blue-50 transition shadow-lg"
-                  >
-                    Take Adaptive Test
-                  </Link>
-                  <Link
-                    to="/company-prep"
-                    className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/20 transition"
-                  >
-                    Company Prep
-                  </Link>
-                </div>
+
               </div>
 
               {/* Readiness Semi-Circle Gauge */}
@@ -323,7 +310,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* YOUR PERSONALIZED PLAN (GROK AI ROADMAP) */}
+          {/* YOUR PERSONALIZED PLAN ROADMAP */}
           <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
               <div className="flex items-center gap-3">
@@ -507,7 +494,7 @@ export default function Dashboard() {
                 <Sparkles className="w-8 h-8 text-purple-400 mx-auto" />
                 <h4 className="text-sm font-bold text-slate-800">No Personalized Plan Generated Yet</h4>
                 <p className="text-xs text-slate-500 max-w-md mx-auto">
-                  Complete the quick onboarding to let Grok AI analyze your resume, GitHub, and goals into a customized week-by-week placement plan.
+                  Complete the quick onboarding to analyze your resume, GitHub, and goals into a customized week-by-week placement plan.
                 </p>
                 <div className="pt-2">
                   <Link
@@ -533,7 +520,7 @@ export default function Dashboard() {
                   <div>
                     <h3 className="text-base font-bold text-slate-900 font-outfit">Verified Profile Intelligence</h3>
                     <p className="text-xs text-slate-500">
-                      Grok AI analysis from your verified resume & GitHub data
+                      Synthesized from your verified resume & profile data
                       {studyPlanData?.createdAt && (
                         <span> • Last analyzed {new Date(studyPlanData.createdAt).toLocaleDateString()}</span>
                       )}
@@ -601,7 +588,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* GROK AI PERSONALIZED RECOMMENDATIONS SECTION */}
+          {/* PERSONALIZED RECOMMENDATIONS SECTION */}
           <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -610,7 +597,7 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900 font-outfit">Personalized AI Insights & Strategy</h3>
-                  <p className="text-xs text-slate-500">Tailored by Grok AI based on your actual performance</p>
+                  <p className="text-xs text-slate-500">Tailored recommendations based on your actual performance</p>
                 </div>
               </div>
 
@@ -627,7 +614,7 @@ export default function Dashboard() {
             {loadingRecs ? (
               <div className="py-8 text-center space-y-2">
                 <RefreshCw className="w-6 h-6 text-purple-600 animate-spin mx-auto" />
-                <p className="text-xs font-medium text-slate-500">Grok AI is analyzing your performance metrics...</p>
+                <p className="text-xs font-medium text-slate-500">Analyzing your performance metrics and activity...</p>
               </div>
             ) : aiRecommendations ? (
               <div className="space-y-4 pt-2">

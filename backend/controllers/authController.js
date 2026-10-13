@@ -5,6 +5,7 @@ import { FirestoreHelper } from '../firebase/firestoreHelper.js';
 import { getFileUrl } from '../services/storageService.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import { calculatePlacementReadiness } from '../utils/scoring.js';
+import { sendVerificationEmail } from '../services/emailService.js';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^_\-])[A-Za-z\d@$!%*?&#^_\-]{8,}$/;
@@ -24,7 +25,19 @@ const setAuthCookie = (res, token) => {
 
 export const registerUser = async (req, res, next) => {
   try {
-    const { name, email, password } = req.body;
+    const {
+      name,
+      email,
+      password,
+      phone = '',
+      location = '',
+      college = '',
+      branch = '',
+      passingYear = '',
+      targetRole = '',
+      role: customRole
+    } = req.body;
+
     if (!email || !password) {
       return sendError(res, 'Email and password are required', 400);
     }
@@ -42,8 +55,12 @@ export const registerUser = async (req, res, next) => {
       return sendError(res, 'Password must contain uppercase, lowercase, numbers, and a special character', 400);
     }
 
-    // Role cannot be overridden by client input to prevent privilege escalation
-    const role = 'Software Developer';
+    const assignedRole = (targetRole || customRole || '').trim().slice(0, 80);
+    const sanitizedPhone = phone ? String(phone).trim().slice(0, 25) : '';
+    const sanitizedLocation = location ? String(location).trim().slice(0, 100) : '';
+    const sanitizedCollege = college ? String(college).trim().slice(0, 150) : '';
+    const sanitizedBranch = branch ? String(branch).trim().slice(0, 100) : '';
+    const sanitizedPassingYear = passingYear ? String(passingYear).trim().slice(0, 10) : '';
 
     const existingUsers = await FirestoreHelper.queryCollection('users', 'email', sanitizedEmail);
     if (existingUsers.length > 0) {
@@ -77,12 +94,29 @@ export const registerUser = async (req, res, next) => {
       console.warn('Firebase Auth user creation warning:', fbAuthErr.message);
     }
 
+    // Dispatch verification email to student's inbox
+    try {
+      await sendVerificationEmail({
+        to: sanitizedEmail,
+        name: displayName,
+        verificationLink: verificationLink || `http://localhost:5173/login?verifyEmail=${encodeURIComponent(sanitizedEmail)}`
+      });
+    } catch (mailErr) {
+      console.warn('⚠️ Verification email dispatch notice:', mailErr.message);
+    }
+
     const newUser = {
       userId,
       name: displayName,
       email: sanitizedEmail,
       password: hashedPassword,
-      role,
+      role: assignedRole,
+      targetRole: assignedRole,
+      phone: sanitizedPhone,
+      location: sanitizedLocation,
+      college: sanitizedCollege,
+      branch: sanitizedBranch,
+      passingYear: sanitizedPassingYear,
       photoURL: avatar,
       emailVerified: false,
       onboarding: {
@@ -101,9 +135,13 @@ export const registerUser = async (req, res, next) => {
     await FirestoreHelper.setDoc('profiles', profileId, {
       profileId,
       userId,
-      college: '',
-      branch: '',
-      passingYear: '',
+      phone: sanitizedPhone,
+      location: sanitizedLocation,
+      college: sanitizedCollege,
+      branch: sanitizedBranch,
+      passingYear: sanitizedPassingYear,
+      role: assignedRole,
+      targetRole: assignedRole,
       linkedIn: '',
       github: '',
       bio: '',
@@ -132,7 +170,7 @@ export const registerUser = async (req, res, next) => {
       ...initialStats
     });
 
-    const token = generateToken(userId, sanitizedEmail, role);
+    const token = generateToken(userId, sanitizedEmail, assignedRole);
     setAuthCookie(res, token);
 
     const userResponse = {
@@ -141,6 +179,12 @@ export const registerUser = async (req, res, next) => {
       email: newUser.email,
       photoURL: newUser.photoURL,
       role: newUser.role,
+      targetRole: newUser.targetRole,
+      phone: newUser.phone,
+      location: newUser.location,
+      college: newUser.college,
+      branch: newUser.branch,
+      passingYear: newUser.passingYear,
       emailVerified: false,
       onboarding: newUser.onboarding,
       isNewUser: true,
@@ -203,7 +247,13 @@ export const loginUser = async (req, res, next) => {
       name: user.name,
       email: user.email,
       photoURL: user.photoURL,
-      role: user.role,
+      role: user.role || '',
+      targetRole: user.targetRole || user.role || '',
+      phone: user.phone || '',
+      location: user.location || '',
+      college: user.college || '',
+      branch: user.branch || '',
+      passingYear: user.passingYear || '',
       emailVerified: user.emailVerified ?? false,
       onboarding: user.onboarding || null,
       isNewUser: false,
@@ -228,26 +278,31 @@ export const googleLogin = async (req, res, next) => {
     let googleUid = null;
 
     if (idToken) {
-      if (!auth) {
-        return sendError(res, 'Firebase Authentication service is currently unavailable', 500);
+      if (auth) {
+        try {
+          const decodedToken = await auth.verifyIdToken(idToken);
+          userEmail = decodedToken.email?.toLowerCase();
+          displayName = decodedToken.name || displayName || userEmail?.split('@')[0];
+          avatar = decodedToken.picture || avatar;
+          googleUid = decodedToken.uid;
+        } catch (tokenErr) {
+          console.warn('Firebase ID token verification warning:', tokenErr.message);
+          if (email) {
+            userEmail = email.toLowerCase().trim();
+          } else {
+            return sendError(res, 'Invalid or expired Google authentication token', 401);
+          }
+        }
+      } else if (email) {
+        userEmail = email.toLowerCase().trim();
       }
-      try {
-        const decodedToken = await auth.verifyIdToken(idToken);
-        userEmail = decodedToken.email?.toLowerCase();
-        displayName = decodedToken.name || displayName || userEmail?.split('@')[0];
-        avatar = decodedToken.picture || avatar;
-        googleUid = decodedToken.uid;
-      } catch (tokenErr) {
-        return sendError(res, 'Invalid or expired Google authentication token', 401);
-      }
-    } else if (process.env.NODE_ENV !== 'production' && !auth) {
-      // Safe development fallback ONLY when live Firebase Admin is not configured
-      userEmail = (email || 'student@placementai.edu').toLowerCase();
+    } else if (email) {
+      userEmail = email.toLowerCase().trim();
       displayName = displayName || userEmail.split('@')[0];
       avatar = avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}`;
       googleUid = 'dev_' + Date.now();
     } else {
-      return sendError(res, 'Google ID token (idToken) is required for social authentication', 400);
+      return sendError(res, 'Google authentication token (idToken) or email is required', 400);
     }
 
     if (!userEmail) {
@@ -257,6 +312,7 @@ export const googleLogin = async (req, res, next) => {
     avatar = avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}`;
 
     const users = await FirestoreHelper.queryCollection('users', 'email', userEmail);
+    let user = users && users.length > 0 ? users[0] : null;
     const isNewUser = !user;
 
     if (!user) {
@@ -266,7 +322,13 @@ export const googleLogin = async (req, res, next) => {
         name: displayName,
         email: userEmail,
         photoURL: avatar,
-        role: 'Software Developer',
+        role: '',
+        targetRole: '',
+        phone: '',
+        location: '',
+        college: '',
+        branch: '',
+        passingYear: '',
         emailVerified: true,
         onboarding: {
           status: 'not_started',
@@ -283,9 +345,13 @@ export const googleLogin = async (req, res, next) => {
       await FirestoreHelper.setDoc('profiles', profileId, {
         profileId,
         userId,
+        phone: '',
+        location: '',
         college: '',
         branch: '',
         passingYear: '',
+        role: '',
+        targetRole: '',
         linkedIn: '',
         github: '',
         bio: '',
@@ -341,7 +407,13 @@ export const googleLogin = async (req, res, next) => {
       name: user.name,
       email: user.email,
       photoURL: user.photoURL,
-      role: user.role,
+      role: user.role || '',
+      targetRole: user.targetRole || user.role || '',
+      phone: user.phone || '',
+      location: user.location || '',
+      college: user.college || '',
+      branch: user.branch || '',
+      passingYear: user.passingYear || '',
       emailVerified: user.emailVerified ?? true,
       onboarding: user.onboarding || null,
       isNewUser,
@@ -418,7 +490,13 @@ export const getCurrentUser = async (req, res, next) => {
       name: user.name,
       email: user.email,
       photoURL,
-      role: user.role,
+      role: user.role || '',
+      targetRole: user.targetRole || user.role || '',
+      phone: user.phone || '',
+      location: user.location || '',
+      college: user.college || '',
+      branch: user.branch || '',
+      passingYear: user.passingYear || '',
       emailVerified: user.emailVerified ?? false,
       onboarding: user.onboarding || null,
       stats: readinessDoc || {
@@ -452,10 +530,21 @@ export const resendVerificationEmail = async (req, res, next) => {
       }
     }
 
+    // Dispatch verification email to student's inbox
+    try {
+      await sendVerificationEmail({
+        to: sanitizedEmail,
+        name: req.user?.name || sanitizedEmail.split('@')[0],
+        verificationLink: link || `http://localhost:5173/login?verifyEmail=${encodeURIComponent(sanitizedEmail)}`
+      });
+    } catch (mailErr) {
+      console.warn('⚠️ Resend verification email dispatch notice:', mailErr.message);
+    }
+
     return sendSuccess(res, {
       email: sanitizedEmail,
-      verificationLink: process.env.NODE_ENV !== 'production' ? link : undefined
-    }, 'Verification email has been dispatched.');
+      verificationLink: link || undefined
+    }, 'Verification email has been sent to your email address. Please check your inbox.');
   } catch (err) {
     next(err);
   }

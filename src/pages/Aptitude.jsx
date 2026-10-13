@@ -392,7 +392,7 @@ export default function Aptitude() {
                       {loading && selectedCategory === tp.category ? (
                         <>
                           <RefreshCw className="w-4 h-4 animate-spin" />
-                          <span>Generating Test with Grok AI...</span>
+                          <span>Preparing Assessment Test...</span>
                         </>
                       ) : (
                         <>

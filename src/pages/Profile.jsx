@@ -14,28 +14,37 @@ export default function Profile() {
   const [profileData, setProfileData] = useState({
     name: currentUser?.name || '',
     email: currentUser?.email || '',
-    role: currentUser?.role || 'Software Developer',
+    role: currentUser?.role || currentUser?.targetRole || '',
     photoURL: currentUser?.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(currentUser?.name || 'Student')}`,
-    phone: '',
-    location: '',
-    college: '',
-    branch: '',
-    passingYear: '',
-    bio: '',
-    linkedIn: '',
-    github: '',
-    skills: []
+    phone: currentUser?.phone || '',
+    location: currentUser?.location || '',
+    college: currentUser?.college || '',
+    branch: currentUser?.branch || '',
+    passingYear: currentUser?.passingYear || '',
+    bio: currentUser?.bio || '',
+    linkedIn: currentUser?.linkedIn || '',
+    github: currentUser?.github || '',
+    skills: currentUser?.skills || []
   });
 
   useEffect(() => {
     API.getProfile()
       .then(data => {
         if (data) {
-          setProfileData(prev => ({ ...prev, ...data }));
+          setProfileData(prev => ({
+            ...prev,
+            ...data,
+            phone: data.phone || currentUser?.phone || prev.phone || '',
+            location: data.location || currentUser?.location || prev.location || '',
+            college: data.college || currentUser?.college || prev.college || '',
+            branch: data.branch || currentUser?.branch || prev.branch || '',
+            passingYear: data.passingYear || currentUser?.passingYear || prev.passingYear || '',
+            role: data.role || data.targetRole || currentUser?.role || prev.role || ''
+          }));
         }
       })
       .catch(err => console.warn('Profile fetch notice:', err.message));
-  }, []);
+  }, [currentUser]);
 
   const handleAvatarChange = async (e) => {
     const file = e.target.files?.[0];
@@ -220,7 +229,7 @@ export default function Profile() {
               </div>
               <div className="p-3 bg-slate-50 rounded-xl space-y-1">
                 <span className="text-slate-400 font-semibold block">Target Role</span>
-                <span className="font-bold text-slate-800">{profileData.role}</span>
+                <span className="font-bold text-slate-800">{profileData.role || <span className="text-slate-400 font-normal italic">Not specified</span>}</span>
               </div>
             </div>
           </div>
@@ -282,13 +291,14 @@ export default function Profile() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">Passing Year</label>
                   <input
                     type="text"
                     value={profileData.passingYear}
                     onChange={e => setProfileData({ ...profileData, passingYear: e.target.value })}
+                    placeholder="e.g. 2026"
                     className="w-full p-2.5 bg-slate-50 border rounded-xl"
                   />
                 </div>
@@ -298,6 +308,17 @@ export default function Profile() {
                     type="text"
                     value={profileData.phone}
                     onChange={e => setProfileData({ ...profileData, phone: e.target.value })}
+                    placeholder="e.g. +91 98765 43210"
+                    className="w-full p-2.5 bg-slate-50 border rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Location</label>
+                  <input
+                    type="text"
+                    value={profileData.location}
+                    onChange={e => setProfileData({ ...profileData, location: e.target.value })}
+                    placeholder="e.g. Bangalore, India"
                     className="w-full p-2.5 bg-slate-50 border rounded-xl"
                   />
                 </div>

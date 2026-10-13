@@ -2,7 +2,7 @@
 // Replace values with your actual Firebase project config when deploying to production
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyMockKeyForPlacementAITesting123456",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBd2Zoslz2SoI1kkkzHJ4nrFYEXHWH8d3w",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "placementai-11ba6.firebaseapp.com",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "placementai-11ba6",
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "placementai-11ba6.appspot.com",

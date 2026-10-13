@@ -97,7 +97,7 @@ export async function getStudentContext(userId) {
       console.warn('[StudentContext] Analysis lookup notice:', anErr.message);
     }
 
-    const targetRole = latestResume?.role || profile.role || profile.targetRole || 'Software Developer';
+    const targetRole = latestResume?.role || profile.role || profile.targetRole || '';
     const college = profile.college?.trim() || '';
     const branch = profile.branch?.trim() || '';
     const educationSummary = (college && branch)
@@ -144,7 +144,7 @@ ${strongAreas.length > 0 ? `- Demonstrated Strengths: ${strongAreas.slice(0, 3).
       branch: '',
       college: '',
       educationSummary: 'Student / Recent Graduate',
-      targetRole: 'Software Developer',
+      targetRole: '',
       scores: {},
       weakAreas: [],
       strongAreas: [],

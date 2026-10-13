@@ -29,17 +29,55 @@ import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../services/api';
 import { generateProfessionalSummary, generateProjectBulletPoints } from '../services/aiService';
-import html2pdf from 'html2pdf.js';
+import { TemplatePicker } from '../features/resume/components/TemplatePicker';
+import { CustomizerPanel } from '../features/resume/components/CustomizerPanel';
+import { resolveTemplate, TEMPLATES_REGISTRY } from '../features/resume/templates';
+
+const SECTION_TABS = [
+  { key: 'personal', label: 'Personal Details', icon: User },
+  { key: 'education', label: 'Education', icon: GraduationCap },
+  { key: 'skills', label: 'Skills', icon: Code },
+  { key: 'projects', label: 'Projects', icon: FileText },
+  { key: 'certifications', label: 'Certifications', icon: Award },
+  { key: 'experience', label: 'Experience', icon: Briefcase }
+];
 
 export default function ResumeBuilder() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { currentUser, user: authUser } = useAuth();
+  const user = currentUser || authUser;
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [activeTab, setActiveTab] = useState('personal');
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
+
+  const currentTabIndex = SECTION_TABS.findIndex(t => t.key === activeTab);
+  const nextTab = currentTabIndex >= 0 && currentTabIndex < SECTION_TABS.length - 1 ? SECTION_TABS[currentTabIndex + 1] : null;
+
+  const handleNextSection = () => {
+    if (activeTab === 'experience') {
+      setCurrentStep(3);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (nextTab) {
+      setActiveTab(nextTab.key);
+      window.scrollTo({ top: 120, behavior: 'smooth' });
+    }
+  };
+
+  const handleBackSection = () => {
+    if (activeTab === 'personal') {
+      setCurrentStep(1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      const prevTab = SECTION_TABS[currentTabIndex - 1];
+      if (prevTab) {
+        setActiveTab(prevTab.key);
+        window.scrollTo({ top: 120, behavior: 'smooth' });
+      }
+    }
+  };
 
   // My Resumes Drawer / Modal State
   const [myResumes, setMyResumes] = useState([]);
@@ -53,8 +91,14 @@ export default function ResumeBuilder() {
   const previewRef = useRef(null);
 
   // Resume State - Dynamic to authenticated user
-  const [role, setRole] = useState(user?.role || 'Software Developer');
+  const [role, setRole] = useState(user?.role || user?.targetRole || '');
   const [template, setTemplate] = useState(searchParams.get('template') || 'modern');
+  const [templateOptions, setTemplateOptions] = useState({
+    accentColor: '',
+    spacing: 'normal',
+    fontScale: 'medium',
+    hiddenSections: []
+  });
 
   const [personal, setPersonal] = useState({
     fullName: user?.name || '',
@@ -63,7 +107,8 @@ export default function ResumeBuilder() {
     location: '',
     linkedin: '',
     github: '',
-    summary: ''
+    summary: '',
+    photoUrl: user?.photoURL || ''
   });
 
   const [education, setEducation] = useState([
@@ -219,6 +264,7 @@ export default function ResumeBuilder() {
             }
             if (primaryResume.role) setRole(primaryResume.role);
             if (primaryResume.templateId) setTemplate(primaryResume.templateId);
+            if (primaryResume.templateOptions) setTemplateOptions(primaryResume.templateOptions);
 
             if (Array.isArray(primaryResume.education) && primaryResume.education.length > 0) {
               const cleanEdu = primaryResume.education.filter(e => !isMockEdu(e));
@@ -355,6 +401,12 @@ export default function ResumeBuilder() {
     setActiveResumeId(null);
     setShowMyResumesModal(false);
     setCurrentStep(1);
+    setTemplateOptions({
+      accentColor: '',
+      spacing: 'normal',
+      fontScale: 'medium',
+      hiddenSections: []
+    });
 
     // Pre-populate clean slate from profile
     try {
@@ -367,7 +419,8 @@ export default function ResumeBuilder() {
           location: profile.location || '',
           linkedin: profile.linkedIn || '',
           github: profile.github || '',
-          summary: profile.bio || ''
+          summary: profile.bio || '',
+          photoUrl: profile.photoURL || user?.photoURL || ''
         });
         if (profile.targetRole || profile.role) {
           setRole(profile.targetRole || profile.role);
@@ -399,6 +452,16 @@ export default function ResumeBuilder() {
     }
     if (resume.role) setRole(resume.role);
     if (resume.templateId) setTemplate(resume.templateId);
+    if (resume.templateOptions) {
+      setTemplateOptions(resume.templateOptions);
+    } else {
+      setTemplateOptions({
+        accentColor: '',
+        spacing: 'normal',
+        fontScale: 'medium',
+        hiddenSections: []
+      });
+    }
     if (Array.isArray(resume.education)) setEducation(resume.education);
     if (Array.isArray(resume.skills)) setSkills(resume.skills.map(s => typeof s === 'string' ? s : s.name));
     if (Array.isArray(resume.projects)) setProjects(resume.projects);
@@ -411,7 +474,7 @@ export default function ResumeBuilder() {
     setCurrentStep(2);
   };
 
-  // AI Generators with Grok - Grounded strictly in student's verified learning & coursework
+  // AI Generators - Grounded strictly in student's verified learning & coursework
   const handleAiSummary = async () => {
     setIsAiLoading(true);
     setAiError('');
@@ -437,7 +500,7 @@ export default function ResumeBuilder() {
       const validCerts = Array.isArray(certifications) ? certifications.filter(Boolean) : [];
 
       const summaryPayload = {
-        role: role || 'Software Developer',
+        role: role || user?.role || user?.targetRole || '',
         skills: validSkills,
         experienceYears: realExpYears,
         github: personal.github?.trim() || '',
@@ -483,63 +546,32 @@ export default function ResumeBuilder() {
   };
 
   const handleDownloadPdf = async () => {
-    const element = previewRef.current;
-    if (!element) return;
-    const fileName = `${(personal.fullName || 'Candidate').replace(/\s+/g, '_')}_Resume.pdf`;
-    const opt = {
-      margin: 0.3,
-      filename: fileName,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-    };
+    const rawName = (personal.fullName || user?.name || 'Candidate').trim();
+    const rawRole = (role || 'Professional').trim();
+    const sanitizedName = rawName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const sanitizedRole = rawRole.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const fileName = `${sanitizedName}_${sanitizedRole}_Resume.pdf`;
 
-    // Construct structured text summary for ATS parsers
-    const textSummary = [
-      personal.fullName,
-      [personal.email, personal.phone, personal.location].filter(Boolean).join(' | '),
-      personal.linkedIn || personal.github ? [personal.linkedIn, personal.github].filter(Boolean).join(' ') : '',
-      role ? `Target Role: ${role}` : '',
-      personal.summary ? `PROFESSIONAL SUMMARY\n${personal.summary}` : '',
-      skills.length ? `TECHNICAL SKILLS\n${skills.map(s => typeof s === 'string' ? s : s.name).join(', ')}` : '',
-      experience.length ? `EXPERIENCE\n${experience.map(e => `${e.title} at ${e.company} (${e.duration})\n${e.description || ''}`).join('\n\n')}` : '',
-      projects.length ? `PROJECTS\n${projects.map(p => `${p.title} (${p.technologies || ''})\n${p.description || ''}`).join('\n\n')}` : '',
-      education.length ? `EDUCATION\n${education.map(ed => `${ed.degree} - ${ed.institution} (${ed.year}) ${ed.gpa ? `GPA: ${ed.gpa}` : ''}`).join('\n')}` : '',
-      certifications.length ? `CERTIFICATIONS\n${certifications.map(c => typeof c === 'string' ? c : c.name).join(', ')}` : ''
-    ].filter(Boolean).join('\n\n');
+    // 1. Temporarily set document title for browser print dialog default filename
+    const originalTitle = document.title;
+    document.title = `${sanitizedName}_${sanitizedRole}_Resume`;
 
-    // Generate hybrid ATS-compliant PDF: visual render + embedded text layer + metadata
-    html2pdf()
-      .from(element)
-      .set(opt)
-      .toPdf()
-      .get('pdf')
-      .then((pdf) => {
-        try {
-          pdf.setProperties({
-            title: `${personal.fullName || 'Candidate'} - Resume`,
-            subject: textSummary,
-            author: personal.fullName || 'PlacementAI',
-            keywords: skills.map(s => typeof s === 'string' ? s : s.name).join(', ')
-          });
-          // Hidden text layer for ATS parsers (Taleo, Workday, pdf-parse)
-          pdf.setFontSize(6);
-          pdf.setTextColor(255, 255, 255);
-          const splitLines = pdf.splitTextToSize(textSummary, 7.5);
-          pdf.text(splitLines, 0.2, 0.2);
-        } catch (e) {
-          console.warn('PDF text layer injection:', e);
-        }
-      })
-      .save();
+    // 2. Trigger native vector print dialog (Save as PDF)
+    window.print();
 
+    // Restore title after slight delay
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 1500);
 
-    // Persist resume document & record download in backend
+    // 3. Persist resume document & record download in backend
     try {
       const resumePayload = {
-        title: `${personal.fullName}'s Resume`,
+        title: `${personal.fullName || 'Candidate'}'s Resume`,
         role,
         templateId: template,
+        templateOptions,
+        templateVersion: 1,
         personalInfo: personal,
         summary: personal.summary,
         experience,
@@ -562,8 +594,70 @@ export default function ResumeBuilder() {
         fileName
       });
       refreshResumesList();
-    } catch (err) {
-      console.warn('Backend sync notice:', err.message);
+    } catch (e) {
+      console.warn('Resume persist during download notice:', e.message);
+    }
+  };
+
+  const handleDirectDownloadHtml2Pdf = async () => {
+    const element = previewRef.current;
+    if (!element) return;
+    const rawName = (personal.fullName || user?.name || 'Candidate').trim();
+    const rawRole = (role || 'Professional').trim();
+    const sanitizedName = rawName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const sanitizedRole = rawRole.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const fileName = `${sanitizedName}_${sanitizedRole}_Resume.pdf`;
+
+    const opt = {
+      margin: 0,
+      filename: fileName,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        scrollY: 0,
+        windowWidth: 794
+      },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    const html2pdfModule = await import('html2pdf.js');
+    const html2pdf = html2pdfModule.default || html2pdfModule;
+    html2pdf().from(element).set(opt).save();
+
+    // Persist resume document & record download in backend
+    try {
+      const resumePayload = {
+        title: `${personal.fullName || 'Candidate'}'s Resume`,
+        role,
+        templateId: template,
+        templateOptions,
+        templateVersion: 1,
+        personalInfo: personal,
+        summary: personal.summary,
+        experience,
+        education,
+        skills,
+        projects,
+        certificates: certifications
+      };
+
+      let saved;
+      if (activeResumeId) {
+        saved = await API.updateResume(activeResumeId, resumePayload);
+      } else {
+        saved = await API.saveResume(resumePayload);
+        if (saved?.resumeId) setActiveResumeId(saved.resumeId);
+      }
+
+      await API.recordDownload({
+        resumeId: saved?.resumeId || activeResumeId || 'res_' + Date.now(),
+        fileName
+      });
+      refreshResumesList();
+    } catch (e) {
+      console.warn('Resume persist during download notice:', e.message);
     }
   };
 
@@ -655,6 +749,10 @@ export default function ResumeBuilder() {
                   onChange={e => setRole(e.target.value)}
                   className="w-full max-w-md p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-blue-600 focus:outline-none"
                 >
+                  <option value="">Select Target Job Role</option>
+                  {role && !['Software Developer', 'Data Scientist', 'Product Manager', 'Full Stack Engineer', 'UI/UX Designer'].includes(role) && (
+                    <option value={role}>{role}</option>
+                  )}
                   <option value="Software Developer">Software Developer</option>
                   <option value="Data Scientist">Data Scientist</option>
                   <option value="Product Manager">Product Manager</option>
@@ -663,42 +761,31 @@ export default function ResumeBuilder() {
                 </select>
               </div>
 
-              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-                <h3 className="text-lg font-bold text-slate-900 font-outfit">Select Resume Template</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {[
-                    { id: 'modern', name: 'Modern' },
-                    { id: 'professional', name: 'Professional' },
-                    { id: 'minimal', name: 'Minimal' },
-                    { id: 'creative', name: 'Creative' }
-                  ].map(t => (
-                    <div
-                      key={t.id}
-                      onClick={() => setTemplate(t.id)}
-                      className={`p-4 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between h-44 ${
-                        template === t.id ? 'border-blue-600 bg-blue-50/50' : 'border-slate-200 bg-slate-50 hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="w-full h-24 bg-white rounded border border-slate-200 p-2 space-y-1">
-                        <div className="w-1/2 h-2 bg-blue-500 rounded"></div>
-                        <div className="w-full h-1 bg-slate-200 rounded"></div>
-                        <div className="w-3/4 h-1 bg-slate-200 rounded"></div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs text-slate-800">{t.name}</span>
-                        {template === t.id && <CheckCircle className="w-4 h-4 text-blue-600" />}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <TemplatePicker
+                selectedTemplateId={template}
+                onSelectTemplate={setTemplate}
+                userResumeData={{
+                  personalInfo: personal,
+                  role,
+                  summary: personal.summary,
+                  experience,
+                  education,
+                  skills,
+                  projects,
+                  certificates: certifications
+                }}
+                currentRole={role}
+                selectedAccent={templateOptions.accentColor}
+                onSelectAccent={(color) => setTemplateOptions(prev => ({ ...prev, accentColor: color }))}
+              />
 
-              <div className="flex justify-end">
+              <div className="flex justify-end pt-2">
                 <button
                   onClick={() => setCurrentStep(2)}
-                  className="px-6 py-3 rounded-xl bg-blue-600 text-white font-bold text-sm shadow-md hover:bg-blue-700 transition flex items-center gap-2"
+                  className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-sm shadow-lg hover:shadow-xl transition flex items-center gap-2"
                 >
-                  Next: Fill Information <ArrowRight className="w-4 h-4" />
+                  <span>Next: Fill Information</span>
+                  <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
 
@@ -711,14 +798,7 @@ export default function ResumeBuilder() {
               
               {/* Left Sub-Navigation Tabs */}
               <div className="lg:col-span-3 bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-1 h-fit">
-                {[
-                  { key: 'personal', label: 'Personal Details', icon: User },
-                  { key: 'education', label: 'Education', icon: GraduationCap },
-                  { key: 'skills', label: 'Skills', icon: Code },
-                  { key: 'projects', label: 'Projects', icon: FileText },
-                  { key: 'certifications', label: 'Certifications', icon: Award },
-                  { key: 'experience', label: 'Experience', icon: Briefcase }
-                ].map(t => {
+                {SECTION_TABS.map(t => {
                   const Icon = t.icon;
                   return (
                     <button
@@ -1114,7 +1194,7 @@ export default function ResumeBuilder() {
                               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Technologies Used</label>
                               <input
                                 type="text"
-                                placeholder="e.g. React, Node.js, Express, Firebase, Grok API"
+                                placeholder="e.g. React, Node.js, Express, PostgreSQL, Docker"
                                 value={p.tech}
                                 onChange={e => setProjects(projects.map(pr => pr.id === p.id ? { ...pr, tech: e.target.value } : pr))}
                                 className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
@@ -1147,7 +1227,7 @@ export default function ResumeBuilder() {
                             </div>
                             <textarea
                               rows={3}
-                              placeholder="• Built a scalable full-stack application serving over 1,000 active students...&#10;• Implemented automated resume score feedback using Grok AI engine..."
+                              placeholder="• Built a scalable full-stack application serving over 1,000 active students...&#10;• Implemented automated resume score feedback using an intelligent matching engine..."
                               value={p.description}
                               onChange={e => setProjects(projects.map(pr => pr.id === p.id ? { ...pr, description: e.target.value } : pr))}
                               className="w-full p-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
@@ -1334,18 +1414,28 @@ export default function ResumeBuilder() {
                   </div>
                 )}
 
-                <div className="flex justify-between pt-4 border-t border-slate-100">
+                <div className="flex justify-between items-center pt-4 border-t border-slate-100">
                   <button
-                    onClick={() => setCurrentStep(1)}
-                    className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50"
+                    type="button"
+                    onClick={handleBackSection}
+                    className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition flex items-center gap-1.5"
                   >
-                    Back
+                    <ArrowLeft className="w-4 h-4" /> Back
                   </button>
                   <button
-                    onClick={() => setCurrentStep(3)}
-                    className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-xs shadow hover:bg-blue-700 transition flex items-center gap-2"
+                    type="button"
+                    onClick={handleNextSection}
+                    className={`px-6 py-2.5 rounded-xl text-white font-bold text-xs shadow transition flex items-center gap-2 ${
+                      activeTab === 'experience'
+                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-md shadow-purple-500/20'
+                        : 'bg-blue-600 hover:bg-blue-700'
+                    }`}
                   >
-                    Next: Preview Resume <ArrowRight className="w-4 h-4" />
+                    {activeTab === 'experience' ? (
+                      <>Next: Preview Resume <ArrowRight className="w-4 h-4" /></>
+                    ) : (
+                      <>Next: {nextTab?.label} <ArrowRight className="w-4 h-4" /></>
+                    )}
                   </button>
                 </div>
 
@@ -1354,123 +1444,86 @@ export default function ResumeBuilder() {
             </div>
           )}
 
-          {/* STEP 3: PREVIEW & DOWNLOAD (Screen 7 in Collage) */}
+          {/* STEP 3: PREVIEW & DOWNLOAD */}
           {currentStep === 3 && (
             <div className="space-y-6">
               
-              <div className="flex items-center justify-between">
+              {/* Action Toolbar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs no-print">
                 <button
+                  type="button"
                   onClick={() => setCurrentStep(2)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-100"
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-xs transition flex items-center gap-1.5 self-start"
                 >
-                  ← Edit Information
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Edit Information</span>
                 </button>
-                <button
-                  onClick={handleDownloadPdf}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-sm shadow-lg hover:shadow-xl transition flex items-center gap-2"
-                >
-                  <Download className="w-4 h-4" /> Download PDF Resume
-                </button>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleDirectDownloadHtml2Pdf}
+                    className="px-4 py-2.5 rounded-xl border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 font-bold text-xs transition flex items-center gap-1.5"
+                    title="Direct instant file download"
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span>Direct PDF</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleDownloadPdf}
+                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs shadow-md hover:shadow-lg transition flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download Vector PDF (Print / Save A4)</span>
+                  </button>
+                </div>
               </div>
 
-              {/* Rendered Live Resume Document */}
-              <div className="flex justify-center">
-                <div
-                  ref={previewRef}
-                  className="w-full max-w-3xl bg-white rounded-xl shadow-2xl border border-slate-200 p-8 sm:p-12 space-y-6 text-slate-800 font-sans print-area"
-                >
-                  {/* Resume Header */}
-                  <div className="border-b-2 border-slate-900 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2">
-                    <div>
-                      <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 font-outfit uppercase">{personal.fullName || 'YOUR NAME'}</h1>
-                      {role && <p className="text-sm font-bold text-blue-600 tracking-wider uppercase mt-0.5">{role}</p>}
-                    </div>
-                    <div className="text-xs text-slate-600 space-y-0.5 text-left sm:text-right">
-                      <div>{[personal.email, personal.phone].filter(Boolean).join(' | ')}</div>
-                      {personal.location && <div>{personal.location}</div>}
-                      {personal.linkedin && <div className="text-blue-600">{personal.linkedin}</div>}
+              {/* Two Column Layout: Customizer on Left, Live Document on Right */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                
+                {/* Left: Customizer Panel */}
+                <div className="lg:col-span-4 no-print space-y-4">
+                  <CustomizerPanel
+                    templateId={template}
+                    onChangeTemplate={setTemplate}
+                    options={templateOptions}
+                    onChangeOptions={setTemplateOptions}
+                  />
+                </div>
+
+                {/* Right: Live Rendered A4 Document */}
+                <div className="lg:col-span-8 flex justify-center overflow-x-auto p-2 sm:p-6 bg-slate-200/50 rounded-3xl border border-slate-200/60 shadow-inner">
+                  <div className="w-full max-w-[210mm] bg-white shadow-2xl rounded-none border border-slate-300 overflow-hidden">
+                    <div
+                      id="resume-print-area"
+                      ref={previewRef}
+                      className="w-full bg-white"
+                      style={{
+                        width: '100%',
+                        minHeight: '297mm',
+                        boxSizing: 'border-box'
+                      }}
+                    >
+                      {React.createElement(resolveTemplate(template).component, {
+                        data: {
+                          personalInfo: personal,
+                          role,
+                          summary: personal.summary,
+                          experience,
+                          education,
+                          skills,
+                          projects,
+                          certificates: certifications
+                        },
+                        options: templateOptions
+                      })}
                     </div>
                   </div>
-
-                  {/* Summary */}
-                  {personal.summary && (
-                    <div className="space-y-1">
-                      <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1">Professional Summary</h2>
-                      <p className="text-xs leading-relaxed text-slate-700">{personal.summary}</p>
-                    </div>
-                  )}
-
-                  {/* Projects */}
-                  {projects.filter(p => p.title || p.description).length > 0 && (
-                    <div className="space-y-3">
-                      <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1">Projects</h2>
-                      {projects.filter(p => p.title || p.description).map(p => (
-                        <div key={p.id} className="space-y-1">
-                          <div className="flex justify-between items-center text-xs font-bold text-slate-900">
-                            <span>{p.title} {p.tech && <span className="font-normal text-slate-500">({p.tech})</span>}</span>
-                          </div>
-                          {p.description && <p className="text-xs text-slate-700 leading-relaxed">• {p.description}</p>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Experience */}
-                  {experience.filter(exp => exp.title || exp.company).length > 0 && (
-                    <div className="space-y-2">
-                      <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1">Experience</h2>
-                      {experience.filter(exp => exp.title || exp.company).map(exp => (
-                        <div key={exp.id} className="space-y-0.5">
-                          <div className="flex justify-between items-center text-xs font-bold text-slate-900">
-                            <span>{exp.title} {exp.company && <span className="font-semibold text-slate-600">at {exp.company}</span>}</span>
-                            <span className="text-slate-500 font-normal text-[11px]">{exp.duration} {exp.location ? `• ${exp.location}` : ''}</span>
-                          </div>
-                          {exp.details && <p className="text-xs text-slate-700 leading-relaxed">• {exp.details}</p>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Education */}
-                  {education.filter(ed => ed.degree || ed.college).length > 0 && (
-                    <div className="space-y-2">
-                      <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1">Education</h2>
-                      {education.filter(ed => ed.degree || ed.college).map(ed => (
-                        <div key={ed.id} className="flex justify-between text-xs font-bold text-slate-900">
-                          <div>
-                            <div>{ed.degree}</div>
-                            <div className="font-normal text-slate-600">{ed.college}</div>
-                          </div>
-                          <div className="text-right">
-                            <div>{ed.year}</div>
-                            <div className="text-blue-600">{ed.cgpa}</div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Skills */}
-                  {skills.length > 0 && (
-                    <div className="space-y-1">
-                      <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1">Skills</h2>
-                      <p className="text-xs text-slate-700 font-medium leading-relaxed">
-                        {skills.join(' • ')}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Certifications */}
-                  {certifications.length > 0 && (
-                    <div className="space-y-1">
-                      <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1">Certificates</h2>
-                      <ul className="text-xs text-slate-700 list-disc pl-4 space-y-0.5">
-                        {certifications.map((c, i) => <li key={i}>{c}</li>)}
-                      </ul>
-                    </div>
-                  )}
-
                 </div>
+
               </div>
 
             </div>
@@ -1585,7 +1638,10 @@ export default function ResumeBuilder() {
                               </span>
                             </div>
                             <p className="text-xs text-slate-500 mt-1">
-                              Role: <span className="font-medium text-slate-700">{resume.role || 'Software Developer'}</span>
+                              Role: <span className="font-medium text-slate-700">{resume.role || 'Not specified'}</span>
+                              {!isUploaded && (
+                                <span> • Template: <span className="font-semibold text-purple-700">{resolveTemplate(resume.templateId).name}</span></span>
+                              )}
                               {resume.createdAt && (
                                 <span> • {new Date(resume.createdAt).toLocaleDateString()}</span>
                               )}

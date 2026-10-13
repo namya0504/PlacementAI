@@ -29,7 +29,7 @@ export const getHRQuestions = async (req, res, next) => {
       const latestResume = resumes[resumes.length - 1] || {};
 
       const userContext = {
-        role: req.query.role || profile.role || latestResume.role || studentContext.targetRole || 'Software Developer',
+        role: req.query.role || profile.role || profile.targetRole || latestResume.role || studentContext.targetRole || '',
         skills: profile.skills || latestResume.skills || studentContext.skills || ['Problem Solving'],
         projects: profile.projects || latestResume.projects || [{ title: 'Academic Project' }],
         interests: profile.interests || ['Technology']

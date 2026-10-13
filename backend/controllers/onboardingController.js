@@ -25,7 +25,11 @@ export const uploadOnboardingResume = async (req, res, next) => {
       return sendError(res, 'No resume file provided. Please upload a PDF or DOCX file.', 400);
     }
 
-    const { targetRole = 'Software Developer' } = req.body;
+    let targetRole = (req.body.targetRole || '').trim();
+    if (!targetRole) {
+      const userDoc = await FirestoreHelper.getDoc('users', userId);
+      targetRole = userDoc?.targetRole || userDoc?.role || '';
+    }
 
     // 1. Validate bucket config (size and MIME)
     const validation = validateFile('resumes', req.file.mimetype, req.file.size);
@@ -147,7 +151,7 @@ export const analyzeProfilesAndBuildPlan = async (req, res, next) => {
   try {
     const userId = req.user.userId;
     const {
-      targetRole = 'Software Developer',
+      targetRole = '',
       resumeText = '',
       resumeId = '',
       github = '',
@@ -242,7 +246,7 @@ export const confirmOnboarding = async (req, res, next) => {
     const {
       confirmedSkills = [],
       confirmedProjects = [],
-      targetRole = 'Software Developer',
+      targetRole = '',
       github = '',
       linkedin = '',
       bio = '',
@@ -302,23 +306,23 @@ export const confirmOnboarding = async (req, res, next) => {
       profileId,
       userId,
       targetRole,
+      role: targetRole,
       ...(github && { github: github.trim() }),
       ...(linkedin && { linkedIn: linkedin.trim() }),
       ...(bio && { bio: bio.trim().slice(0, 1000) }),
       ...(Array.isArray(confirmedSkills) && {
         skills: confirmedSkills.map(s => typeof s === 'string' ? s : s.name).filter(Boolean)
       }),
-      ...(education && {
-        college: education.college || '',
-        branch: education.branch || '',
-        passingYear: education.passingYear || education.year || ''
-      })
+      ...(education?.college && { college: education.college.trim() }),
+      ...(education?.branch && { branch: education.branch.trim() }),
+      ...((education?.passingYear || education?.year) && { passingYear: String(education.passingYear || education.year).trim() })
     };
     await FirestoreHelper.setDoc('profiles', profileId, profileUpdates, true);
 
     // 4. Update User onboarding status to 'completed'
     await FirestoreHelper.setDoc('users', userId, {
       role: targetRole,
+      targetRole,
       onboarding: {
         status: 'completed',
         currentStep: 4,

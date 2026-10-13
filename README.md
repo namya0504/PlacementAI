@@ -366,10 +366,71 @@ This project is developed for educational purposes as a Minor Project.
 
 ---
 
-## 📧 Contact
+## 🎨 How to Add a New Resume Template
 
-For any queries or suggestions, feel free to contact the development team.
+Adding a new resume template to PlacementAI takes just **two simple steps** thanks to the plug-in registry architecture:
+
+### 1. Create the Layout Component
+Create a layout component in `src/features/resume/templates/layouts/` (or reuse an existing layout family). Every template component receives two standardized props:
+- `data`: The resume data object (`personalInfo`, `role`, `summary`, `education`, `skills`, `projects`, `experience`, `certificates`).
+- `options`: User customization tokens (`accentColor`, `spacing`, `fontScale`, `hiddenSections`, `sectionOrder`).
+
+```jsx
+import React from 'react';
+import { resolveTokens } from '../tokens';
+import { SectionTitle, ContactRow, SkillList, ExperienceItem, ProjectItem, EducationItem } from '../components/SharedComponents';
+
+export function MyCustomLayout({ data = {}, options = {} }) {
+  const { theme, spacing, fonts, hiddenSections } = resolveTokens('navy', options);
+  const { personalInfo = {}, role = '', experience = [], education = [], skills = [], projects = [] } = data;
+
+  return (
+    <div className={`w-full bg-white text-slate-800 ${spacing.pagePadding}`}>
+      {/* Header */}
+      <h1 className={`${fonts.name} font-bold`}>{personalInfo.fullName}</h1>
+      <p style={{ color: theme.accent }}>{role}</p>
+      <ContactRow personal={personalInfo} accentColor={theme.accent} />
+
+      {/* Sections */}
+      {!hiddenSections.includes('experience') && experience.length > 0 && (
+        <div>
+          <SectionTitle title="Experience" accentColor={theme.accent} />
+          {experience.map(exp => (
+            <ExperienceItem key={exp.id} exp={exp} accentColor={theme.accent} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+### 2. Register Entry in `TEMPLATES_REGISTRY`
+Open `src/features/resume/templates/index.js` and add an entry:
+
+```javascript
+{
+  id: 'my_custom_template',
+  name: 'My Custom Template',
+  description: 'Clean modern layout with customized accent highlights.',
+  category: 'Creative', // 'ATS-Friendly' | 'Fresher' | 'Developer' | 'Sidebar' | 'Banner' | 'Minimal' | 'Creative'
+  tags: ['Creative', 'Two-column'],
+  atsFriendly: true,
+  columns: 2,
+  supportsPhoto: true,
+  accentPresets: ['#1e3a8a', '#0f766e', '#be123c', '#7c3aed'],
+  component: MyCustomLayout
+}
+```
+
+That's it! The new template will automatically:
+- Appear in the Canva-style Template Picker with a live scaled preview thumbnail.
+- Support interactive color dots and the full preview modal.
+- Be selectable in Step 1 and switchable in the Step 3 Customizer Panel without losing user data.
+- Print with exact vector selectable text and clickable hyperlinks.
+- Fallback gracefully to default if an unknown ID is provided.
 
 ---
 
 **PlacementAI — Build Smart. Prepare Better. Get Hired.**
+

@@ -83,7 +83,7 @@ export function formatResumeToCleanText(data) {
 export const analyzeResume = async (req, res, next) => {
   try {
     const userId = req.user.userId;
-    let targetRole = req.body.targetRole || 'Software Developer';
+    let targetRole = (req.body.targetRole || '').trim();
     let resumeText = req.body.resumeText || '';
 
     // If explicit resumeId provided (e.g. user selected from their saved resumes)
@@ -92,8 +92,15 @@ export const analyzeResume = async (req, res, next) => {
       if (savedDoc && savedDoc.userId === userId) {
         console.log(`[ATS] Using selected resume doc: ${req.body.resumeId}`);
         resumeText = savedDoc.parsedText || formatResumeToCleanText(savedDoc);
-        if (savedDoc.role && !req.body.targetRole) targetRole = savedDoc.role;
+        if (savedDoc.role && !targetRole) targetRole = savedDoc.role;
       }
+    }
+
+    // If targetRole wasn't explicitly provided, check user's profile
+    if (!targetRole) {
+      const userDoc = await FirestoreHelper.getDoc('users', userId);
+      const profileDoc = await FirestoreHelper.getDoc('profiles', `prof_${userId}`);
+      targetRole = (profileDoc?.targetRole || profileDoc?.role || userDoc?.targetRole || userDoc?.role || '').trim();
     }
 
     // If a file was uploaded, extract text from it (PDF or DOCX)
@@ -113,7 +120,7 @@ export const analyzeResume = async (req, res, next) => {
         const primaryResume = userResumes.find(r => r.isPrimary) || userResumes[userResumes.length - 1];
         console.log(`[ATS] Rescuing with saved resume: ${primaryResume.title || primaryResume.resumeId}`);
         resumeText = primaryResume.parsedText || formatResumeToCleanText(primaryResume);
-        if (primaryResume.role && targetRole === 'Software Developer') {
+        if (primaryResume.role && !targetRole) {
           targetRole = primaryResume.role;
         }
       } else {

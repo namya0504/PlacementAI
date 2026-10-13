@@ -203,8 +203,8 @@ export default function Technical() {
               {loading ? (
                 <div className="py-20 text-center space-y-3">
                   <RefreshCw className="w-8 h-8 text-purple-600 animate-spin mx-auto" />
-                  <div className="text-sm font-bold text-slate-700">Generating AI Challenge with Grok...</div>
-                  <div className="text-xs text-slate-400">Crafting at least 3 test cases and constraints</div>
+                  <div className="text-sm font-bold text-slate-700">Generating Coding Challenge...</div>
+                  <div className="text-xs text-slate-400">Preparing test cases and system constraints</div>
                 </div>
               ) : questionData ? (
                 <div className="space-y-4">

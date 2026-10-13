@@ -2,15 +2,29 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { UploadCloud, CheckCircle2, AlertTriangle, Download, Sparkles, FileText, Menu, RefreshCw } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
+import { useAuth } from '../context/AuthContext';
 import { API } from '../services/api';
 
 export default function ATSChecker() {
   const [searchParams] = useSearchParams();
+  const { currentUser } = useAuth();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
-  const [targetRole, setTargetRole] = useState('Software Developer');
+  const [targetRole, setTargetRole] = useState(currentUser?.role || currentUser?.targetRole || '');
   const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    if (currentUser?.role || currentUser?.targetRole) {
+      setTargetRole(currentUser.role || currentUser.targetRole);
+    } else {
+      API.getProfile().then(p => {
+        if (p?.targetRole || p?.role) {
+          setTargetRole(p.targetRole || p.role);
+        }
+      }).catch(() => {});
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     const resumeId = searchParams.get('resumeId');
@@ -105,7 +119,7 @@ export default function ATSChecker() {
             </button>
             <div>
               <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 font-outfit">ATS Resume Analysis</h1>
-              <p className="text-xs text-slate-500">Scan and benchmark your resume against industry hiring systems using Grok AI</p>
+              <p className="text-xs text-slate-500">Scan and benchmark your resume against industry hiring standards</p>
             </div>
           </div>
         </header>
@@ -130,7 +144,7 @@ export default function ATSChecker() {
                 type="text"
                 value={targetRole}
                 onChange={e => setTargetRole(e.target.value)}
-                placeholder="e.g. Frontend Engineer"
+                placeholder="Enter target role (e.g. Data Scientist, Web Developer...)"
                 className="flex-1 px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600"
               />
             </div>
@@ -140,7 +154,7 @@ export default function ATSChecker() {
                 {isScanning ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Analyzing with Grok AI...</span>
+                    <span>Analyzing Resume...</span>
                   </>
                 ) : (
                   <>

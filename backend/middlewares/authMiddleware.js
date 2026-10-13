@@ -30,7 +30,7 @@ export const protectRoute = async (req, res, next) => {
           req.user = {
             userId: fbUser.uid,
             email: fbUser.email,
-            role: fbUser.role || 'Software Developer'
+            role: fbUser.role || ''
           };
           return next();
         } catch (fbErr) {

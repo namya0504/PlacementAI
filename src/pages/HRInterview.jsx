@@ -111,7 +111,7 @@ export default function HRInterview() {
             </button>
             <div>
               <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 font-outfit">AI HR Mock Interview</h1>
-              <p className="text-xs text-slate-500">Live AI speech and response analysis powered by Grok</p>
+              <p className="text-xs text-slate-500">Real-time behavioral response analysis and interview feedback</p>
             </div>
           </div>
 
@@ -173,7 +173,7 @@ export default function HRInterview() {
               {isLoadingQuestions ? (
                 <div className="py-20 text-center space-y-3">
                   <RefreshCw className="w-8 h-8 text-purple-600 animate-spin mx-auto" />
-                  <div className="text-sm font-bold text-slate-700">Generating Tailored HR Questions with Grok...</div>
+                  <div className="text-sm font-bold text-slate-700">Generating Tailored HR Questions...</div>
                   <div className="text-xs text-slate-400">Personalizing for Round {currentRound}</div>
                 </div>
               ) : hrQuestions.length === 0 ? (
@@ -245,7 +245,7 @@ export default function HRInterview() {
                       {isEvaluating ? (
                         <>
                           <RefreshCw className="w-4 h-4 animate-spin" />
-                          <span>Evaluating with Grok...</span>
+                          <span>Evaluating Response...</span>
                         </>
                       ) : (
                         <>
@@ -263,7 +263,7 @@ export default function HRInterview() {
             <div className="lg:col-span-6 bg-white rounded-2xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6 flex flex-col justify-between">
               
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                <h3 className="font-bold text-slate-900 font-outfit text-base">Grok AI Evaluation</h3>
+                <h3 className="font-bold text-slate-900 font-outfit text-base">Performance Evaluation</h3>
                 <span className="text-xs text-slate-400 font-mono">Real-time Analysis</span>
               </div>
 
@@ -328,7 +328,7 @@ export default function HRInterview() {
                   </div>
                   <p className="text-sm font-medium text-slate-500">Your AI assessment report will appear here.</p>
                   <p className="text-xs text-slate-400 text-center max-w-xs">
-                    Type your answer to the interviewer's question and click "Submit Answer" to get instant Grok feedback.
+                    Type your answer to the interviewer's question and click "Submit Answer" to get detailed feedback.
                   </p>
                 </div>
               )}

@@ -2,6 +2,12 @@ import { FirestoreHelper } from './firestoreHelper.js';
 
 export const seedInitialData = async () => {
   try {
+    const existing = await FirestoreHelper.getDoc('companies', 'comp_tcs');
+    if (existing) {
+      console.log('⚡ Initial data already seeded in database, ready.');
+      return;
+    }
+
     // Seed Aptitude Questions
     const aptitudeQuestions = [
       {

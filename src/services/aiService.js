@@ -24,8 +24,8 @@ export const generateSkillSuggestions = async (role) => {
   throw new Error('AI was unable to generate skill suggestions. Please try again.');
 };
 
-export const analyzeATSResume = async (fileName, fileContent) => {
-  const res = await API.analyzeATS({ resumeText: fileContent, targetRole: 'Software Developer' });
+export const analyzeATSResume = async (fileName, fileContent, targetRole = '') => {
+  const res = await API.analyzeATS({ resumeText: fileContent, ...(targetRole ? { targetRole } : {}) });
   if (res) return res;
   throw new Error('ATS Resume analysis failed. Please try again with valid text or PDF.');
 };

@@ -122,8 +122,10 @@ export const createResume = async (req, res, next) => {
 
     const {
       title = 'My Professional Resume',
-      role = 'Software Developer',
+      role = '',
       templateId = 'modern',
+      templateOptions = {},
+      templateVersion = 1,
       personalInfo = {},
       summary = '',
       experience = [],
@@ -133,12 +135,20 @@ export const createResume = async (req, res, next) => {
       certificates = []
     } = req.body;
 
+    let studentRole = (role || '').trim();
+    if (!studentRole) {
+      const userDoc = await FirestoreHelper.getDoc('users', userId);
+      studentRole = userDoc?.targetRole || userDoc?.role || '';
+    }
+
     const resumeData = {
       resumeId,
       userId,
       title,
-      role,
+      role: studentRole,
       templateId,
+      templateOptions,
+      templateVersion,
       personalInfo,
       summary,
       experience,
