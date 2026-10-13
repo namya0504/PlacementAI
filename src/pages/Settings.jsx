@@ -15,6 +15,7 @@ export default function Settings() {
   const [location, setLocation] = useState(currentUser?.location || '');
   const [language, setLanguage] = useState('English');
   const [savedMsg, setSavedMsg] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     API.getProfile()
@@ -31,16 +32,25 @@ export default function Settings() {
 
   const handleSave = async (e) => {
     e.preventDefault();
+    setErrorMsg('');
+
+    if (!name?.trim()) {
+      setErrorMsg('Full name is required and cannot be empty.');
+      return;
+    }
+
+    if (!phone?.trim()) {
+      setErrorMsg('Phone number is a compulsory field and cannot be deleted. You can update it with a new number.');
+      return;
+    }
+
     try {
       await API.updateProfile({ name, email, phone, location });
       updateProfileData({ name, email, phone, location });
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 3000);
     } catch (err) {
-      console.warn('Settings save notice:', err.message);
-      updateProfileData({ name, email, phone, location });
-      setSavedMsg(true);
-      setTimeout(() => setSavedMsg(false), 3000);
+      setErrorMsg(err.message || 'Unable to update account settings.');
     }
   };
 
@@ -98,6 +108,12 @@ export default function Settings() {
               {savedMsg && (
                 <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">
                   ✓ Settings saved successfully!
+                </div>
+              )}
+
+              {errorMsg && (
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold">
+                  {errorMsg}
                 </div>
               )}
 

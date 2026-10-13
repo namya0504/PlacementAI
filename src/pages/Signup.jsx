@@ -20,7 +20,7 @@ import {
   Calendar,
   Briefcase
 } from 'lucide-react';
-import { FaGoogle, FaMicrosoft } from 'react-icons/fa';
+import { FaGoogle } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
@@ -382,20 +382,13 @@ export default function Signup() {
                 <span className="bg-white px-3 text-[11px] text-slate-400 font-semibold uppercase">or continue with</span>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="w-full">
                 <button
                   type="button"
                   onClick={() => handleSocialLogin('Google')}
-                  className="py-2.5 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center justify-center gap-2 transition"
+                  className="w-full py-2.5 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-700 text-xs font-bold flex items-center justify-center gap-2.5 transition shadow-sm"
                 >
-                  <FaGoogle className="text-red-500" /> Google
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSocialLogin('Microsoft')}
-                  className="py-2.5 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center justify-center gap-2 transition"
-                >
-                  <FaMicrosoft className="text-blue-500" /> Microsoft
+                  <FaGoogle className="text-red-500 text-sm" /> Continue with Google
                 </button>
               </div>
 

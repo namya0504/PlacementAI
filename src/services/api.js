@@ -117,6 +117,7 @@ export const API = {
   getCurrentUser: () => apiCall('/auth/me', 'GET'),
   resendVerification: (data = {}) => apiCall('/auth/resend-verification', 'POST', data),
   verifyEmail: () => apiCall('/auth/verify-email', 'POST'),
+  completeProfile: (profileData) => apiCall('/auth/complete-profile', 'POST', profileData),
 
   // Profile
   getProfile: () => apiCall('/profile', 'GET'),

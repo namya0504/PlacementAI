@@ -82,6 +82,13 @@ export const updateProfile = async (req, res, next) => {
     const userId = req.user.userId;
     const profileId = 'prof_' + userId;
 
+    let userDoc = await FirestoreHelper.getDoc('users', userId);
+    let profileDoc = await FirestoreHelper.getDoc('profiles', profileId);
+
+    if (!userDoc) {
+      return sendError(res, 'User not found', 404);
+    }
+
     const {
       name,
       role,
@@ -99,21 +106,70 @@ export const updateProfile = async (req, res, next) => {
       skills
     } = req.body;
 
-    const assignedRole = role || targetRole;
+    const existingPhone = (userDoc.phone || profileDoc?.phone || '').trim();
+    const existingCollege = (userDoc.college || profileDoc?.college || '').trim();
+    const existingBranch = (userDoc.branch || profileDoc?.branch || '').trim();
+    const existingPassingYear = (userDoc.passingYear || profileDoc?.passingYear || '').trim();
+    const existingRole = (userDoc.targetRole || userDoc.role || profileDoc?.targetRole || profileDoc?.role || '').trim();
+
+    // STRICT VALIDATION: Compulsory fields cannot be deleted or set to empty string once provided
+    if (phone !== undefined) {
+      const trimmedPhone = String(phone).trim();
+      if (!trimmedPhone && existingPhone) {
+        return sendError(res, 'Phone number is a compulsory field and cannot be deleted. You can update it with a new number, but cannot leave it empty.', 400);
+      }
+    }
+
+    if (college !== undefined) {
+      const trimmedCollege = String(college).trim();
+      if (!trimmedCollege && existingCollege) {
+        return sendError(res, 'College / University is a compulsory field and cannot be deleted.', 400);
+      }
+    }
+
+    if (branch !== undefined) {
+      const trimmedBranch = String(branch).trim();
+      if (!trimmedBranch && existingBranch) {
+        return sendError(res, 'Branch / Department is a compulsory field and cannot be deleted.', 400);
+      }
+    }
+
+    if (passingYear !== undefined) {
+      const trimmedPassingYear = String(passingYear).trim();
+      if (!trimmedPassingYear && existingPassingYear) {
+        return sendError(res, 'Passing year is a compulsory field and cannot be deleted.', 400);
+      }
+    }
+
+    if (targetRole !== undefined || role !== undefined) {
+      const trimmedRole = String(targetRole || role || '').trim();
+      if (!trimmedRole && existingRole) {
+        return sendError(res, 'Target role is a compulsory field and cannot be deleted.', 400);
+      }
+    }
+
+    if (name !== undefined) {
+      const trimmedName = String(name).trim();
+      if (!trimmedName) {
+        return sendError(res, 'Full name is required and cannot be empty.', 400);
+      }
+    }
+
+    const assignedRole = (role !== undefined ? role : targetRole);
 
     // Update user info
     const userUpdates = {};
-    if (typeof name === 'string') userUpdates.name = name.trim().slice(0, 80);
-    if (typeof assignedRole === 'string') {
+    if (typeof name === 'string' && name.trim()) userUpdates.name = name.trim().slice(0, 80);
+    if (typeof assignedRole === 'string' && assignedRole.trim()) {
       userUpdates.role = assignedRole.trim().slice(0, 80);
       userUpdates.targetRole = assignedRole.trim().slice(0, 80);
     }
-    if (typeof phone === 'string') userUpdates.phone = phone.trim().slice(0, 25);
+    if (typeof phone === 'string' && phone.trim()) userUpdates.phone = phone.trim().slice(0, 25);
     if (typeof location === 'string') userUpdates.location = location.trim().slice(0, 100);
-    if (typeof college === 'string') userUpdates.college = college.trim().slice(0, 150);
-    if (typeof branch === 'string') userUpdates.branch = branch.trim().slice(0, 100);
-    if (typeof passingYear === 'string') userUpdates.passingYear = passingYear.trim().slice(0, 10);
-    if (typeof photoURL === 'string') userUpdates.photoURL = photoURL.trim().slice(0, 500);
+    if (typeof college === 'string' && college.trim()) userUpdates.college = college.trim().slice(0, 150);
+    if (typeof branch === 'string' && branch.trim()) userUpdates.branch = branch.trim().slice(0, 100);
+    if (typeof passingYear === 'string' && passingYear.trim()) userUpdates.passingYear = passingYear.trim().slice(0, 10);
+    if (typeof photoURL === 'string' && photoURL.trim()) userUpdates.photoURL = photoURL.trim().slice(0, 500);
 
     if (Object.keys(userUpdates).length > 0) {
       await FirestoreHelper.setDoc('users', userId, userUpdates, true);
@@ -123,22 +179,22 @@ export const updateProfile = async (req, res, next) => {
     const profileUpdates = {
       profileId,
       userId,
-      ...(assignedRole !== undefined && { role: String(assignedRole).slice(0, 80), targetRole: String(assignedRole).slice(0, 80) }),
-      ...(phone !== undefined && { phone: String(phone).slice(0, 25) }),
-      ...(location !== undefined && { location: String(location).slice(0, 100) }),
-      ...(college !== undefined && { college: String(college).slice(0, 150) }),
-      ...(branch !== undefined && { branch: String(branch).slice(0, 100) }),
-      ...(passingYear !== undefined && { passingYear: String(passingYear).slice(0, 10) }),
-      ...(linkedIn !== undefined && { linkedIn: String(linkedIn).slice(0, 200) }),
-      ...(github !== undefined && { github: String(github).slice(0, 200) }),
-      ...(bio !== undefined && { bio: String(bio).slice(0, 1000) }),
+      ...(assignedRole !== undefined && assignedRole.trim() && { role: String(assignedRole).trim().slice(0, 80), targetRole: String(assignedRole).trim().slice(0, 80) }),
+      ...(phone !== undefined && phone.trim() && { phone: String(phone).trim().slice(0, 25) }),
+      ...(location !== undefined && { location: String(location).trim().slice(0, 100) }),
+      ...(college !== undefined && college.trim() && { college: String(college).trim().slice(0, 150) }),
+      ...(branch !== undefined && branch.trim() && { branch: String(branch).trim().slice(0, 100) }),
+      ...(passingYear !== undefined && passingYear.trim() && { passingYear: String(passingYear).trim().slice(0, 10) }),
+      ...(linkedIn !== undefined && { linkedIn: String(linkedIn).trim().slice(0, 200) }),
+      ...(github !== undefined && { github: String(github).trim().slice(0, 200) }),
+      ...(bio !== undefined && { bio: String(bio).trim().slice(0, 1000) }),
       ...(Array.isArray(interests) && { interests: interests.slice(0, 30) }),
       ...(Array.isArray(skills) && { skills: skills.slice(0, 50) })
     };
 
     const updatedProfile = await FirestoreHelper.setDoc('profiles', profileId, profileUpdates, true);
 
-    const userDoc = await FirestoreHelper.getDoc('users', userId);
+    userDoc = await FirestoreHelper.getDoc('users', userId);
 
     // Resolve avatar URL for response
     let resolvedPhotoURL = userDoc?.photoURL || photoURL;

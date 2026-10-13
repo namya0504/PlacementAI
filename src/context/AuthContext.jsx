@@ -153,6 +153,19 @@ export const AuthProvider = ({ children }) => {
     });
   };
 
+  const completeProfile = async (profileData) => {
+    const res = await API.completeProfile(profileData);
+    const updated = {
+      ...(currentUser || {}),
+      ...profileData,
+      ...(res || {}),
+      needsProfileCompletion: false
+    };
+    setCurrentUser(updated);
+    localStorage.setItem('placement_ai_user', JSON.stringify(updated));
+    return updated;
+  };
+
   const value = {
     currentUser,
     loading,
@@ -161,7 +174,8 @@ export const AuthProvider = ({ children }) => {
     loginWithSocial,
     logout,
     updateProfileData,
-    updateOnboardingState
+    updateOnboardingState,
+    completeProfile
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

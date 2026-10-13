@@ -172,6 +172,14 @@ export const registerUser = async (req, res, next) => {
     const token = generateToken(userId, sanitizedEmail, assignedRole);
     setAuthCookie(res, token);
 
+    const hasCompulsoryData = Boolean(
+      newUser.phone?.trim() &&
+      newUser.college?.trim() &&
+      newUser.branch?.trim() &&
+      newUser.passingYear?.trim() &&
+      (newUser.targetRole?.trim() || newUser.role?.trim())
+    );
+
     const userResponse = {
       uid: userId,
       name: newUser.name,
@@ -187,6 +195,7 @@ export const registerUser = async (req, res, next) => {
       emailVerified: false,
       onboarding: newUser.onboarding,
       isNewUser: true,
+      needsProfileCompletion: !hasCompulsoryData,
       verificationLink: process.env.NODE_ENV !== 'production' ? verificationLink : undefined,
       token,
       stats: initialStats
@@ -241,6 +250,14 @@ export const loginUser = async (req, res, next) => {
       readinessDoc.overallReadiness = calculatePlacementReadiness(readinessDoc);
     }
 
+    const hasCompulsoryData = Boolean(
+      user.phone?.trim() &&
+      user.college?.trim() &&
+      user.branch?.trim() &&
+      user.passingYear?.trim() &&
+      (user.targetRole?.trim() || user.role?.trim())
+    );
+
     const userResponse = {
       uid: user.userId,
       name: user.name,
@@ -256,6 +273,7 @@ export const loginUser = async (req, res, next) => {
       emailVerified: user.emailVerified ?? false,
       onboarding: user.onboarding || null,
       isNewUser: false,
+      needsProfileCompletion: !hasCompulsoryData,
       token,
       stats: readinessDoc
     };
@@ -377,6 +395,19 @@ export const googleLogin = async (req, res, next) => {
         userId,
         ...initialStats
       });
+    } else {
+      const updates = {};
+      if (avatar && (!user.photoURL || user.photoURL.includes('dicebear'))) {
+        updates.photoURL = avatar;
+        user.photoURL = avatar;
+      }
+      if (displayName && !user.name) {
+        updates.name = displayName;
+        user.name = displayName;
+      }
+      if (Object.keys(updates).length > 0) {
+        await FirestoreHelper.setDoc('users', user.userId, updates, true);
+      }
     }
 
     const token = generateToken(user.userId, user.email, user.role);
@@ -401,6 +432,14 @@ export const googleLogin = async (req, res, next) => {
       readinessDoc.overallReadiness = calculatePlacementReadiness(readinessDoc);
     }
 
+    const hasCompulsoryData = Boolean(
+      user.phone?.trim() &&
+      user.college?.trim() &&
+      user.branch?.trim() &&
+      user.passingYear?.trim() &&
+      (user.targetRole?.trim() || user.role?.trim())
+    );
+
     return sendSuccess(res, {
       uid: user.userId,
       name: user.name,
@@ -416,6 +455,7 @@ export const googleLogin = async (req, res, next) => {
       emailVerified: user.emailVerified ?? true,
       onboarding: user.onboarding || null,
       isNewUser,
+      needsProfileCompletion: !hasCompulsoryData,
       token,
       stats: readinessDoc
     }, 'Google Login successful');
@@ -490,6 +530,14 @@ export const getCurrentUser = async (req, res, next) => {
       }
     }
 
+    const hasCompulsoryData = Boolean(
+      user.phone?.trim() &&
+      user.college?.trim() &&
+      user.branch?.trim() &&
+      user.passingYear?.trim() &&
+      (user.targetRole?.trim() || user.role?.trim())
+    );
+
     return sendSuccess(res, {
       uid: user.userId,
       name: user.name,
@@ -504,6 +552,7 @@ export const getCurrentUser = async (req, res, next) => {
       passingYear: user.passingYear || '',
       emailVerified: user.emailVerified ?? false,
       onboarding: user.onboarding || null,
+      needsProfileCompletion: !hasCompulsoryData,
       stats: readinessDoc || {
         resumeScore: 0,
         atsScore: 0,
@@ -562,6 +611,90 @@ export const confirmEmailVerification = async (req, res, next) => {
 
     await FirestoreHelper.setDoc('users', userId, { emailVerified: true }, true);
     return sendSuccess(res, { emailVerified: true }, 'Email has been successfully verified.');
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /api/auth/complete-profile
+ * Saves compulsory academic & contact details on first-time login
+ */
+export const completeProfile = async (req, res, next) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return sendError(res, 'Unauthorized', 401);
+    }
+
+    const { phone, college, branch, passingYear, targetRole, location, name } = req.body;
+
+    if (!phone || !String(phone).trim()) {
+      return sendError(res, 'Phone number is a compulsory field and cannot be empty.', 400);
+    }
+    if (!college || !String(college).trim()) {
+      return sendError(res, 'College / University is a compulsory field and cannot be empty.', 400);
+    }
+    if (!branch || !String(branch).trim()) {
+      return sendError(res, 'Branch / Department is a compulsory field and cannot be empty.', 400);
+    }
+    if (!passingYear || !String(passingYear).trim()) {
+      return sendError(res, 'Passing year is a compulsory field and cannot be empty.', 400);
+    }
+    if (!targetRole || !String(targetRole).trim()) {
+      return sendError(res, 'Target role is a compulsory field and cannot be empty.', 400);
+    }
+
+    const sanitizedPhone = String(phone).trim().slice(0, 25);
+    const sanitizedCollege = String(college).trim().slice(0, 150);
+    const sanitizedBranch = String(branch).trim().slice(0, 100);
+    const sanitizedPassingYear = String(passingYear).trim().slice(0, 10);
+    const sanitizedTargetRole = String(targetRole).trim().slice(0, 80);
+    const sanitizedLocation = location ? String(location).trim().slice(0, 100) : '';
+
+    const userDoc = await FirestoreHelper.getDoc('users', userId);
+    if (!userDoc) {
+      return sendError(res, 'User not found.', 404);
+    }
+
+    const userUpdates = {
+      phone: sanitizedPhone,
+      college: sanitizedCollege,
+      branch: sanitizedBranch,
+      passingYear: sanitizedPassingYear,
+      targetRole: sanitizedTargetRole,
+      role: sanitizedTargetRole,
+      location: sanitizedLocation || userDoc.location || ''
+    };
+
+    if (name && String(name).trim()) {
+      userUpdates.name = String(name).trim().slice(0, 80);
+    }
+
+    await FirestoreHelper.setDoc('users', userId, userUpdates, true);
+
+    const profileId = 'prof_' + userId;
+    const profileUpdates = {
+      profileId,
+      userId,
+      phone: sanitizedPhone,
+      college: sanitizedCollege,
+      branch: sanitizedBranch,
+      passingYear: sanitizedPassingYear,
+      targetRole: sanitizedTargetRole,
+      role: sanitizedTargetRole,
+      location: sanitizedLocation || userDoc.location || ''
+    };
+    await FirestoreHelper.setDoc('profiles', profileId, profileUpdates, true);
+
+    const updatedUser = {
+      ...userDoc,
+      ...userUpdates,
+      uid: userId,
+      needsProfileCompletion: false
+    };
+
+    return sendSuccess(res, updatedUser, 'Profile setup completed successfully');
   } catch (err) {
     next(err);
   }

@@ -7,7 +7,8 @@ import {
   logoutUser,
   getCurrentUser,
   resendVerificationEmail,
-  confirmEmailVerification
+  confirmEmailVerification,
+  completeProfile
 } from '../controllers/authController.js';
 import { protectRoute } from '../middlewares/authMiddleware.js';
 import { rateLimiter } from '../middlewares/rateLimiter.js';
@@ -27,6 +28,7 @@ router.post('/google-login', authLimiter, googleLogin);
 router.post('/google', authLimiter, googleLogin);
 router.post('/forgot-password', authLimiter, forgotPassword);
 router.post('/resend-verification', authLimiter, resendVerificationEmail);
+router.post('/complete-profile', protectRoute, completeProfile);
 router.post('/verify-email', protectRoute, confirmEmailVerification);
 router.post('/logout', protectRoute, logoutUser);
 router.get('/me', protectRoute, getCurrentUser);

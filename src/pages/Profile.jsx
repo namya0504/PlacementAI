@@ -10,6 +10,7 @@ export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [editError, setEditError] = useState('');
 
   const [profileData, setProfileData] = useState({
     name: currentUser?.name || '',
@@ -80,14 +81,45 @@ export default function Profile() {
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
+    setEditError('');
+
+    if (!profileData.name?.trim()) {
+      setEditError('Full name is required and cannot be empty.');
+      return;
+    }
+
+    if (!profileData.phone?.trim()) {
+      setEditError('Phone number is a compulsory field and cannot be deleted. You can update it with a new number, but cannot remove it.');
+      return;
+    }
+
+    if (!profileData.college?.trim()) {
+      setEditError('College / University is a compulsory field and cannot be deleted.');
+      return;
+    }
+
+    if (!profileData.branch?.trim()) {
+      setEditError('Branch / Stream is a compulsory field and cannot be deleted.');
+      return;
+    }
+
+    if (!profileData.passingYear?.trim()) {
+      setEditError('Passing year is a compulsory field and cannot be deleted.');
+      return;
+    }
+
+    if (!profileData.role?.trim()) {
+      setEditError('Target role is a compulsory field and cannot be deleted.');
+      return;
+    }
+
     try {
       setLoading(true);
       const updated = await API.updateProfile(profileData);
       updateProfileData(updated);
       setIsEditing(false);
     } catch (err) {
-      updateProfileData(profileData);
-      setIsEditing(false);
+      setEditError(err.message || 'Unable to update profile. Please verify that all compulsory fields are filled.');
     } finally {
       setLoading(false);
     }
@@ -242,74 +274,101 @@ export default function Profile() {
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="text-lg font-bold text-slate-900 font-outfit">Edit Profile</h3>
-              <button onClick={() => setIsEditing(false)} className="p-1 text-slate-400 hover:text-slate-600">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 font-outfit">Edit Profile</h3>
+                <p className="text-[11px] text-slate-500">Compulsory fields cannot be deleted once provided</p>
+              </div>
+              <button onClick={() => { setIsEditing(false); setEditError(''); }} className="p-1 text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
+            {editError && (
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs">
+                {editError}
+              </div>
+            )}
+
             <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Full Name</label>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Full Name <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
                     value={profileData.name}
                     onChange={e => setProfileData({ ...profileData, name: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 border rounded-xl"
+                    required
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Target Role</label>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Target Role <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
                     value={profileData.role}
                     onChange={e => setProfileData({ ...profileData, role: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 border rounded-xl"
+                    required
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">College</label>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    College <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
                     value={profileData.college}
                     onChange={e => setProfileData({ ...profileData, college: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 border rounded-xl"
+                    required
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Branch</label>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Branch <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
                     value={profileData.branch}
                     onChange={e => setProfileData({ ...profileData, branch: e.target.value })}
                     className="w-full p-2.5 bg-slate-50 border rounded-xl"
+                    required
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Passing Year</label>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Passing Year <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
                     value={profileData.passingYear}
                     onChange={e => setProfileData({ ...profileData, passingYear: e.target.value })}
                     placeholder="e.g. 2026"
                     className="w-full p-2.5 bg-slate-50 border rounded-xl"
+                    required
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Phone</label>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Phone <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
                     value={profileData.phone}
                     onChange={e => setProfileData({ ...profileData, phone: e.target.value })}
                     placeholder="e.g. +91 98765 43210"
                     className="w-full p-2.5 bg-slate-50 border rounded-xl"
+                    required
                   />
                 </div>
                 <div>
