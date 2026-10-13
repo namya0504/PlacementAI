@@ -152,3 +152,75 @@ export const sendVerificationEmail = async ({ to, name, verificationLink }) => {
     return { success: false, error: err.message, directLink: verifyUrl };
   }
 };
+
+/**
+ * Sends a password reset email
+ */
+export const sendPasswordResetEmail = async ({ to, resetLink }) => {
+  const from = process.env.EMAIL_FROM || process.env.SMTP_USER || '"PlacementAI" <noreply@placementai.com>';
+  const actionUrl = resetLink || `http://localhost:5173/login?reset=true`;
+
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Reset Your PlacementAI Password</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; }
+    .container { max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; }
+    .header { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 32px; text-align: center; color: #ffffff; }
+    .header h1 { margin: 0; font-size: 22px; font-weight: 800; }
+    .body { padding: 32px; color: #1e293b; line-height: 1.6; }
+    .btn-container { text-align: center; margin: 28px 0; }
+    .btn { display: inline-block; background: #6366f1; color: #ffffff !important; font-weight: 700; font-size: 14px; padding: 14px 32px; border-radius: 12px; text-decoration: none; }
+    .note { font-size: 12px; color: #94a3b8; margin-top: 24px; border-top: 1px solid #f1f5f9; pt: 16px; word-break: break-all; }
+    .footer { padding: 20px; background: #f8fafc; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>PlacementAI</h1>
+      <p>Password Reset Request</p>
+    </div>
+    <div class="body">
+      <p style="font-size: 15px; font-weight: 600;">Hello,</p>
+      <p style="font-size: 14px; color: #475569;">
+        We received a request to reset your PlacementAI password. Click the button below to choose a new password:
+      </p>
+      <div class="btn-container">
+        <a href="${actionUrl}" class="btn" target="_blank">Reset Password</a>
+      </div>
+      <p style="font-size: 13px; color: #64748b;">
+        If you did not request a password reset, you can safely ignore this email.
+      </p>
+      <div class="note">
+        Direct link: <a href="${actionUrl}" style="color: #6366f1;">${actionUrl}</a>
+      </div>
+    </div>
+    <div class="footer">&copy; ${new Date().getFullYear()} PlacementAI. All rights reserved.</div>
+  </div>
+</body>
+</html>
+`;
+
+  try {
+    const transporter = await getTransporter();
+    if (transporter) {
+      const info = await transporter.sendMail({
+        from,
+        to,
+        subject: 'Reset your password – PlacementAI',
+        html,
+        text: `Please reset your PlacementAI password by visiting: ${actionUrl}`
+      });
+      console.log(`✉️ Password reset email sent to ${to} (MessageId: ${info.messageId})`);
+      return { success: true, messageId: info.messageId };
+    }
+    return { success: true, directLink: actionUrl };
+  } catch (err) {
+    console.error(`❌ Failed to send password reset email to ${to}:`, err.message);
+    return { success: false, error: err.message, directLink: actionUrl };
+  }
+};

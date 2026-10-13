@@ -62,7 +62,7 @@ export default function Login() {
 
     try {
       setForgotLoading(true);
-      const res = await API.apiCall('/auth/forgot-password', 'POST', { email: email.trim() });
+      const res = await API.forgotPassword(email.trim());
       setInfoMessage(res.message || 'Password reset instructions have been dispatched.');
     } catch (err) {
       setError(err.message || 'Unable to request password reset.');

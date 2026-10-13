@@ -2,10 +2,9 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { config } from '../config/env.js';
 import { FirestoreHelper } from '../firebase/firestoreHelper.js';
-import { getFileUrl } from '../services/storageService.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import { calculatePlacementReadiness } from '../utils/scoring.js';
-import { sendVerificationEmail } from '../services/emailService.js';
+import { sendVerificationEmail, sendPasswordResetEmail } from '../services/emailService.js';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^_\-])[A-Za-z\d@$!%*?&#^_\-]{8,}$/;
@@ -439,6 +438,12 @@ export const forgotPassword = async (req, res, next) => {
       } catch (fbErr) {
         console.warn('Firebase reset link generation notice:', fbErr.message);
       }
+    }
+
+    try {
+      await sendPasswordResetEmail({ to: sanitizedEmail, resetLink });
+    } catch (mailErr) {
+      console.warn('Could not dispatch password reset email:', mailErr.message);
     }
 
     return sendSuccess(res, { 

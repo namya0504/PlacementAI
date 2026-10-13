@@ -104,10 +104,15 @@ export const apiCall = async (endpoint, method = 'GET', body = null, isFormData 
 };
 
 export const API = {
+  apiCall,
   // Auth
   register: (userData) => apiCall('/auth/register', 'POST', userData),
   login: (credentials) => apiCall('/auth/login', 'POST', credentials),
   googleLogin: (socialData) => apiCall('/auth/google-login', 'POST', socialData),
+  forgotPassword: (payloadOrEmail) => {
+    const payload = typeof payloadOrEmail === 'string' ? { email: payloadOrEmail } : payloadOrEmail;
+    return apiCall('/auth/forgot-password', 'POST', payload);
+  },
   logout: () => apiCall('/auth/logout', 'POST'),
   getCurrentUser: () => apiCall('/auth/me', 'GET'),
   resendVerification: (data = {}) => apiCall('/auth/resend-verification', 'POST', data),
