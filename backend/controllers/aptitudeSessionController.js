@@ -5,6 +5,7 @@ import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import { calculatePlacementReadiness } from '../utils/scoring.js';
 import { APTITUDE_CONFIG } from '../config/aptitudeConfig.js';
 import { generateQuestionFingerprint } from '../utils/questionFingerprint.js';
+import { AptitudeQuestionBank } from '../services/aptitudeQuestionBank.js';
 
 /**
  * Normalizes stage input to one of: beginner, intermediate, advanced, mock-expert
@@ -66,7 +67,7 @@ export const startTest = async (req, res, next) => {
     // 4. Fetch student context for personalization
     const studentContext = await getStudentContext(userId);
 
-    // 5. Generate with Grok AI
+    // 5. Generate with Grok AI (with seamless fallback to AptitudeQuestionBank)
     let generatedQuestions = [];
     try {
       generatedQuestions = await GrokService.generateAptitudeQuestions({
@@ -79,8 +80,13 @@ export const startTest = async (req, res, next) => {
         recentQuestionsToAvoid: recentSnippets
       });
     } catch (aiErr) {
-      console.error('[Aptitude] AI question generation error:', aiErr.message);
-      return sendError(res, "Couldn't generate your test right now. Please try again.", 503);
+      console.warn('[Aptitude] AI generation unavailable, falling back to QuestionBank:', aiErr.message);
+      generatedQuestions = AptitudeQuestionBank.getQuestions({
+        category,
+        count: questionCount,
+        stage,
+        excludeFingerprints: existingFingerprints
+      });
     }
 
     // 6. Deduplicate against user history
@@ -93,35 +99,32 @@ export const startTest = async (req, res, next) => {
       }
     }
 
-    // If duplicates dropped count below questionCount, attempt quick replacement
+    // If duplicates or short AI response dropped count below questionCount, top up instantly from QuestionBank
     if (uniqueQuestions.length < questionCount) {
       const deficit = questionCount - uniqueQuestions.length;
-      try {
-        const extra = await GrokService.generateAptitudeQuestions({
-          category,
-          stage,
-          difficulty,
-          count: deficit + 2,
-          studentContext,
-          topicsToCover,
-          recentQuestionsToAvoid: [...recentSnippets, ...uniqueQuestions.map(u => u.question)]
-        });
-        for (const eq of extra) {
-          const efp = generateQuestionFingerprint(eq.question);
-          if (!existingFingerprints.has(efp)) {
-            existingFingerprints.add(efp);
-            uniqueQuestions.push({ ...eq, fingerprint: efp });
-            if (uniqueQuestions.length >= questionCount) break;
-          }
-        }
-      } catch (err) {
-        // Continue with available unique questions
+      console.log(`[Aptitude] Topping up ${deficit} question(s) from QuestionBank`);
+      const bankQuestions = AptitudeQuestionBank.getQuestions({
+        category,
+        count: deficit,
+        stage,
+        excludeFingerprints: existingFingerprints
+      });
+      for (const bq of bankQuestions) {
+        existingFingerprints.add(bq.fingerprint);
+        uniqueQuestions.push(bq);
+        if (uniqueQuestions.length >= questionCount) break;
       }
     }
 
-    const finalQuestions = uniqueQuestions.slice(0, questionCount);
-    if (finalQuestions.length === 0) {
-      return sendError(res, "Couldn't generate your test right now. Please try again.", 503);
+    let finalQuestions = uniqueQuestions.slice(0, questionCount);
+    // Guarantee that finalQuestions has at least questionCount questions
+    if (finalQuestions.length < questionCount) {
+      const emergency = AptitudeQuestionBank.getQuestions({
+        category,
+        count: questionCount - finalQuestions.length,
+        stage
+      });
+      finalQuestions = [...finalQuestions, ...emergency].slice(0, questionCount);
     }
 
     // 7. Calculate timer and expiry

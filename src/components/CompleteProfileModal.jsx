@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Sparkles,
   Phone,
@@ -95,8 +96,12 @@ export default function CompleteProfileModal() {
     (currentUser?.targetRole?.trim() || currentUser?.role?.trim())
   );
 
+  const routeLocation = useLocation();
+  const isAuthOrOnboardingRoute = ['/login', '/signup', '/onboarding', '/'].includes(routeLocation.pathname);
+
   const shouldShow = Boolean(
     currentUser &&
+    !isAuthOrOnboardingRoute &&
     (currentUser.needsProfileCompletion === true || !hasExistingCompulsory)
   );
 

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Mail, Lock, Sparkles, ArrowRight, AlertCircle, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import { FaGoogle } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
@@ -15,8 +15,44 @@ export default function Login() {
   const [infoMessage, setInfoMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
-  const { login, loginWithSocial } = useAuth();
+  const { currentUser, login, loginWithSocial } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+
+  // Helper to resolve the correct destination
+  const getRedirectPath = (userObj) => {
+    const fromPath = location.state?.from?.pathname
+      ? `${location.state.from.pathname}${location.state.from.search || ''}`
+      : null;
+
+    if (userObj?.onboarding?.status === 'in_progress' || userObj?.onboarding?.status === 'not_started') {
+      return '/onboarding';
+    }
+    return fromPath || '/dashboard';
+  };
+
+  // Check URL parameters for email verification or registration feedback
+  useEffect(() => {
+    const verifyEmailParam = searchParams.get('verifyEmail');
+    const registeredParam = searchParams.get('registered');
+
+    if (verifyEmailParam) {
+      setEmail(verifyEmailParam);
+      setInfoMessage('Verification link accessed. Please log in to complete verification.');
+    } else if (registeredParam === 'true') {
+      setInfoMessage('Account created successfully! Please sign in with your credentials.');
+    }
+  }, [searchParams]);
+
+  // If already authenticated, redirect smoothly
+  useEffect(() => {
+    if (currentUser && !loading) {
+      const dest = getRedirectPath(currentUser);
+      navigate(dest, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser]);
 
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
@@ -38,11 +74,8 @@ export default function Login() {
     try {
       setLoading(true);
       const user = await login(email.trim(), password);
-      if (user?.onboarding?.status === 'in_progress' || user?.onboarding?.status === 'not_started') {
-        navigate('/onboarding');
-      } else {
-        navigate('/dashboard');
-      }
+      const dest = getRedirectPath(user);
+      navigate(dest, { replace: true });
     } catch (err) {
       setError(err.message || 'Failed to log in. Please check your credentials.');
     } finally {
@@ -77,11 +110,8 @@ export default function Login() {
       setInfoMessage('');
       setLoading(true);
       const user = await loginWithSocial(provider);
-      if (user?.isNewUser || user?.onboarding?.status === 'in_progress' || user?.onboarding?.status === 'not_started') {
-        navigate('/onboarding');
-      } else {
-        navigate('/dashboard');
-      }
+      const dest = getRedirectPath(user);
+      navigate(dest, { replace: true });
     } catch (err) {
       setError(err.message || 'Social authentication failed');
     } finally {
@@ -201,7 +231,7 @@ export default function Login() {
           </div>
 
           <p className="text-center text-xs text-slate-500 pt-2">
-            Don't have an account? <Link to="/signup" className="text-blue-600 font-bold hover:underline">Sign up</Link>
+            Don't have an account? <Link to="/signup" state={location.state} className="text-blue-600 font-bold hover:underline">Sign up</Link>
           </p>
         </div>
       </main>

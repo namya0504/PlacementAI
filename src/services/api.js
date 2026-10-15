@@ -26,7 +26,7 @@ export const clearApiCache = () => {
   getCache.clear();
 };
 
-export const apiCall = async (endpoint, method = 'GET', body = null, isFormData = false) => {
+export const apiCall = async (endpoint, method = 'GET', body = null, isFormData = false, customTimeout = null) => {
   const isGet = method.toUpperCase() === 'GET';
   const cacheKey = `${endpoint}`;
 
@@ -46,9 +46,12 @@ export const apiCall = async (endpoint, method = 'GET', body = null, isFormData 
     delete headers['Content-Type'];
   }
 
-  // 15-second timeout to prevent requests from hanging indefinitely
+  // Dynamic timeout: AI & heavy generation routes get 45s, normal requests get 25s
+  const isHeavyAI = /aptitude|ats|resume|recommendations|study-plan|code-eval|hr-eval/i.test(endpoint);
+  const timeoutMs = customTimeout || (isHeavyAI ? 45000 : 25000);
+
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   const config = {
     method,

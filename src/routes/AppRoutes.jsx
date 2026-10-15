@@ -1,5 +1,5 @@
 import React, { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import ProtectedRoute from '../components/ProtectedRoute';
 import { useAuth } from '../context/AuthContext';
 
@@ -32,31 +32,59 @@ function PageLoader() {
 }
 
 /**
- * Route Guard for guest/public-only pages (Home, Login, Signup).
- * If a student is already authenticated, redirect them directly to /dashboard.
+ * Route Guard for guest-only pages (Login, Signup).
+ * If a student is already authenticated, redirect them directly to:
+ * 1. Saved intended route (location.state.from), if any
+ * 2. Onboarding wizard, if onboarding is incomplete
+ * 3. Dashboard
  */
 function PublicOnlyRoute({ children }) {
   const { currentUser, loading } = useAuth();
+  const location = useLocation();
+
   if (loading) {
-    return null;
+    return <PageLoader />;
   }
+
   if (currentUser) {
+    // 1. Incomplete onboarding always takes priority for new / in-progress students
+    if (currentUser.onboarding?.status === 'not_started' || currentUser.onboarding?.status === 'in_progress') {
+      return <Navigate to="/onboarding" replace />;
+    }
+
+    // 2. Resolve safe 'from' target (NEVER redirect an authenticated user to auth routes)
+    const from = location.state?.from?.pathname
+      ? `${location.state.from.pathname}${location.state.from.search || ''}`
+      : null;
+
+    const isAuthRoute = from && (from.startsWith('/login') || from.startsWith('/signup'));
+    if (from && !isAuthRoute) {
+      return <Navigate to={from} replace />;
+    }
+
     return <Navigate to="/dashboard" replace />;
   }
+
   return children;
 }
 
 function CatchAllRoute() {
   const { currentUser } = useAuth();
-  return <Navigate to={currentUser ? '/dashboard' : '/'} replace />;
+  if (currentUser) {
+    if (currentUser.onboarding?.status === 'not_started' || currentUser.onboarding?.status === 'in_progress') {
+      return <Navigate to="/onboarding" replace />;
+    }
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <Navigate to="/" replace />;
 }
 
 export default function AppRoutes() {
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>
-        {/* Public Pages (Redirects authenticated students to /dashboard) */}
-        <Route path="/" element={<PublicOnlyRoute><Home /></PublicOnlyRoute>} />
+        {/* Public Pages */}
+        <Route path="/" element={<Home />} />
         <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
         <Route path="/signup" element={<PublicOnlyRoute><Signup /></PublicOnlyRoute>} />
         <Route path="/about" element={<About />} />

@@ -14,7 +14,7 @@ const FEATURE_CONFIG = {
   projectBullets:     { temperature: 0.7, maxTokens: 1500 },
   skillSuggestions:   { temperature: 0.5, maxTokens: 1200 },
   atsAnalysis:        { temperature: 0.2, maxTokens: 1200 },
-  aptitudeQuestions:  { temperature: 0.8, maxTokens: 3500 },
+  aptitudeQuestions:  { temperature: 0.7, maxTokens: 4096 },
   technicalQuestions: { temperature: 0.7, maxTokens: 2500 },
   codeEvaluation:     { temperature: 0.0, maxTokens: 1500 },
   hrQuestions:        { temperature: 0.7, maxTokens: 1200 },
@@ -513,8 +513,8 @@ CRITICAL RULES:
 1. SPREAD the questions across DIFFERENT topics in ${category}. Do NOT make all questions from one single topic.
 2. Provide EXACTLY 4 distinct, non-empty, plausible options per question in the "options" array. No duplicate options!
 3. "correctIndex" MUST be an integer (0, 1, 2, or 3) indicating the exact zero-based index of the correct answer in the "options" array.
-4. "explanation" MUST be a clear, step-by-step mathematical or logical solution that thoroughly explains how the answer is derived.
-5. Double check every calculation: verify that the option at options[correctIndex] mathematically matches the step-by-step explanation!
+4. "explanation" MUST be a concise, clear 1-2 sentence solution explaining why options[correctIndex] is correct. Keep it direct and mathematically/logically sound.
+5. Double check every calculation: verify that the option at options[correctIndex] mathematically matches the explanation!
 
 Return a JSON object matching this schema:
 {
@@ -582,6 +582,11 @@ Return a JSON object matching this schema:
         return valid.slice(0, targetCount);
       }
 
+      // If we have a solid batch (>= 60% of requested), return immediately to avoid slow sequential retries
+      if (valid.length >= Math.ceil(targetCount * 0.6)) {
+        return valid;
+      }
+
       // If we don't have enough valid questions and retries remain, fetch remaining
       if (retriesLeft > 0 && valid.length < targetCount) {
         console.warn(`[GrokService] Only ${valid.length}/${targetCount} valid questions generated. Retrying for remaining...`);
@@ -597,11 +602,11 @@ Return a JSON object matching this schema:
     };
 
     const result = await collectValidQuestions(count);
-    if (result.length >= Math.min(count, 5)) {
+    if (result.length > 0) {
       return result;
     }
 
-    throw new Error('Could not generate sufficient verified aptitude questions. Please try again.');
+    throw new Error('Could not generate verified aptitude questions. Falling back to question bank.');
   },
 
   /**

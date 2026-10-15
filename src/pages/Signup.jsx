@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   User,
   Mail,
@@ -77,15 +77,47 @@ export default function Signup() {
   const [error, setError] = useState('');
   const [successNotice, setSuccessNotice] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signup, loginWithSocial } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { currentUser, signup, loginWithSocial } = useAuth();
   const navigate = useNavigate();
+  const locationState = useLocation();
 
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const { isValid: isPasswordValid } = validatePasswordCriteria(password);
 
+  const isStep1Valid = Boolean(
+    name.trim() &&
+    email.trim() &&
+    isEmailValid &&
+    isPasswordValid &&
+    password === confirmPassword
+  );
+
+  // Smooth redirect if already authenticated
+  useEffect(() => {
+    if (currentUser && !loading && !isSubmitting) {
+      if (currentUser.onboarding?.status === 'not_started' || currentUser.onboarding?.status === 'in_progress') {
+        navigate('/onboarding', { replace: true });
+        return;
+      }
+      const fromPath = locationState.state?.from?.pathname
+        ? `${locationState.state.from.pathname}${locationState.state.from.search || ''}`
+        : null;
+      const isAuthRoute = fromPath && (fromPath.startsWith('/login') || fromPath.startsWith('/signup'));
+      if (fromPath && !isAuthRoute) {
+        navigate(fromPath, { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, loading, isSubmitting]);
+
   // Handle transition from Step 1 to Step 2
   const handleProceedToStep2 = (e) => {
-    e.preventDefault();
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+    }
     setError('');
 
     if (!name.trim()) {
@@ -165,6 +197,7 @@ export default function Signup() {
 
     try {
       setLoading(true);
+      setIsSubmitting(true);
       await signup({
         name: name.trim(),
         email: email.trim(),
@@ -177,14 +210,12 @@ export default function Signup() {
         targetRole: resolvedRole
       });
 
-      setSuccessNotice('Account created! A verification email has been sent to your inbox. Welcome to PlacementAI.');
-      setTimeout(() => {
-        navigate('/onboarding');
-      }, 800);
+      setSuccessNotice('Account created successfully! Preparing your personalized onboarding workspace...');
+      navigate('/onboarding', { replace: true });
     } catch (err) {
       setError(err.message || 'Failed to create account. Please try again.');
-    } finally {
       setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -193,10 +224,17 @@ export default function Signup() {
       setError('');
       setLoading(true);
       const user = await loginWithSocial(provider);
+      const fromPath = locationState.state?.from?.pathname
+        ? `${locationState.state.from.pathname}${locationState.state.from.search || ''}`
+        : null;
+      const isAuthRoute = fromPath && (fromPath.startsWith('/login') || fromPath.startsWith('/signup'));
+
       if (user?.isNewUser || user?.onboarding?.status === 'not_started' || user?.onboarding?.status === 'in_progress') {
-        navigate('/onboarding');
+        navigate('/onboarding', { replace: true });
+      } else if (fromPath && !isAuthRoute) {
+        navigate(fromPath, { replace: true });
       } else {
-        navigate('/dashboard');
+        navigate('/dashboard', { replace: true });
       }
     } catch (err) {
       setError(err.message || 'Social authentication failed');
@@ -247,12 +285,19 @@ export default function Signup() {
 
             <button
               type="button"
-              disabled={step === 1}
-              onClick={() => step === 2 && setStep(2)}
+              onClick={() => {
+                if (step === 1) {
+                  handleProceedToStep2();
+                } else {
+                  setStep(2);
+                }
+              }}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold transition ${
                 step === 2
                   ? 'bg-purple-600 text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                  : isStep1Valid
+                  ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 cursor-pointer'
+                  : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
               }`}
             >
               <span className="w-4 h-4 rounded-full bg-slate-300 text-slate-700 flex items-center justify-center text-[10px] font-bold">2</span>
@@ -393,7 +438,7 @@ export default function Signup() {
               </div>
 
               <p className="text-center text-xs text-slate-500 pt-2">
-                Already have an account? <Link to="/login" className="text-purple-600 font-bold hover:underline">Login</Link>
+                Already have an account? <Link to="/login" state={locationState.state} className="text-purple-600 font-bold hover:underline">Login</Link>
               </p>
             </form>
           )}
@@ -568,15 +613,21 @@ export default function Signup() {
 
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || isSubmitting}
                   className="flex-1 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-sm shadow-md shadow-purple-500/25 hover:shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  {loading ? 'Creating Account...' : <>Complete Registration <ArrowRight className="w-4 h-4" /></>}
+                  {isSubmitting ? (
+                    <>Setting up workspace...</>
+                  ) : loading ? (
+                    <>Creating Account...</>
+                  ) : (
+                    <>Complete Registration <ArrowRight className="w-4 h-4" /></>
+                  )}
                 </button>
               </div>
 
               <p className="text-center text-xs text-slate-500 pt-2">
-                Already have an account? <Link to="/login" className="text-purple-600 font-bold hover:underline">Login</Link>
+                Already have an account? <Link to="/login" state={locationState.state} className="text-purple-600 font-bold hover:underline">Login</Link>
               </p>
             </form>
           )}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import {
   FileText,
   Upload,
@@ -52,6 +52,7 @@ const TARGET_ROLES = [
 export default function Onboarding() {
   const { currentUser, updateOnboardingState } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
 
   // Wizard state: 1: Resume, 2: Online Profiles, 3: AI Analyzing, 4: Review & Results
@@ -158,12 +159,15 @@ export default function Onboarding() {
 
   // Skip onboarding handler
   const handleSkip = async () => {
+    const destination = location.state?.from?.pathname
+      ? `${location.state.from.pathname}${location.state.from.search || ''}`
+      : '/dashboard';
     try {
       await API.skipOnboarding();
       updateOnboardingState({ status: 'skipped' });
-      navigate('/dashboard');
+      navigate(destination, { replace: true });
     } catch (e) {
-      navigate('/dashboard');
+      navigate(destination, { replace: true });
     }
   };
 
@@ -371,7 +375,10 @@ export default function Onboarding() {
       });
 
       updateOnboardingState({ status: 'completed', currentStep: 4 });
-      navigate('/dashboard');
+      const destination = location.state?.from?.pathname
+        ? `${location.state.from.pathname}${location.state.from.search || ''}`
+        : '/dashboard';
+      navigate(destination, { replace: true });
     } catch (err) {
       console.error('Confirm onboarding error:', err);
       setErrorMessage(err.message || 'Could not complete onboarding. Please try again.');

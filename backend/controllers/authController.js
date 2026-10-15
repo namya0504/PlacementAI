@@ -7,7 +7,7 @@ import { calculatePlacementReadiness } from '../utils/scoring.js';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../services/emailService.js';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^_\-])[A-Za-z\d@$!%*?&#^_\-]{8,}$/;
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9\s]).{8,}$/;
 
 const generateToken = (userId, email, role) => {
   return jwt.sign({ userId, email, role }, config.jwtSecret, { expiresIn: '7d' });
@@ -287,39 +287,51 @@ export const loginUser = async (req, res, next) => {
 export const googleLogin = async (req, res, next) => {
   try {
     const { idToken, email, name, photoURL } = req.body;
-    const { auth } = await import('../firebase/firebaseAdmin.js');
+    const { auth, isMockFirebase } = await import('../firebase/firebaseAdmin.js');
 
     let userEmail = null;
     let displayName = name || '';
     let avatar = photoURL || '';
     let googleUid = null;
 
-    if (idToken) {
-      if (auth) {
-        try {
-          const decodedToken = await auth.verifyIdToken(idToken);
-          userEmail = decodedToken.email?.toLowerCase();
-          displayName = decodedToken.name || displayName || userEmail?.split('@')[0];
-          avatar = decodedToken.picture || avatar;
-          googleUid = decodedToken.uid;
-        } catch (tokenErr) {
-          console.warn('Firebase ID token verification warning:', tokenErr.message);
-          if (email) {
-            userEmail = email.toLowerCase().trim();
-          } else {
-            return sendError(res, 'Invalid or expired Google authentication token', 401);
-          }
-        }
-      } else if (email) {
-        userEmail = email.toLowerCase().trim();
+    if (auth && !isMockFirebase) {
+      if (!idToken) {
+        return sendError(res, 'Google authentication token (idToken) is required', 400);
       }
-    } else if (email) {
+      try {
+        const decodedToken = await auth.verifyIdToken(idToken);
+        userEmail = decodedToken.email?.toLowerCase();
+        displayName = decodedToken.name || displayName || userEmail?.split('@')[0];
+        avatar = decodedToken.picture || avatar;
+        googleUid = decodedToken.uid;
+      } catch (tokenErr) {
+        console.warn('Firebase ID token verification failed:', tokenErr.message);
+        return sendError(res, 'Invalid or expired Google authentication token', 401);
+      }
+    } else if (idToken && auth) {
+      try {
+        const decodedToken = await auth.verifyIdToken(idToken);
+        userEmail = decodedToken.email?.toLowerCase();
+        displayName = decodedToken.name || displayName || userEmail?.split('@')[0];
+        avatar = decodedToken.picture || avatar;
+        googleUid = decodedToken.uid;
+      } catch (tokenErr) {
+        if (process.env.NODE_ENV === 'production') {
+          return sendError(res, 'Invalid or expired Google authentication token', 401);
+        }
+        userEmail = email?.toLowerCase().trim();
+      }
+    } else {
+      if (process.env.NODE_ENV === 'production') {
+        return sendError(res, 'Google authentication token (idToken) is required', 400);
+      }
+      if (!email) {
+        return sendError(res, 'Google authentication token (idToken) or email is required', 400);
+      }
       userEmail = email.toLowerCase().trim();
       displayName = displayName || userEmail.split('@')[0];
       avatar = avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}`;
       googleUid = 'dev_' + Date.now();
-    } else {
-      return sendError(res, 'Google authentication token (idToken) or email is required', 400);
     }
 
     if (!userEmail) {

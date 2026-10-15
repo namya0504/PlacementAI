@@ -110,6 +110,7 @@ export default function Aptitude() {
 
   // Start a fresh, non-repeating test
   const startTest = async (category = selectedCategory, stageOverride = null) => {
+    setSelectedCategory(category);
     setLoading(true);
     setErrorMessage('');
     setTestResult(null);

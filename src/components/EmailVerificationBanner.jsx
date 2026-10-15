@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Mail, CheckCircle2, AlertCircle, RefreshCw, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../services/api';
 
 export default function EmailVerificationBanner() {
   const { currentUser, updateProfileData } = useAuth();
+  const location = useLocation();
   const [dismissed, setDismissed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('info'); // 'info' | 'success' | 'error'
 
-  if (!currentUser || currentUser.emailVerified || dismissed) {
+  const isAuthOrHomeRoute = ['/login', '/signup', '/'].includes(location.pathname);
+
+  if (!currentUser || currentUser.emailVerified || dismissed || isAuthOrHomeRoute) {
     return null;
   }
 

@@ -7,7 +7,7 @@ export const validatePasswordCriteria = (password = '') => {
     { id: 'uppercase', label: 'One uppercase letter (A-Z)', met: /[A-Z]/.test(password) },
     { id: 'lowercase', label: 'One lowercase letter (a-z)', met: /[a-z]/.test(password) },
     { id: 'number', label: 'One number (0-9)', met: /[0-9]/.test(password) },
-    { id: 'special', label: 'One special symbol (@$!%*?&#^_-)', met: /[@$!%*?&#^_\-]/.test(password) },
+    { id: 'special', label: 'One special symbol (e.g. @$!%*?&#^_-)', met: /[^A-Za-z0-9\s]/.test(password) },
   ];
 
   const metCount = criteria.filter(c => c.met).length;
