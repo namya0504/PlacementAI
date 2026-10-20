@@ -66,5 +66,7 @@ GoogleService-Info.plist
 !package-lock.json
 !.oxlintrc.json
 !firebase.json
+!vercel.json
+
 
 
