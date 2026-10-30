@@ -88,6 +88,13 @@ export default function ResumeBuilder() {
   const [uploadingResumeFile, setUploadingResumeFile] = useState(false);
   const [uploadError, setUploadError] = useState('');
 
+  // "Save as Profile Resume" banner state (shown after download)
+  const [showSaveProfileBanner, setShowSaveProfileBanner] = useState(false);
+  const [savingProfileResume, setSavingProfileResume] = useState(false);
+  const [savedProfileResumeMsg, setSavedProfileResumeMsg] = useState('');
+  // Holds the last generated pdfBuffer/blob so we can upload it if user confirms
+  const lastPdfBlobRef = React.useRef(null);
+
   const previewRef = useRef(null);
 
   // Resume State - Dynamic to authenticated user
@@ -624,7 +631,22 @@ export default function ResumeBuilder() {
 
     const html2pdfModule = await import('html2pdf.js');
     const html2pdf = html2pdfModule.default || html2pdfModule;
-    html2pdf().from(element).set(opt).save();
+
+    // Generate blob so we can offer "save as profile resume"
+    try {
+      const pdfBlob = await html2pdf().from(element).set(opt).outputPdf('blob');
+      lastPdfBlobRef.current = { blob: pdfBlob, fileName };
+      // Also trigger the download
+      html2pdf().from(element).set(opt).save();
+      // Show the "save as profile resume" banner after a short delay
+      setTimeout(() => {
+        setShowSaveProfileBanner(true);
+        setSavedProfileResumeMsg('');
+      }, 800);
+    } catch (_) {
+      // Fallback: just save without blob capture
+      html2pdf().from(element).set(opt).save();
+    }
 
     // Persist resume document & record download in backend
     try {
@@ -658,6 +680,28 @@ export default function ResumeBuilder() {
       refreshResumesList();
     } catch (e) {
       console.warn('Resume persist during download notice:', e.message);
+    }
+  };
+
+  // Upload the just-generated PDF as the user's profile resume
+  const handleSaveAsProfileResume = async () => {
+    const entry = lastPdfBlobRef.current;
+    if (!entry?.blob) {
+      setSavedProfileResumeMsg('No PDF available. Please use "Direct PDF" first.');
+      return;
+    }
+    setSavingProfileResume(true);
+    setSavedProfileResumeMsg('');
+    try {
+      const file = new File([entry.blob], entry.fileName, { type: 'application/pdf' });
+      const formData = new FormData();
+      formData.append('resume', file);
+      await API.uploadProfileResume(formData);
+      setSavedProfileResumeMsg('✓ Saved as your profile resume! You can now select it in ATS Checker.');
+    } catch (err) {
+      setSavedProfileResumeMsg(`Failed: ${err.message || 'Please try again.'}`);
+    } finally {
+      setSavingProfileResume(false);
     }
   };
 
@@ -1480,6 +1524,47 @@ export default function ResumeBuilder() {
                   </button>
                 </div>
               </div>
+
+              {/* "Save as Profile Resume" Banner — appears after Direct PDF download */}
+              {showSaveProfileBanner && (
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 bg-purple-50 border border-purple-200 rounded-2xl p-4 no-print">
+                  <div className="flex-1 min-w-0">
+                    {savedProfileResumeMsg ? (
+                      <p className={`text-xs font-semibold ${savedProfileResumeMsg.startsWith('✓') ? 'text-emerald-700' : 'text-red-600'}`}>
+                        {savedProfileResumeMsg}
+                      </p>
+                    ) : (
+                      <>
+                        <p className="text-xs font-bold text-purple-800">Replace your profile resume with this version?</p>
+                        <p className="text-[11px] text-purple-600 mt-0.5">It will be available in ATS Checker and stored in your profile.</p>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {!savedProfileResumeMsg.startsWith('✓') && (
+                      <button
+                        type="button"
+                        onClick={handleSaveAsProfileResume}
+                        disabled={savingProfileResume}
+                        className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition flex items-center gap-1.5 disabled:opacity-50"
+                      >
+                        {savingProfileResume ? (
+                          <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Saving…</>
+                        ) : (
+                          <><FileCheck className="w-3.5 h-3.5" /> Save as Profile Resume</>
+                        )}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => { setShowSaveProfileBanner(false); lastPdfBlobRef.current = null; }}
+                      className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Two Column Layout: Customizer on Left, Live Document on Right */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
