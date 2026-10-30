@@ -88,13 +88,16 @@ export default function EmailVerificationBanner() {
             Resend Email
           </button>
 
-          <button
-            onClick={handleSimulateVerify}
-            disabled={loading}
-            className="px-2.5 py-1 rounded-lg bg-amber-600 text-white font-semibold hover:bg-amber-700 transition-colors shadow-sm disabled:opacity-50 text-xs"
-          >
-            Mark Verified
-          </button>
+          {/* Dev-only bypass — hidden in production builds */}
+          {import.meta.env.DEV && (
+            <button
+              onClick={handleSimulateVerify}
+              disabled={loading}
+              className="px-2.5 py-1 rounded-lg bg-amber-600 text-white font-semibold hover:bg-amber-700 transition-colors shadow-sm disabled:opacity-50 text-xs"
+            >
+              Mark Verified
+            </button>
+          )}
 
           <button
             onClick={() => setDismissed(true)}

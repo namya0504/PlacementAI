@@ -29,14 +29,16 @@ export const clearApiCache = () => {
 export const apiCall = async (endpoint, method = 'GET', body = null, isFormData = false, customTimeout = null) => {
   const isGet = method.toUpperCase() === 'GET';
   const cacheKey = `${endpoint}`;
+  // check-email probes are always live — never serve from cache
+  const skipCache = isGet && endpoint.startsWith('/auth/check-email');
 
   // Serve from cache if available and fresh
-  if (isGet) {
+  if (isGet && !skipCache) {
     const cached = getCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
       return cached.data;
     }
-  } else {
+  } else if (!isGet) {
     // Invalidate GET cache on mutations
     getCache.clear();
   }
@@ -87,18 +89,20 @@ export const apiCall = async (endpoint, method = 'GET', body = null, isFormData 
       const defaultMessage = response.status === 502
         ? 'Backend server is not running or unreachable (502 Bad Gateway). Please make sure the backend is started.'
         : `Request failed with status ${response.status}`;
-      throw new Error(result?.message || defaultMessage);
+      const apiError = new Error(result?.message || defaultMessage);
+      if (result?.errorCode) apiError.errorCode = result.errorCode;
+      throw apiError;
     }
 
     const outputData = result?.data ?? result;
-    if (isGet) {
+    if (isGet && !skipCache) {
       getCache.set(cacheKey, { timestamp: Date.now(), data: outputData });
     }
     return outputData;
   } catch (err) {
     clearTimeout(timeoutId);
     if (err.name === 'AbortError') {
-      console.warn(`API Timeout (${endpoint}): Request took more than 15s`);
+      console.warn(`API Timeout (${endpoint}): Request timed out after ${timeoutMs / 1000}s`);
       throw new Error('Server request timed out. Please check your network connection.');
     }
     console.warn(`API Call Error (${endpoint}):`, err.message);
@@ -109,6 +113,7 @@ export const apiCall = async (endpoint, method = 'GET', body = null, isFormData 
 export const API = {
   apiCall,
   // Auth
+  checkEmail: (email) => apiCall(`/auth/check-email?email=${encodeURIComponent(email)}`, 'GET'),
   register: (userData) => apiCall('/auth/register', 'POST', userData),
   login: (credentials) => apiCall('/auth/login', 'POST', credentials),
   googleLogin: (socialData) => apiCall('/auth/google-login', 'POST', socialData),

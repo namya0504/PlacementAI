@@ -103,8 +103,32 @@ export const updateProfile = async (req, res, next) => {
       github,
       bio,
       interests,
-      skills
+      skills,
+      currentPassword,
+      newPassword
     } = req.body;
+
+    // Handle password change if requested
+    if (newPassword !== undefined || currentPassword !== undefined) {
+      if (!currentPassword || !newPassword) {
+        return sendError(res, 'Both current password and new password are required to change password.', 400);
+      }
+      if (!userDoc.password) {
+        return sendError(res, 'Password change is not available for accounts created via Google Sign-In.', 400);
+      }
+      const { default: bcrypt } = await import('bcryptjs');
+      const match = await bcrypt.compare(currentPassword, userDoc.password);
+      if (!match) {
+        return sendError(res, 'Current password is incorrect.', 401);
+      }
+      const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9\s]).{8,}$/;
+      if (!PASSWORD_REGEX.test(newPassword)) {
+        return sendError(res, 'New password must be at least 8 characters and include uppercase, lowercase, a number, and a special character.', 400);
+      }
+      const hashedNew = await bcrypt.hash(newPassword, 10);
+      await FirestoreHelper.setDoc('users', userId, { password: hashedNew }, true);
+      return sendSuccess(res, {}, 'Password updated successfully');
+    }
 
     const existingPhone = (userDoc.phone || profileDoc?.phone || '').trim();
     const existingCollege = (userDoc.college || profileDoc?.college || '').trim();

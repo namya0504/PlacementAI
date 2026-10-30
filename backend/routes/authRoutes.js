@@ -8,7 +8,8 @@ import {
   getCurrentUser,
   resendVerificationEmail,
   confirmEmailVerification,
-  completeProfile
+  completeProfile,
+  checkEmail
 } from '../controllers/authController.js';
 import { protectRoute } from '../middlewares/authMiddleware.js';
 import { rateLimiter } from '../middlewares/rateLimiter.js';
@@ -22,12 +23,20 @@ const authLimiter = rateLimiter({
   message: 'Too many authentication attempts. Please wait 15 minutes before trying again.'
 });
 
+// Lighter rate limit for the check-email probe (called while typing)
+const checkEmailLimiter = rateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 30,
+  message: 'Too many email check requests. Please wait a moment.'
+});
+
+router.get('/check-email', checkEmailLimiter, checkEmail);
 router.post('/register', authLimiter, registerUser);
 router.post('/login', authLimiter, loginUser);
 router.post('/google-login', authLimiter, googleLogin);
 router.post('/google', authLimiter, googleLogin);
 router.post('/forgot-password', authLimiter, forgotPassword);
-router.post('/resend-verification', authLimiter, resendVerificationEmail);
+router.post('/resend-verification', authLimiter, protectRoute, resendVerificationEmail);
 router.post('/complete-profile', protectRoute, completeProfile);
 router.post('/verify-email', protectRoute, confirmEmailVerification);
 router.post('/logout', protectRoute, logoutUser);

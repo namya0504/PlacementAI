@@ -23,6 +23,7 @@ const getNodemailer = async () => {
 let cachedTransporter = null;
 
 const getTransporter = async () => {
+  // Return cached transporter only if it was successfully created
   if (cachedTransporter) return cachedTransporter;
 
   const nodemailer = await getNodemailer();
@@ -35,31 +36,27 @@ const getTransporter = async () => {
   const secure = port === 465;
 
   if (user && pass) {
-    cachedTransporter = nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth: { user, pass }
-    });
+    // Only cache after successful creation
+    const transporter = nodemailer.createTransport({ host, port, secure, auth: { user, pass } });
+    cachedTransporter = transporter;
     return cachedTransporter;
   }
 
-  // If in development with no explicit SMTP credentials, create Ethereal test account if needed
+  // Development fallback: Ethereal test account — never cache null on failure
   try {
     const testAccount = await nodemailer.createTestAccount();
-    cachedTransporter = nodemailer.createTransport({
+    const transporter = nodemailer.createTransport({
       host: testAccount.smtp.host,
       port: testAccount.smtp.port,
       secure: testAccount.smtp.secure,
-      auth: {
-        user: testAccount.user,
-        pass: testAccount.pass
-      }
+      auth: { user: testAccount.user, pass: testAccount.pass }
     });
+    cachedTransporter = transporter;
     console.log(`✉️ Nodemailer initialized with development test transport: ${testAccount.user}`);
     return cachedTransporter;
   } catch (etherealErr) {
     console.warn('Could not initialize fallback test mailer:', etherealErr.message);
+    // Do NOT set cachedTransporter = null — let next call retry
     return null;
   }
 };

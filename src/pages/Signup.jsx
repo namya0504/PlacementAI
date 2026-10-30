@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   User,
@@ -18,10 +18,12 @@ import {
   GraduationCap,
   BookOpen,
   Calendar,
-  Briefcase
+  Briefcase,
+  Loader2
 } from 'lucide-react';
 import { FaGoogle } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
+import { API } from '../services/api';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import PasswordValidator, { validatePasswordCriteria } from '../components/PasswordValidator';
@@ -63,6 +65,10 @@ export default function Signup() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // Email duplicate check state
+  const [emailCheckStatus, setEmailCheckStatus] = useState('idle'); // 'idle' | 'checking' | 'taken' | 'available'
+  const emailDebounceRef = useRef(null);
+
   // Step 2: Personal Information fields (matching student profile section)
   const [phone, setPhone] = useState('');
   const [location, setLocation] = useState('');
@@ -78,7 +84,7 @@ export default function Signup() {
   const [successNotice, setSuccessNotice] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { currentUser, signup, loginWithSocial } = useAuth();
+  const { currentUser, loading: authLoading, signup, loginWithSocial } = useAuth();
   const navigate = useNavigate();
   const locationState = useLocation();
 
@@ -89,13 +95,49 @@ export default function Signup() {
     name.trim() &&
     email.trim() &&
     isEmailValid &&
+    emailCheckStatus !== 'taken' &&
     isPasswordValid &&
     password === confirmPassword
   );
 
-  // Smooth redirect if already authenticated
+  // Debounced email-exists probe: fires 600ms after the user stops typing
+  const checkEmailExists = useCallback(async (val) => {
+    const trimmed = val.trim();
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setEmailCheckStatus('idle');
+      return;
+    }
+    setEmailCheckStatus('checking');
+    try {
+      const result = await API.checkEmail(trimmed);
+      setEmailCheckStatus(result?.exists ? 'taken' : 'available');
+    } catch {
+      // Network error during check — don't block the user, just reset
+      setEmailCheckStatus('idle');
+    }
+  }, []);
+
+  const handleEmailChange = (e) => {
+    const val = e.target.value;
+    setEmail(val);
+    setEmailCheckStatus('idle');
+    if (emailDebounceRef.current) clearTimeout(emailDebounceRef.current);
+    emailDebounceRef.current = setTimeout(() => checkEmailExists(val), 600);
+  };
+
+  // Cleanup debounce on unmount
+  useEffect(() => () => {
+    if (emailDebounceRef.current) clearTimeout(emailDebounceRef.current);
+  }, []);
+
+  // Redirect away if already authenticated and mount sync is done
   useEffect(() => {
-    if (currentUser && !loading && !isSubmitting) {
+    if (currentUser && !authLoading && !isSubmitting) {
+      // Unverified users must confirm their email first
+      if (currentUser.emailVerified === false) {
+        navigate('/verify-email-pending', { replace: true });
+        return;
+      }
       if (currentUser.onboarding?.status === 'not_started' || currentUser.onboarding?.status === 'in_progress') {
         navigate('/onboarding', { replace: true });
         return;
@@ -111,10 +153,10 @@ export default function Signup() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, loading, isSubmitting]);
+  }, [currentUser, authLoading, isSubmitting]);
 
-  // Handle transition from Step 1 to Step 2
-  const handleProceedToStep2 = (e) => {
+  // Handle transition from Step 1 to Step 2 — includes live email duplicate check
+  const handleProceedToStep2 = async (e) => {
     if (e && typeof e.preventDefault === 'function') {
       e.preventDefault();
     }
@@ -127,6 +169,27 @@ export default function Signup() {
 
     if (!email.trim() || !isEmailValid) {
       setError('Please provide a valid email address (e.g., student@university.edu)');
+      return;
+    }
+
+    // Run email check immediately if it hasn't settled yet
+    if (emailCheckStatus === 'idle' || emailCheckStatus === 'checking') {
+      if (emailDebounceRef.current) clearTimeout(emailDebounceRef.current);
+      setEmailCheckStatus('checking');
+      try {
+        const result = await API.checkEmail(email.trim());
+        const status = result?.exists ? 'taken' : 'available';
+        setEmailCheckStatus(status);
+        if (status === 'taken') {
+          setError('An account with this email already exists. Please log in or use a different email.');
+          return;
+        }
+      } catch {
+        setEmailCheckStatus('idle');
+        // Non-blocking — proceed if the check fails due to network issues
+      }
+    } else if (emailCheckStatus === 'taken') {
+      setError('An account with this email already exists. Please log in or use a different email.');
       return;
     }
 
@@ -210,8 +273,9 @@ export default function Signup() {
         targetRole: resolvedRole
       });
 
-      setSuccessNotice('Account created successfully! Preparing your personalized onboarding workspace...');
-      navigate('/onboarding', { replace: true });
+      // After signup, always go to the email-verification pending screen first.
+      // The user must verify their email before we allow them into onboarding.
+      navigate('/verify-email-pending', { replace: true, state: { email: email.trim() } });
     } catch (err) {
       setError(err.message || 'Failed to create account. Please try again.');
       setLoading(false);
@@ -344,8 +408,17 @@ export default function Signup() {
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Email Address</label>
                   {email && (
-                    <span className={`text-[11px] font-medium ${isEmailValid ? 'text-emerald-600' : 'text-red-500'}`}>
-                      {isEmailValid ? '✓ Valid format' : 'Invalid email'}
+                    <span className={`text-[11px] font-medium flex items-center gap-1 ${
+                      emailCheckStatus === 'taken' ? 'text-red-500'
+                      : emailCheckStatus === 'available' ? 'text-emerald-600'
+                      : emailCheckStatus === 'checking' ? 'text-blue-500'
+                      : isEmailValid ? 'text-emerald-600' : 'text-red-500'
+                    }`}>
+                      {emailCheckStatus === 'checking' && <Loader2 className="w-3 h-3 animate-spin" />}
+                      {emailCheckStatus === 'taken' ? '✗ Email already registered'
+                        : emailCheckStatus === 'available' ? '✓ Email available'
+                        : emailCheckStatus === 'checking' ? 'Checking...'
+                        : isEmailValid ? '✓ Valid format' : 'Invalid email'}
                     </span>
                   )}
                 </div>
@@ -354,14 +427,27 @@ export default function Signup() {
                   <input
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={handleEmailChange}
+                    onBlur={() => {
+                      if (emailDebounceRef.current) clearTimeout(emailDebounceRef.current);
+                      checkEmailExists(email);
+                    }}
                     className={`w-full pl-10 pr-4 py-2.5 rounded-xl border ${
-                      email && !isEmailValid ? 'border-red-300 bg-red-50/20' : 'border-slate-200'
+                      emailCheckStatus === 'taken' ? 'border-red-300 bg-red-50/20'
+                      : emailCheckStatus === 'available' ? 'border-emerald-300'
+                      : email && !isEmailValid ? 'border-red-300 bg-red-50/20'
+                      : 'border-slate-200'
                     } focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-sm`}
                     placeholder="e.g. raj@example.com"
                     required
                   />
                 </div>
+                {emailCheckStatus === 'taken' && (
+                  <p className="mt-1 text-[11px] text-red-600">
+                    This email is already in use.{' '}
+                    <Link to="/login" state={locationState.state} className="font-bold underline">Log in instead</Link>
+                  </p>
+                )}
               </div>
 
               {/* Password */}
@@ -417,9 +503,12 @@ export default function Signup() {
 
               <button
                 type="submit"
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-sm shadow-md shadow-purple-500/25 hover:shadow-lg transition flex items-center justify-center gap-2"
+                disabled={emailCheckStatus === 'checking' || emailCheckStatus === 'taken'}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-sm shadow-md shadow-purple-500/25 hover:shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Continue to Personal Info <ArrowRight className="w-4 h-4" />
+                {emailCheckStatus === 'checking'
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Checking email...</>
+                  : <>Continue to Personal Info <ArrowRight className="w-4 h-4" /></>}
               </button>
 
               <div className="relative flex items-center justify-center my-4">

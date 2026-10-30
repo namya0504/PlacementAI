@@ -15,17 +15,20 @@ export default function Login() {
   const [infoMessage, setInfoMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
-  const { currentUser, login, loginWithSocial } = useAuth();
+  const { currentUser, loading: authLoading, login, loginWithSocial } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
 
-  // Helper to resolve the correct destination
+  // Helper to resolve the correct destination after login
   const getRedirectPath = (userObj) => {
     const fromPath = location.state?.from?.pathname
       ? `${location.state.from.pathname}${location.state.from.search || ''}`
       : null;
 
+    if (userObj?.emailVerified === false) {
+      return '/verify-email-pending';
+    }
     if (userObj?.onboarding?.status === 'in_progress' || userObj?.onboarding?.status === 'not_started') {
       return '/onboarding';
     }
@@ -45,14 +48,19 @@ export default function Login() {
     }
   }, [searchParams]);
 
-  // If already authenticated, redirect smoothly
+  // If already authenticated when the page mounts (e.g. back-button after logout),
+  // redirect away once the mount-time session sync has finished.
   useEffect(() => {
-    if (currentUser && !loading) {
+    if (currentUser && !authLoading) {
+      if (currentUser.emailVerified === false) {
+        navigate('/verify-email-pending', { replace: true });
+        return;
+      }
       const dest = getRedirectPath(currentUser);
       navigate(dest, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser]);
+  }, [currentUser, authLoading]);
 
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
@@ -77,7 +85,14 @@ export default function Login() {
       const dest = getRedirectPath(user);
       navigate(dest, { replace: true });
     } catch (err) {
-      setError(err.message || 'Failed to log in. Please check your credentials.');
+      // Use errorCode from backend to give contextual hints without exposing DB enumeration
+      if (err.errorCode === 'EMAIL_NOT_FOUND') {
+        setError("No account found with this email. Check for typos or sign up for a new account.");
+      } else if (err.errorCode === 'WRONG_PASSWORD') {
+        setError("Incorrect password. Try again, or use 'Forgot Password' to reset it.");
+      } else {
+        setError(err.message || 'Failed to log in. Please check your credentials.');
+      }
     } finally {
       setLoading(false);
     }
@@ -95,10 +110,22 @@ export default function Login() {
 
     try {
       setForgotLoading(true);
+
+      // Primary path: Firebase Client SDK sends the reset email directly.
+      // Firebase handles link generation, delivery, and the hosted reset page.
+      const { sendFirebasePasswordReset } = await import('../services/firebase/authService');
+      const firebaseResult = await sendFirebasePasswordReset(email.trim());
+
+      if (firebaseResult.success) {
+        setInfoMessage('Password reset email sent! Check your inbox (and spam folder).');
+        return;
+      }
+
+      // Fallback: backend (handles accounts created before Firebase Auth sync)
       const res = await API.forgotPassword(email.trim());
-      setInfoMessage(res.message || 'Password reset instructions have been dispatched.');
+      setInfoMessage(res?.message || 'Password reset instructions have been dispatched.');
     } catch (err) {
-      setError(err.message || 'Unable to request password reset.');
+      setError(err.message || 'Unable to request password reset. Please try again.');
     } finally {
       setForgotLoading(false);
     }

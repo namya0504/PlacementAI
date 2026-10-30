@@ -5,6 +5,7 @@ import { FirestoreHelper } from '../firebase/firestoreHelper.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import { calculatePlacementReadiness } from '../utils/scoring.js';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../services/emailService.js';
+import { getFileUrl } from '../services/storageService.js';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9\s]).{8,}$/;
@@ -14,12 +15,33 @@ const generateToken = (userId, email, role) => {
 };
 
 const setAuthCookie = (res, token) => {
+  const isProd = process.env.NODE_ENV === 'production';
   res.cookie('token', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    secure: isProd,              // HTTPS only in production (required for sameSite=none)
+    sameSite: isProd ? 'none' : 'lax', // 'none' allows cross-site cookie on Vercel→Render
+    maxAge: 7 * 24 * 60 * 60 * 1000   // 7 days
   });
+};
+
+/**
+ * GET /api/auth/check-email?email=...
+ * Lightweight probe — returns whether the email is already registered.
+ * Used by Signup Step 1 to give instant feedback before the user proceeds.
+ */
+export const checkEmail = async (req, res, next) => {
+  try {
+    const raw = req.query.email;
+    if (!raw) return sendError(res, 'email query param is required', 400);
+    const sanitizedEmail = raw.trim().toLowerCase();
+    if (!EMAIL_REGEX.test(sanitizedEmail)) {
+      return sendError(res, 'Invalid email format', 400);
+    }
+    const existing = await FirestoreHelper.queryCollection('users', 'email', sanitizedEmail);
+    return sendSuccess(res, { exists: existing.length > 0 }, 'Email check complete');
+  } catch (err) {
+    next(err);
+  }
 };
 
 export const registerUser = async (req, res, next) => {
@@ -36,6 +58,10 @@ export const registerUser = async (req, res, next) => {
       targetRole = '',
       role: customRole
     } = req.body;
+
+    if (!name || !String(name).trim()) {
+      return sendError(res, 'Full name is required', 400);
+    }
 
     if (!email || !password) {
       return sendError(res, 'Email and password are required', 400);
@@ -94,11 +120,12 @@ export const registerUser = async (req, res, next) => {
     }
 
     // Dispatch verification email to student's inbox
+    const frontendBase = (process.env.FRONTEND_URL?.split(',')[0]?.trim()) || 'http://localhost:5173';
     try {
       await sendVerificationEmail({
         to: sanitizedEmail,
         name: displayName,
-        verificationLink: verificationLink || `http://localhost:5173/login?verifyEmail=${encodeURIComponent(sanitizedEmail)}`
+        verificationLink: verificationLink || `${frontendBase}/login?verifyEmail=${encodeURIComponent(sanitizedEmail)}`
       });
     } catch (mailErr) {
       console.warn('⚠️ Verification email dispatch notice:', mailErr.message);
@@ -219,11 +246,11 @@ export const loginUser = async (req, res, next) => {
     let user = users[0];
 
     if (!user) {
-      return sendError(res, 'Invalid email or password', 401);
+      return sendError(res, 'Invalid email or password', 401, null, 'EMAIL_NOT_FOUND');
     } else {
       const match = await bcrypt.compare(password, user.password || '');
       if (!match) {
-        return sendError(res, 'Invalid email or password', 401);
+        return sendError(res, 'Invalid email or password', 401, null, 'WRONG_PASSWORD');
       }
     }
 
@@ -294,40 +321,51 @@ export const googleLogin = async (req, res, next) => {
     let avatar = photoURL || '';
     let googleUid = null;
 
-    if (auth && !isMockFirebase) {
-      if (!idToken) {
-        return sendError(res, 'Google authentication token (idToken) is required', 400);
-      }
-      try {
-        const decodedToken = await auth.verifyIdToken(idToken);
-        userEmail = decodedToken.email?.toLowerCase();
-        displayName = decodedToken.name || displayName || userEmail?.split('@')[0];
-        avatar = decodedToken.picture || avatar;
-        googleUid = decodedToken.uid;
-      } catch (tokenErr) {
-        console.warn('Firebase ID token verification failed:', tokenErr.message);
-        return sendError(res, 'Invalid or expired Google authentication token', 401);
-      }
-    } else if (idToken && auth) {
-      try {
-        const decodedToken = await auth.verifyIdToken(idToken);
-        userEmail = decodedToken.email?.toLowerCase();
-        displayName = decodedToken.name || displayName || userEmail?.split('@')[0];
-        avatar = decodedToken.picture || avatar;
-        googleUid = decodedToken.uid;
-      } catch (tokenErr) {
-        if (process.env.NODE_ENV === 'production') {
-          return sendError(res, 'Invalid or expired Google authentication token', 401);
+    if (idToken) {
+      // 1. Try Firebase Admin SDK verification if available
+      if (auth && !isMockFirebase) {
+        try {
+          const decodedToken = await auth.verifyIdToken(idToken);
+          userEmail = decodedToken.email?.toLowerCase();
+          displayName = decodedToken.name || displayName || userEmail?.split('@')[0];
+          avatar = decodedToken.picture || avatar;
+          googleUid = decodedToken.uid;
+        } catch (tokenErr) {
+          console.warn('Firebase ID token verification via Admin SDK failed, falling back to REST lookup:', tokenErr.message);
         }
-        userEmail = email?.toLowerCase().trim();
       }
-    } else {
-      if (process.env.NODE_ENV === 'production') {
-        return sendError(res, 'Google authentication token (idToken) is required', 400);
+
+      // 2. If Admin SDK is not initialized or failed, verify via Firebase Identity Toolkit REST API
+      if (!userEmail) {
+        try {
+          const apiKey = process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY;
+          if (!apiKey) throw new Error('FIREBASE_API_KEY not configured for REST fallback');
+          const verifyRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken })
+          });
+          if (verifyRes.ok) {
+            const data = await verifyRes.json();
+            const verifiedUser = data?.users?.[0];
+            if (verifiedUser && verifiedUser.email) {
+              userEmail = verifiedUser.email.toLowerCase();
+              displayName = verifiedUser.displayName || displayName || userEmail.split('@')[0];
+              avatar = verifiedUser.photoUrl || avatar;
+              googleUid = verifiedUser.localId;
+            }
+          } else {
+            const errData = await verifyRes.json().catch(() => ({}));
+            console.warn('Firebase REST verification error response:', verifyRes.status, errData);
+          }
+        } catch (restErr) {
+          console.warn('Firebase REST token verification network error:', restErr.message);
+        }
       }
-      if (!email) {
-        return sendError(res, 'Google authentication token (idToken) or email is required', 400);
-      }
+    }
+
+    // 3. In non-production or development fallback
+    if (!userEmail && email && process.env.NODE_ENV !== 'production') {
       userEmail = email.toLowerCase().trim();
       displayName = displayName || userEmail.split('@')[0];
       avatar = avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}`;
@@ -335,7 +373,7 @@ export const googleLogin = async (req, res, next) => {
     }
 
     if (!userEmail) {
-      return sendError(res, 'Verified email could not be obtained from Google token', 400);
+      return sendError(res, 'Invalid, expired, or unverified Google authentication token', 401);
     }
 
     avatar = avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}`;
@@ -482,6 +520,22 @@ export const forgotPassword = async (req, res, next) => {
     if (!email) return sendError(res, 'Email is required', 400);
 
     const sanitizedEmail = email.trim().toLowerCase();
+    if (!EMAIL_REGEX.test(sanitizedEmail)) {
+      return sendError(res, 'Please provide a valid email address', 400);
+    }
+
+    // Always verify the user exists in our database before generating any reset link
+    const users = await FirestoreHelper.queryCollection('users', 'email', sanitizedEmail);
+    const userExists = users && users.length > 0;
+
+    // Use a constant-time response to prevent email enumeration attacks
+    const genericMessage = 'If an account with this email exists, password reset instructions have been sent.';
+
+    if (!userExists) {
+      // Return success response regardless so attackers can't enumerate emails
+      return sendSuccess(res, { email: sanitizedEmail }, genericMessage);
+    }
+
     const { auth } = await import('../firebase/firebaseAdmin.js');
     let resetLink = null;
     if (auth) {
@@ -492,16 +546,19 @@ export const forgotPassword = async (req, res, next) => {
       }
     }
 
-    try {
-      await sendPasswordResetEmail({ to: sanitizedEmail, resetLink });
-    } catch (mailErr) {
-      console.warn('Could not dispatch password reset email:', mailErr.message);
+    // Only dispatch an email if we got a real Firebase reset link.
+    // The client SDK path (sendFirebasePasswordReset) handles delivery for accounts
+    // created via Firebase Auth. This backend path covers accounts that were created
+    // before Firebase Auth sync existed, if any.
+    if (resetLink) {
+      try {
+        await sendPasswordResetEmail({ to: sanitizedEmail, resetLink });
+      } catch (mailErr) {
+        console.warn('Could not dispatch password reset email:', mailErr.message);
+      }
     }
 
-    return sendSuccess(res, { 
-      email: sanitizedEmail,
-      resetLink: process.env.NODE_ENV !== 'production' ? resetLink : undefined 
-    }, 'If an account exists with this email, password reset instructions have been generated.');
+    return sendSuccess(res, { email: sanitizedEmail }, genericMessage);
   } catch (err) {
     next(err);
   }
@@ -509,10 +566,11 @@ export const forgotPassword = async (req, res, next) => {
 
 export const logoutUser = async (req, res, next) => {
   try {
+    const isProd = process.env.NODE_ENV === 'production';
     res.clearCookie('token', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax'
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'lax'
     });
     return sendSuccess(res, {}, 'Logged out successfully');
   } catch (err) {
@@ -597,11 +655,12 @@ export const resendVerificationEmail = async (req, res, next) => {
     }
 
     // Dispatch verification email to student's inbox
+    const frontendBase = (process.env.FRONTEND_URL?.split(',')[0]?.trim()) || 'http://localhost:5173';
     try {
       await sendVerificationEmail({
         to: sanitizedEmail,
         name: req.user?.name || sanitizedEmail.split('@')[0],
-        verificationLink: link || `http://localhost:5173/login?verifyEmail=${encodeURIComponent(sanitizedEmail)}`
+        verificationLink: link || `${frontendBase}/login?verifyEmail=${encodeURIComponent(sanitizedEmail)}`
       });
     } catch (mailErr) {
       console.warn('⚠️ Resend verification email dispatch notice:', mailErr.message);
@@ -618,6 +677,12 @@ export const resendVerificationEmail = async (req, res, next) => {
 
 export const confirmEmailVerification = async (req, res, next) => {
   try {
+    // Self-verification bypass is only available in development.
+    // In production, email verification is handled by Firebase Auth's own flow.
+    if (process.env.NODE_ENV === 'production') {
+      return sendError(res, 'Manual email verification is not available in production. Please click the link in your verification email.', 403);
+    }
+
     const userId = req.user?.userId;
     if (!userId) return sendError(res, 'Unauthorized', 401);
 
@@ -699,8 +764,9 @@ export const completeProfile = async (req, res, next) => {
     };
     await FirestoreHelper.setDoc('profiles', profileId, profileUpdates, true);
 
+    const { password: _pw, ...safeUserDoc } = userDoc;
     const updatedUser = {
-      ...userDoc,
+      ...safeUserDoc,
       ...userUpdates,
       uid: userId,
       needsProfileCompletion: false

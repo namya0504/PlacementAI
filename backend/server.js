@@ -23,10 +23,19 @@ import onboardingRoutes from './routes/onboardingRoutes.js';
 
 const app = express();
 
-// Security & Middleware Configuration
-const allowedOrigins = process.env.NODE_ENV === 'production' 
-  ? [process.env.FRONTEND_URL].filter(Boolean) 
-  : ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000', 'http://127.0.0.1:3000'];
+// Security & Middleware Configuration: parse comma-separated FRONTEND_URL and include localhost dev origins
+const configuredOrigins = (process.env.FRONTEND_URL || '')
+  .split(',')
+  .map(url => url.trim())
+  .filter(Boolean);
+
+const baseAllowedOrigins = [
+  ...configuredOrigins,
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000'
+];
 
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
@@ -36,10 +45,19 @@ app.use(cors({
   origin: (origin, callback) => {
     // Allow server-to-server or non-browser tools (no origin header)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+
+    // Development tolerance or explicitly configured origins
+    if (baseAllowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
       return callback(null, true);
     }
-    return callback(new Error(`CORS policy violation: Origin ${origin} is not allowed`));
+
+    // Allow all Vercel production and preview deployments (*.vercel.app)
+    if (/^https:\/\/[a-zA-Z0-9_\-.]+\.vercel\.app$/.test(origin)) {
+      return callback(null, true);
+    }
+
+    // Reject with a proper CORS error so the browser gets a clear message
+    return callback(new Error(`CORS: Origin "${origin}" is not allowed`));
   }, 
   credentials: true 
 }));

@@ -181,7 +181,7 @@ export default function Onboarding() {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/msword'
     ];
-    if (!allowed.includes(file.mimetype) && !file.name.endsWith('.pdf') && !file.name.endsWith('.docx')) {
+    if (!allowed.includes(file.type) && !file.name.endsWith('.pdf') && !file.name.endsWith('.docx')) {
       setErrorMessage('Please upload a valid PDF or DOCX file.');
       return;
     }

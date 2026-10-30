@@ -256,9 +256,15 @@ export default function CompleteProfileModal() {
                   disabled
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-500 text-sm cursor-not-allowed"
                 />
-                <span className="absolute right-3 top-2.5 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                  Verified
-                </span>
+                {currentUser?.emailVerified ? (
+                  <span className="absolute right-3 top-2.5 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                    Verified
+                  </span>
+                ) : (
+                  <span className="absolute right-3 top-2.5 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                    Unverified
+                  </span>
+                )}
               </div>
             </div>
           </div>

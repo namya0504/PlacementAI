@@ -21,6 +21,7 @@ const Settings = lazy(() => import('../pages/Settings'));
 const About = lazy(() => import('../pages/About'));
 const Contact = lazy(() => import('../pages/Contact'));
 const Onboarding = lazy(() => import('../pages/Onboarding'));
+const VerifyEmailPending = lazy(() => import('../pages/VerifyEmailPending'));
 
 function PageLoader() {
   return (
@@ -47,7 +48,12 @@ function PublicOnlyRoute({ children }) {
   }
 
   if (currentUser) {
-    // 1. Incomplete onboarding always takes priority for new / in-progress students
+    // 1. Unverified email gate — must verify before onboarding
+    if (currentUser.emailVerified === false) {
+      return <Navigate to="/verify-email-pending" replace />;
+    }
+
+    // 2. Incomplete onboarding always takes priority for new / in-progress students
     if (currentUser.onboarding?.status === 'not_started' || currentUser.onboarding?.status === 'in_progress') {
       return <Navigate to="/onboarding" replace />;
     }
@@ -71,6 +77,9 @@ function PublicOnlyRoute({ children }) {
 function CatchAllRoute() {
   const { currentUser } = useAuth();
   if (currentUser) {
+    if (currentUser.emailVerified === false) {
+      return <Navigate to="/verify-email-pending" replace />;
+    }
     if (currentUser.onboarding?.status === 'not_started' || currentUser.onboarding?.status === 'in_progress') {
       return <Navigate to="/onboarding" replace />;
     }
@@ -84,11 +93,13 @@ export default function AppRoutes() {
     <Suspense fallback={<PageLoader />}>
       <Routes>
         {/* Public Pages */}
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<PublicOnlyRoute><Home /></PublicOnlyRoute>} />
         <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
         <Route path="/signup" element={<PublicOnlyRoute><Signup /></PublicOnlyRoute>} />
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
+        {/* Email verification gate — accessible when logged-in but not yet verified */}
+        <Route path="/verify-email-pending" element={<ProtectedRoute><VerifyEmailPending /></ProtectedRoute>} />
 
         {/* Authenticated Pages */}
         <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
