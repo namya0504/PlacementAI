@@ -96,13 +96,38 @@ export const AuthProvider = ({ children }) => {
     return user;
   };
 
-  const signup = async (nameOrData, email, password, extraData = {}) => {
+  const signup = async (nameOrData, emailArg, passwordArg, extraData = {}) => {
     const payload = (typeof nameOrData === 'object' && nameOrData !== null)
       ? nameOrData
-      : { name: nameOrData, email, password, ...extraData };
+      : { name: nameOrData, email: emailArg, password: passwordArg, ...extraData };
+
+    // 1. Create the account via backend (Firestore + Firebase Admin)
     const user = await API.register(payload);
     setCurrentUser(user);
     localStorage.setItem('placement_ai_user', JSON.stringify(user));
+
+    // 2. Establish a Firebase client session so sendEmailVerification works.
+    //    This signs in silently — it does NOT affect navigation.
+    //    Password comes from the original payload since we need it here.
+    const plainEmail = (payload.email || '').trim().toLowerCase();
+    const plainPassword = payload.password || '';
+    try {
+      const { signInToFirebaseClient, sendFirebaseVerificationEmail } = await import('../services/firebase/authService');
+      const fbSignIn = await signInToFirebaseClient(plainEmail, plainPassword);
+      if (fbSignIn.success) {
+        // 3. Firebase sends the verification email to the user's real inbox
+        const fbVerify = await sendFirebaseVerificationEmail();
+        if (!fbVerify.success && !fbVerify.alreadyVerified) {
+          console.warn('Firebase email verification send notice:', fbVerify.message);
+        }
+      } else {
+        console.warn('Firebase client sign-in after registration notice:', fbSignIn.message);
+      }
+    } catch (fbErr) {
+      // Non-fatal — backend SMTP fallback may have already dispatched the email
+      console.warn('Firebase post-registration sign-in notice:', fbErr.message);
+    }
+
     return user;
   };
 

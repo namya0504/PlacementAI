@@ -5,6 +5,7 @@ import {
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
+  signInWithEmailAndPassword,
   sendEmailVerification,
   sendPasswordResetEmail as firebaseSendPasswordReset
 } from 'firebase/auth';
@@ -110,19 +111,61 @@ export const checkGoogleRedirectResult = async () => {
 };
 
 /**
- * Sends verification email via Firebase Auth built-in email service if user is signed in on client
+ * Signs a user into Firebase client SDK with email + password.
+ * Used after backend registration to establish a client session so that
+ * sendEmailVerification() can be called on behalf of the newly created user.
  */
-export const triggerFirebaseEmailVerification = async () => {
-  if (clientAuth.currentUser) {
-    try {
-      await sendEmailVerification(clientAuth.currentUser);
-      return { success: true };
-    } catch (err) {
-      console.warn('Firebase client sendEmailVerification notice:', err.message);
-      return { success: false, error: err.message };
-    }
+export const signInToFirebaseClient = async (email, password) => {
+  try {
+    const result = await signInWithEmailAndPassword(clientAuth, email.trim().toLowerCase(), password);
+    return { success: true, user: result.user };
+  } catch (err) {
+    console.warn('Firebase client sign-in notice:', err.code, err.message);
+    return { success: false, error: err.code, message: err.message };
   }
-  return { success: false, error: 'No active client auth session' };
+};
+
+/**
+ * Sends a Firebase verification email to the currently signed-in Firebase client user.
+ * Returns { success, error? }.  Requires clientAuth.currentUser to be set first.
+ */
+export const sendFirebaseVerificationEmail = async () => {
+  const user = clientAuth.currentUser;
+  if (!user) {
+    return { success: false, error: 'no_session', message: 'No active Firebase client session' };
+  }
+  // Reload to get the freshest emailVerified state before sending
+  try { await user.reload(); } catch (_) {}
+  if (user.emailVerified) {
+    return { success: true, alreadyVerified: true };
+  }
+  try {
+    await sendEmailVerification(user);
+    return { success: true };
+  } catch (err) {
+    console.warn('Firebase sendEmailVerification notice:', err.code, err.message);
+    const code = err?.code || '';
+    if (code === 'auth/too-many-requests') {
+      return { success: false, error: code, message: 'Too many requests. Please wait a few minutes before requesting another email.' };
+    }
+    return { success: false, error: code, message: err.message };
+  }
+};
+
+/**
+ * Checks whether the currently signed-in Firebase client user has verified their email.
+ * Reloads the user from Firebase first so the result is always fresh.
+ */
+export const checkFirebaseEmailVerified = async () => {
+  const user = clientAuth.currentUser;
+  if (!user) return { verified: false, error: 'no_session' };
+  try {
+    await user.reload();
+    return { verified: user.emailVerified === true };
+  } catch (err) {
+    console.warn('Firebase user.reload() notice:', err.message);
+    return { verified: false, error: err.message };
+  }
 };
 
 /**

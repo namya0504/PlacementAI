@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MailCheck, RefreshCw, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -15,32 +15,99 @@ export default function VerifyEmailPending() {
   const [resendStatus, setResendStatus] = useState('idle'); // 'idle' | 'sending' | 'sent' | 'error'
   const [resendMsg, setResendMsg] = useState('');
   const [checkingVerification, setCheckingVerification] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0); // seconds remaining
+  const cooldownRef = useRef(null);
 
+  // Start 60-second cooldown after a send so the button re-enables automatically
+  const startCooldown = () => {
+    setResendCooldown(60);
+    if (cooldownRef.current) clearInterval(cooldownRef.current);
+    cooldownRef.current = setInterval(() => {
+      setResendCooldown(prev => {
+        if (prev <= 1) {
+          clearInterval(cooldownRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  useEffect(() => () => { if (cooldownRef.current) clearInterval(cooldownRef.current); }, []);
+
+  /**
+   * Resend flow:
+   * 1. Try Firebase client SDK (sendFirebaseVerificationEmail) — works when the user
+   *    has an active Firebase client session (signed in right after signup on this device).
+   * 2. Fall back to backend API (POST /auth/resend-verification) which uses
+   *    Firebase Admin generateEmailVerificationLink + SMTP transporter.
+   */
   const handleResend = async () => {
     setResendStatus('sending');
     setResendMsg('');
     try {
+      const { sendFirebaseVerificationEmail } = await import('../services/firebase/authService');
+      const fbResult = await sendFirebaseVerificationEmail();
+
+      if (fbResult.success) {
+        if (fbResult.alreadyVerified) {
+          // User is already verified — just go to onboarding
+          updateCurrentUser({ emailVerified: true });
+          navigate('/onboarding', { replace: true });
+          return;
+        }
+        setResendStatus('sent');
+        setResendMsg('Verification email sent! Please check your inbox (and spam folder).');
+        startCooldown();
+        return;
+      }
+
+      // Firebase client has no session — fall back to backend
+      if (fbResult.error === 'auth/too-many-requests') {
+        setResendStatus('error');
+        setResendMsg(fbResult.message || 'Too many requests. Please wait a few minutes before trying again.');
+        return;
+      }
+
+      // no_session or any other Firebase error: use backend SMTP path
       await API.resendVerification();
       setResendStatus('sent');
-      setResendMsg('Verification email sent! Please check your inbox and spam folder.');
+      setResendMsg('Verification email sent! Please check your inbox (and spam folder).');
+      startCooldown();
     } catch (err) {
       setResendStatus('error');
       setResendMsg(err.message || 'Failed to resend email. Please try again.');
     }
   };
 
-  // Poll /auth/me to see if the backend has picked up the Firebase verification signal
+  /**
+   * Verification check flow:
+   * 1. First check Firebase client (user.reload() + emailVerified) — instant, no round-trip.
+   * 2. If client says verified OR has no session, hit /auth/me which syncs Firebase Admin → Firestore.
+   */
   const handleCheckVerification = async () => {
     setCheckingVerification(true);
     setResendMsg('');
     try {
+      // Step 1: Check via Firebase client SDK (reload from Firebase Auth directly)
+      const { checkFirebaseEmailVerified } = await import('../services/firebase/authService');
+      const clientCheck = await checkFirebaseEmailVerified();
+
+      if (clientCheck.verified) {
+        // Firebase client confirms verified — hit /auth/me to sync Firestore then navigate
+        const user = await API.getCurrentUser();
+        updateCurrentUser({ emailVerified: true, ...(user || {}) });
+        navigate('/onboarding', { replace: true });
+        return;
+      }
+
+      // Step 2: No client session or not yet verified — poll backend which syncs Firebase Admin → Firestore
       const user = await API.getCurrentUser();
       if (user?.emailVerified) {
-        // Update AuthContext + localStorage so the rest of the app sees verified=true
         updateCurrentUser({ emailVerified: true });
         navigate('/onboarding', { replace: true });
       } else {
-        setResendMsg('Email not verified yet. Please click the link in your inbox, then try again.');
+        setResendMsg('Email not verified yet. Please click the link in your inbox, then come back and try again.');
       }
     } catch (err) {
       setResendMsg(err.message || 'Could not check verification status. Please try again.');
@@ -68,13 +135,16 @@ export default function VerifyEmailPending() {
 
           {/* Heading */}
           <div className="space-y-2">
-            <h2 className="text-2xl font-extrabold text-slate-900">Verify Your Email</h2>
+            <h2 className="text-2xl font-extrabold text-slate-900">Check Your Inbox</h2>
             <p className="text-sm text-slate-500">
-              We've sent a verification link to
+              A verification link has been sent to
             </p>
             <p className="text-sm font-bold text-purple-700 break-all">{email}</p>
             <p className="text-xs text-slate-400 pt-1">
-              Click the link in that email to activate your account, then come back here.
+              Click the <strong>Verify My Email Address</strong> button in that email, then come back here and press <em>"I've verified my email"</em>.
+            </p>
+            <p className="text-xs text-slate-400">
+              Can't find it? Check your <strong>spam / junk</strong> folder.
             </p>
           </div>
 
@@ -106,13 +176,13 @@ export default function VerifyEmailPending() {
 
             <button
               onClick={handleResend}
-              disabled={resendStatus === 'sending' || resendStatus === 'sent'}
+              disabled={resendStatus === 'sending' || resendCooldown > 0}
               className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold text-sm hover:bg-slate-50 transition flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {resendStatus === 'sending'
                 ? <><RefreshCw className="w-4 h-4 animate-spin" /> Sending...</>
-                : resendStatus === 'sent'
-                ? <><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Email sent</>
+                : resendCooldown > 0
+                ? <><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Resend in {resendCooldown}s</>
                 : <>Resend verification email</>}
             </button>
           </div>

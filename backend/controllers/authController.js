@@ -97,8 +97,10 @@ export const registerUser = async (req, res, next) => {
     const displayName = name ? name.trim().slice(0, 80) : sanitizedEmail.split('@')[0];
     const avatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}`;
 
-    // Sync with Firebase Auth Service if live Firebase is active
-    let verificationLink = null;
+    // Sync with Firebase Auth Service if live Firebase is active.
+    // NOTE: The verification email is sent by the frontend Firebase client SDK
+    // (sendEmailVerification on clientAuth.currentUser) — not here.
+    // Firebase Admin createUser does NOT auto-send a verification email by itself.
     try {
       const { auth } = await import('../firebase/firebaseAdmin.js');
       if (auth) {
@@ -108,27 +110,25 @@ export const registerUser = async (req, res, next) => {
           password,
           displayName
         });
-        try {
-          verificationLink = await auth.generateEmailVerificationLink(sanitizedEmail);
-          console.log(`✉️ Email verification link generated for ${sanitizedEmail}:`, verificationLink);
-        } catch (linkErr) {
-          console.warn('Firebase email verification link warning:', linkErr.message);
-        }
+        console.log(`✅ Firebase Auth user created for ${sanitizedEmail} (uid: ${userId})`);
       }
     } catch (fbAuthErr) {
-      console.warn('Firebase Auth user creation warning:', fbAuthErr.message);
+      // Non-fatal — user is saved in Firestore regardless; Firebase Auth sync failed
+      console.warn('Firebase Auth user creation warning (non-fatal):', fbAuthErr.message);
     }
 
-    // Dispatch verification email to student's inbox
-    const frontendBase = (process.env.FRONTEND_URL?.split(',')[0]?.trim()) || 'http://localhost:5173';
-    try {
-      await sendVerificationEmail({
-        to: sanitizedEmail,
-        name: displayName,
-        verificationLink: verificationLink || `${frontendBase}/login?verifyEmail=${encodeURIComponent(sanitizedEmail)}`
-      });
-    } catch (mailErr) {
-      console.warn('⚠️ Verification email dispatch notice:', mailErr.message);
+    // Development convenience: log a backend-generated verification link to the console.
+    // The real email delivery happens via Firebase client SDK on the frontend.
+    if (process.env.NODE_ENV !== 'production') {
+      try {
+        const { auth } = await import('../firebase/firebaseAdmin.js');
+        if (auth) {
+          const devLink = await auth.generateEmailVerificationLink(sanitizedEmail).catch(() => null);
+          if (devLink) {
+            console.log(`🔗 [DEV] Manual verification link for ${sanitizedEmail}:`, devLink);
+          }
+        }
+      } catch (_) {}
     }
 
     const newUser = {
@@ -586,6 +586,26 @@ export const getCurrentUser = async (req, res, next) => {
       return sendError(res, 'User not found', 404);
     }
 
+    // Sync emailVerified from Firebase Auth → Firestore.
+    // When a user clicks the verification link, Firebase Auth marks them verified,
+    // but our Firestore `emailVerified` field won't know unless we check here.
+    if (!user.emailVerified) {
+      try {
+        const { auth } = await import('../firebase/firebaseAdmin.js');
+        if (auth) {
+          const fbUser = await auth.getUser(userId);
+          if (fbUser.emailVerified) {
+            await FirestoreHelper.setDoc('users', userId, { emailVerified: true }, true);
+            user.emailVerified = true;
+            console.log(`✅ Email verified synced from Firebase Auth for user ${userId}`);
+          }
+        }
+      } catch (syncErr) {
+        // Non-fatal — carry on with the stored Firestore value
+        console.warn('Firebase email verified sync notice:', syncErr.message);
+      }
+    }
+
     let readinessDoc = await FirestoreHelper.getDoc('placement_readiness', 'readiness_' + userId);
     if (readinessDoc) {
       readinessDoc.overallReadiness = calculatePlacementReadiness(readinessDoc);
@@ -639,37 +659,53 @@ export const getCurrentUser = async (req, res, next) => {
 
 export const resendVerificationEmail = async (req, res, next) => {
   try {
-    const userEmail = req.user?.email || req.body?.email;
-    if (!userEmail) return sendError(res, 'Email is required', 400);
+    // Email comes from the authenticated JWT (set by protectRoute)
+    const userEmail = req.user?.email;
+    const userId = req.user?.userId;
+    if (!userEmail) return sendError(res, 'Could not determine user email from token', 400);
 
     const sanitizedEmail = userEmail.trim().toLowerCase();
-    const { auth } = await import('../firebase/firebaseAdmin.js');
-    let link = null;
-    if (auth) {
-      try {
-        link = await auth.generateEmailVerificationLink(sanitizedEmail);
-        console.log(`✉️ Resent verification link for ${sanitizedEmail}:`, link);
-      } catch (err) {
-        console.warn('Firebase generate verification link notice:', err.message);
-      }
+
+    // Check if already verified in Firestore to avoid redundant sends
+    const userDoc = userId ? await FirestoreHelper.getDoc('users', userId) : null;
+    if (userDoc?.emailVerified) {
+      return sendSuccess(res, { email: sanitizedEmail, alreadyVerified: true }, 'Email is already verified.');
     }
 
-    // Dispatch verification email to student's inbox
+    // Prefer: the frontend Firebase client SDK sends the email (sendFirebaseVerificationEmail).
+    // This backend route is the FALLBACK for when there is no client Firebase session
+    // (e.g. user closed the browser and re-opened the pending screen on a new device).
+    //
+    // We use Firebase Admin generateEmailVerificationLink + our SMTP transporter here.
+    const displayName = userDoc?.name || sanitizedEmail.split('@')[0];
     const frontendBase = (process.env.FRONTEND_URL?.split(',')[0]?.trim()) || 'http://localhost:5173';
+    let link = null;
+
+    try {
+      const { auth } = await import('../firebase/firebaseAdmin.js');
+      if (auth) {
+        link = await auth.generateEmailVerificationLink(sanitizedEmail);
+        console.log(`✉️ Verification link generated for ${sanitizedEmail}`);
+      }
+    } catch (fbErr) {
+      console.warn('Firebase generateEmailVerificationLink notice:', fbErr.message);
+    }
+
+    const verificationLink = link || `${frontendBase}/verify-email-pending`;
+
     try {
       await sendVerificationEmail({
         to: sanitizedEmail,
-        name: req.user?.name || sanitizedEmail.split('@')[0],
-        verificationLink: link || `${frontendBase}/login?verifyEmail=${encodeURIComponent(sanitizedEmail)}`
+        name: displayName,
+        verificationLink
       });
     } catch (mailErr) {
       console.warn('⚠️ Resend verification email dispatch notice:', mailErr.message);
     }
 
     return sendSuccess(res, {
-      email: sanitizedEmail,
-      verificationLink: link || undefined
-    }, 'Verification email has been sent to your email address. Please check your inbox.');
+      email: sanitizedEmail
+    }, 'Verification email sent. Please check your inbox and spam folder.');
   } catch (err) {
     next(err);
   }
