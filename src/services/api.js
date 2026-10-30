@@ -128,6 +128,9 @@ export const API = {
   verifyEmail: () => apiCall('/auth/verify-email', 'POST'),
   completeProfile: (profileData) => apiCall('/auth/complete-profile', 'POST', profileData),
 
+  // GitHub
+  fetchGitHubRepos: (username) => apiCall(`/github/repos?username=${encodeURIComponent(username)}`, 'GET'),
+
   // Profile
   getProfile: () => apiCall('/profile', 'GET'),
   updateProfile: (profileData) => apiCall('/profile', 'PUT', profileData),

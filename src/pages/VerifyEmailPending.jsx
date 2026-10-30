@@ -12,6 +12,17 @@ export default function VerifyEmailPending() {
   const { currentUser, logout, updateCurrentUser } = useAuth();
   const email = location.state?.email || currentUser?.email || 'your email address';
 
+  // If user is already verified (e.g. navigated here manually after verifying),
+  // redirect them to onboarding or dashboard immediately.
+  useEffect(() => {
+    if (currentUser?.emailVerified === true) {
+      const dest = (currentUser.onboarding?.status === 'not_started' || currentUser.onboarding?.status === 'in_progress')
+        ? '/onboarding'
+        : '/dashboard';
+      navigate(dest, { replace: true });
+    }
+  }, [currentUser, navigate]);
+
   const [resendStatus, setResendStatus] = useState('idle'); // 'idle' | 'sending' | 'sent' | 'error'
   const [resendMsg, setResendMsg] = useState('');
   const [checkingVerification, setCheckingVerification] = useState(false);

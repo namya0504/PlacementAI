@@ -20,6 +20,7 @@ import downloadRoutes from './routes/downloadRoutes.js';
 import companyRoutes from './routes/companyRoutes.js';
 import storageRoutes from './routes/storageRoutes.js';
 import onboardingRoutes from './routes/onboardingRoutes.js';
+import githubRoutes from './routes/githubRoutes.js';
 
 const app = express();
 
@@ -89,7 +90,8 @@ const routes = [
   ['downloads', downloadRoutes],
   ['company', companyRoutes],
   ['storage', storageRoutes],
-  ['onboarding', onboardingRoutes]
+  ['onboarding', onboardingRoutes],
+  ['github', githubRoutes]
 ];
 
 routes.forEach(([path, router]) => {

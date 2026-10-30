@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   FileText,
@@ -23,7 +23,11 @@ import {
   X,
   FileCheck,
   RefreshCw,
-  Check
+  Check,
+  GitBranch,
+  ExternalLink,
+  AlertCircle,
+  Link as LinkIcon
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
@@ -58,6 +62,7 @@ export default function ResumeBuilder() {
 
   const handleNextSection = () => {
     if (activeTab === 'experience') {
+      if (!validateBeforeStep3()) return;
       setCurrentStep(3);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else if (nextTab) {
@@ -138,8 +143,20 @@ export default function ResumeBuilder() {
       description: ''
     }
   ]);
+  // Certifications: {name: string, link: string}[]
   const [certifications, setCertifications] = useState([]);
-  const [newCert, setNewCert] = useState('');
+  const [newCertName, setNewCertName] = useState('');
+  const [newCertLink, setNewCertLink] = useState('');
+
+  // GitHub repo import state
+  const [ghRepos, setGhRepos] = useState([]); // fetched repos
+  const [ghFetching, setGhFetching] = useState(false);
+  const [ghFetchError, setGhFetchError] = useState('');
+  const [ghFetchedFor, setGhFetchedFor] = useState(''); // which URL was last fetched
+  const [ghSelected, setGhSelected] = useState(new Set()); // selected repo IDs
+
+  // Step validation errors
+  const [validationErrors, setValidationErrors] = useState([]);
   const [experience, setExperience] = useState([
     {
       id: 'exp_1',
@@ -289,9 +306,13 @@ export default function ResumeBuilder() {
               }
             }
             if (Array.isArray(primaryResume.certificates) && primaryResume.certificates.length > 0) {
+              // Normalize: old records store strings, new records store {name, link}
               const cleanCerts = primaryResume.certificates
-                .map(c => typeof c === 'string' ? c : (c.name || c.title))
-                .filter(c => !isMockCert(c));
+                .map(c => {
+                  if (typeof c === 'string') return { name: c, link: '' };
+                  return { name: c.name || c.title || '', link: c.link || c.url || '' };
+                })
+                .filter(c => !isMockCert(c.name));
               if (cleanCerts.length > 0) {
                 setCertifications(cleanCerts);
               }
@@ -473,7 +494,10 @@ export default function ResumeBuilder() {
     if (Array.isArray(resume.skills)) setSkills(resume.skills.map(s => typeof s === 'string' ? s : s.name));
     if (Array.isArray(resume.projects)) setProjects(resume.projects);
     if (Array.isArray(resume.certificates)) {
-      setCertifications(resume.certificates.map(c => typeof c === 'string' ? c : (c.name || c.title)));
+      setCertifications(resume.certificates.map(c => {
+        if (typeof c === 'string') return { name: c, link: '' };
+        return { name: c.name || c.title || '', link: c.link || c.url || '' };
+      }));
     }
     if (Array.isArray(resume.experience)) setExperience(resume.experience);
 
@@ -504,7 +528,9 @@ export default function ResumeBuilder() {
         : [];
 
       const validSkills = Array.isArray(skills) ? skills.filter(Boolean) : [];
-      const validCerts = Array.isArray(certifications) ? certifications.filter(Boolean) : [];
+      const validCerts = Array.isArray(certifications)
+        ? certifications.filter(c => c?.name?.trim()).map(c => c.name)
+        : [];
 
       const summaryPayload = {
         role: role || user?.role || user?.targetRole || '',
@@ -552,7 +578,70 @@ export default function ResumeBuilder() {
     }
   };
 
+  // ── GitHub repo import ──────────────────────────────────────────
+  const handleFetchGitHubRepos = useCallback(async () => {
+    const ghUrl = personal.github?.trim();
+    if (!ghUrl) {
+      setGhFetchError('Please enter your GitHub URL or username in Personal Details first.');
+      return;
+    }
+    if (ghFetchedFor === ghUrl && ghRepos.length > 0) return; // already fetched for same URL
+    setGhFetching(true);
+    setGhFetchError('');
+    try {
+      const data = await API.fetchGitHubRepos(ghUrl);
+      setGhRepos(data?.repos || []);
+      setGhFetchedFor(ghUrl);
+      setGhSelected(new Set());
+    } catch (err) {
+      setGhFetchError(err.message || 'Failed to fetch GitHub repos. Check your GitHub URL and try again.');
+      setGhRepos([]);
+    } finally {
+      setGhFetching(false);
+    }
+  }, [personal.github, ghFetchedFor, ghRepos.length]);
+
+  const handleImportSelectedRepos = () => {
+    if (ghSelected.size === 0) return;
+    const toImport = ghRepos.filter(r => ghSelected.has(r.id));
+    const newProjects = toImport.map(r => ({
+      id: 'gh_' + r.id,
+      title: r.name,
+      tech: [r.language, ...(r.topics || [])].filter(Boolean).join(', '),
+      link: r.homepage?.trim() ? r.homepage.trim() : r.htmlUrl,
+      description: r.description || ''
+    }));
+    // Merge: avoid duplicates by id, replace empty placeholder proj_1 if present
+    setProjects(prev => {
+      const existing = prev.filter(p => p.id !== 'proj_1' || p.title.trim());
+      const existingIds = new Set(existing.map(p => p.id));
+      const fresh = newProjects.filter(p => !existingIds.has(p.id));
+      return [...existing.filter(p => !(p.id === 'proj_1' && !p.title.trim())), ...fresh];
+    });
+    setGhSelected(new Set());
+  };
+
+  // ── Mandatory fields validation ──────────────────────────────────
+  const validateBeforeStep3 = () => {
+    const errors = [];
+    if (!personal.fullName?.trim()) errors.push({ tab: 'personal', msg: 'Full Name is required' });
+    if (!personal.email?.trim()) errors.push({ tab: 'personal', msg: 'Email Address is required' });
+    if (!personal.phone?.trim()) errors.push({ tab: 'personal', msg: 'Phone Number is required' });
+    const validEdu = education.filter(e => e.degree?.trim() || e.college?.trim());
+    if (validEdu.length === 0) errors.push({ tab: 'education', msg: 'At least one Education entry is required' });
+    if (skills.filter(Boolean).length === 0) errors.push({ tab: 'skills', msg: 'At least one Skill is required' });
+    if (projects.filter(p => p.title?.trim()).length === 0) errors.push({ tab: 'projects', msg: 'At least one Project with a title is required' });
+    setValidationErrors(errors);
+    return errors.length === 0;
+  };
+
   const handleDownloadPdf = async () => {
+    if (!validateBeforeStep3()) {
+      setCurrentStep(2);
+      setActiveTab('personal');
+      window.scrollTo({ top: 120, behavior: 'smooth' });
+      return;
+    }
     const rawName = (personal.fullName || user?.name || 'Candidate').trim();
     const rawRole = (role || 'Professional').trim();
     const sanitizedName = rawName.replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -607,6 +696,12 @@ export default function ResumeBuilder() {
   };
 
   const handleDirectDownloadHtml2Pdf = async () => {
+    if (!validateBeforeStep3()) {
+      setCurrentStep(2);
+      setActiveTab('personal');
+      window.scrollTo({ top: 120, behavior: 'smooth' });
+      return;
+    }
     const element = previewRef.current;
     if (!element) return;
     const rawName = (personal.fullName || user?.name || 'Candidate').trim();
@@ -1184,6 +1279,122 @@ export default function ResumeBuilder() {
                       </button>
                     </div>
 
+                    {/* ── GitHub Import Panel ───────────────────────────────── */}
+                    {personal.github?.trim() && (
+                      <div className="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/60 space-y-3">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div className="flex items-center gap-2">
+                            <GitBranch className="w-4 h-4 text-slateald-700 shrink-0" />
+                            <span className="text-xs font-bold text-slate-700">Import from GitHub</span>
+                            {ghFetchedFor && ghRepos.length > 0 && (
+                              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                                {ghRepos.length} repos found
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleFetchGitHubRepos}
+                            disabled={ghFetching}
+                            className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs flex items-center gap-1.5 transition disabled:opacity-50"
+                          >
+                            {ghFetching ? (
+                              <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Fetching...</>
+                            ) : (
+                              <><GitBranch className="w-3.5 h-3.5" /> {ghRepos.length > 0 ? 'Refresh Repos' : 'Fetch Repos'}</>
+                            )}
+                          </button>
+                        </div>
+
+                        {ghFetchError && (
+                          <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            <span>{ghFetchError}</span>
+                          </div>
+                        )}
+
+                        {ghRepos.length > 0 && (
+                          <>
+                            <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                              {ghRepos.map(r => (
+                                <label
+                                  key={r.id}
+                                  className={`flex items-start gap-2.5 p-2.5 rounded-xl border cursor-pointer transition text-xs ${
+                                    ghSelected.has(r.id)
+                                      ? 'border-emerald-400 bg-emerald-50'
+                                      : 'border-slate-200 bg-white hover:border-emerald-300'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={ghSelected.has(r.id)}
+                                    onChange={e => {
+                                      setGhSelected(prev => {
+                                        const next = new Set(prev);
+                                        if (e.target.checked) next.add(r.id);
+                                        else next.delete(r.id);
+                                        return next;
+                                      });
+                                    }}
+                                    className="mt-0.5 accent-emerald-600 shrink-0"
+                                  />
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="font-bold text-slate-800">{r.name}</span>
+                                      {r.language && (
+                                        <span className="px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-semibold">{r.language}</span>
+                                      )}
+                                      {r.stars > 0 && (
+                                        <span className="flex items-center gap-0.5 text-amber-600 text-[10px]">
+                                          <Star className="w-3 h-3" />{r.stars}
+                                        </span>
+                                      )}
+                                      {(r.homepage || r.htmlUrl) && (
+                                        <a
+                                          href={r.homepage?.trim() || r.htmlUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          onClick={e => e.stopPropagation()}
+                                          className="text-blue-500 hover:text-blue-700"
+                                        >
+                                          <ExternalLink className="w-3 h-3" />
+                                        </a>
+                                      )}
+                                    </div>
+                                    {r.description && (
+                                      <p className="text-slate-500 text-[10px] mt-0.5 line-clamp-1">{r.description}</p>
+                                    )}
+                                  </div>
+                                </label>
+                              ))}
+                            </div>
+                            <div className="flex items-center justify-between pt-1">
+                              <span className="text-[11px] text-slate-500">
+                                {ghSelected.size > 0 ? `${ghSelected.size} selected` : 'Select repos to import'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={handleImportSelectedRepos}
+                                disabled={ghSelected.size === 0}
+                                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition disabled:opacity-40 flex items-center gap-1.5"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                Import Selected ({ghSelected.size})
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Validation banner for projects */}
+                    {validationErrors.some(e => e.tab === 'projects') && (
+                      <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        <span>{validationErrors.find(e => e.tab === 'projects')?.msg}</span>
+                      </div>
+                    )}
+
                     {projects.length === 0 ? (
                       <div className="text-center py-10 px-4 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 space-y-3">
                         <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
@@ -1292,48 +1503,74 @@ export default function ResumeBuilder() {
                         <p className="text-xs text-slate-500">List industry recognized certifications, credentials, and achievements</p>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="Add Certification (e.g. AWS Certified Solutions Architect, Google Cloud Associate)"
-                        value={newCert}
-                        onChange={e => setNewCert(e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            if (newCert.trim() && !certifications.includes(newCert.trim())) {
-                              setCertifications([...certifications, newCert.trim()]);
-                              setNewCert('');
+
+                    {/* Add new certification */}
+                    <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/70 space-y-3">
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Add New Certification</label>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                          type="text"
+                          placeholder="Certification Name (e.g. AWS Certified Solutions Architect)*"
+                          value={newCertName}
+                          onChange={e => setNewCertName(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              if (newCertName.trim()) {
+                                setCertifications(prev => [...prev, { name: newCertName.trim(), link: newCertLink.trim() }]);
+                                setNewCertName('');
+                                setNewCertLink('');
+                              }
                             }
-                          }
-                        }}
-                        className="flex-1 p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (newCert.trim() && !certifications.includes(newCert.trim())) {
-                            setCertifications([...certifications, newCert.trim()]);
-                            setNewCert('');
-                          }
-                        }}
-                        className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition"
-                      >
-                        Add Cert
-                      </button>
+                          }}
+                          className="flex-1 p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
+                        />
+                        <input
+                          type="url"
+                          placeholder="Certificate URL (optional)"
+                          value={newCertLink}
+                          onChange={e => setNewCertLink(e.target.value)}
+                          className="flex-1 p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (newCertName.trim()) {
+                              setCertifications(prev => [...prev, { name: newCertName.trim(), link: newCertLink.trim() }]);
+                              setNewCertName('');
+                              setNewCertLink('');
+                            }
+                          }}
+                          className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition whitespace-nowrap"
+                        >
+                          Add Cert
+                        </button>
+                      </div>
                     </div>
 
                     <ul className="space-y-2">
                       {certifications.map((c, i) => (
-                        <li key={i} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold flex justify-between items-center">
-                          <span className="flex items-center gap-2 text-slate-800">
+                        <li key={i} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold flex justify-between items-center gap-3">
+                          <span className="flex items-center gap-2 text-slate-800 min-w-0">
                             <Award className="w-4 h-4 text-amber-500 shrink-0" />
-                            {c}
+                            <span className="truncate">{c.name}</span>
+                            {c.link && (
+                              <a
+                                href={c.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="shrink-0 text-blue-500 hover:text-blue-700 flex items-center gap-1"
+                                title="View Certificate"
+                              >
+                                <LinkIcon className="w-3 h-3" />
+                                <span className="hidden sm:inline text-[10px]">View</span>
+                              </a>
+                            )}
                           </span>
                           <button
                             type="button"
                             onClick={() => setCertifications(certifications.filter((_, idx) => idx !== i))}
-                            className="text-red-500 hover:text-red-700 text-xs font-bold"
+                            className="text-red-500 hover:text-red-700 text-xs font-bold shrink-0"
                           >
                             Remove
                           </button>
@@ -1455,6 +1692,30 @@ export default function ResumeBuilder() {
                         </div>
                       ))
                     )}
+                  </div>
+                )}
+
+                {/* Validation error summary — shown on the Experience tab before advancing */}
+                {activeTab === 'experience' && validationErrors.length > 0 && (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 p-4 space-y-2">
+                    <div className="flex items-center gap-2 text-red-700 font-bold text-xs">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>Please fix the following before previewing:</span>
+                    </div>
+                    <ul className="space-y-1">
+                      {validationErrors.map((err, i) => (
+                        <li key={i} className="flex items-center gap-2 text-xs text-red-600">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+                          <button
+                            type="button"
+                            className="underline hover:text-red-800 text-left"
+                            onClick={() => setActiveTab(err.tab)}
+                          >
+                            {err.msg}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
 

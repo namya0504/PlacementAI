@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 
 /**
  * Route Guard to protect private pages from unauthenticated access.
+ * Also gates unverified users — they can only access /verify-email-pending.
  */
 export default function ProtectedRoute({ children }) {
   const { currentUser, loading } = useAuth();
@@ -22,6 +23,12 @@ export default function ProtectedRoute({ children }) {
 
   if (!currentUser) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Unverified users can only visit the verification-pending page.
+  // All other protected routes redirect back to that page.
+  if (currentUser.emailVerified === false && location.pathname !== '/verify-email-pending') {
+    return <Navigate to="/verify-email-pending" replace />;
   }
 
   return children;
