@@ -38,7 +38,22 @@ export const checkEmail = async (req, res, next) => {
       return sendError(res, 'Invalid email format', 400);
     }
     const existing = await FirestoreHelper.queryCollection('users', 'email', sanitizedEmail);
-    return sendSuccess(res, { exists: existing.length > 0 }, 'Email check complete');
+    if (existing.length === 0) {
+      return sendSuccess(res, { exists: false }, 'Email check complete');
+    }
+    const user = existing[0];
+    // Deactivated accounts: check cooldown so Signup can show the right message
+    if (user.deactivated) {
+      const deactivatedAt = user.deactivatedAt ? new Date(user.deactivatedAt) : null;
+      const daysSince = deactivatedAt ? Math.floor((Date.now() - deactivatedAt.getTime()) / (1000 * 60 * 60 * 24)) : 999;
+      const daysRemaining = Math.max(0, 30 - daysSince);
+      return sendSuccess(res, {
+        exists: daysRemaining > 0, // treat as taken during cooldown
+        deactivated: true,
+        daysRemaining
+      }, 'Email check complete');
+    }
+    return sendSuccess(res, { exists: true }, 'Email check complete');
   } catch (err) {
     next(err);
   }
@@ -89,7 +104,32 @@ export const registerUser = async (req, res, next) => {
 
     const existingUsers = await FirestoreHelper.queryCollection('users', 'email', sanitizedEmail);
     if (existingUsers.length > 0) {
-      return sendError(res, 'User with this email already exists', 400);
+      const existing = existingUsers[0];
+      // Allow re-signup if account was deactivated AND 30-day cooldown has passed
+      if (existing.deactivated) {
+        const deactivatedAt = existing.deactivatedAt ? new Date(existing.deactivatedAt) : null;
+        const daysSince = deactivatedAt ? Math.floor((Date.now() - deactivatedAt.getTime()) / (1000 * 60 * 60 * 24)) : 999;
+        if (daysSince < 30) {
+          const daysRemaining = 30 - daysSince;
+          return sendError(
+            res,
+            `This email was recently deactivated. You can re-register in ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}.`,
+            400,
+            null,
+            'DEACTIVATION_COOLDOWN'
+          );
+        }
+        // 30 days passed — delete old account data and allow fresh registration
+        try {
+          await FirestoreHelper.deleteDoc('users', existing.userId);
+          await FirestoreHelper.deleteDoc('profiles', 'prof_' + existing.userId);
+          console.log(`♻️ Deactivated account for ${sanitizedEmail} cleaned up. Allowing re-registration.`);
+        } catch (cleanupErr) {
+          console.warn('Deactivated account cleanup notice:', cleanupErr.message);
+        }
+      } else {
+        return sendError(res, 'User with this email already exists', 400);
+      }
     }
 
     const userId = 'usr_' + Date.now();
@@ -247,11 +287,22 @@ export const loginUser = async (req, res, next) => {
 
     if (!user) {
       return sendError(res, 'Invalid email or password', 401, null, 'EMAIL_NOT_FOUND');
-    } else {
-      const match = await bcrypt.compare(password, user.password || '');
-      if (!match) {
-        return sendError(res, 'Invalid email or password', 401, null, 'WRONG_PASSWORD');
-      }
+    }
+
+    // Deactivated account — block login
+    if (user.deactivated) {
+      const deactivatedAt = user.deactivatedAt ? new Date(user.deactivatedAt) : null;
+      const daysSince = deactivatedAt ? Math.floor((Date.now() - deactivatedAt.getTime()) / (1000 * 60 * 60 * 24)) : 999;
+      const daysRemaining = Math.max(0, 30 - daysSince);
+      const message = daysRemaining > 0
+        ? `This account has been deactivated. You can re-register with the same email in ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}.`
+        : 'This account has been deactivated.';
+      return sendError(res, message, 403, null, 'ACCOUNT_DEACTIVATED');
+    }
+
+    const match = await bcrypt.compare(password, user.password || '');
+    if (!match) {
+      return sendError(res, 'Invalid email or password', 401, null, 'WRONG_PASSWORD');
     }
 
     const token = generateToken(user.userId, user.email, user.role);
@@ -809,6 +860,56 @@ export const completeProfile = async (req, res, next) => {
     };
 
     return sendSuccess(res, updatedUser, 'Profile setup completed successfully');
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /api/auth/deactivate
+ * Deactivates the authenticated user's account.
+ * - Sets deactivated=true, deactivatedAt=now on the user document
+ * - Clears the auth cookie / invalidates session
+ * - Account cannot be logged into
+ * - Same email can re-register after 30 days
+ */
+export const deactivateAccount = async (req, res, next) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return sendError(res, 'Unauthorized', 401);
+
+    const userDoc = await FirestoreHelper.getDoc('users', userId);
+    if (!userDoc) return sendError(res, 'User not found', 404);
+
+    if (userDoc.deactivated) {
+      return sendError(res, 'Account is already deactivated', 400);
+    }
+
+    await FirestoreHelper.setDoc('users', userId, {
+      deactivated: true,
+      deactivatedAt: new Date().toISOString(),
+      // Preserve email for re-registration eligibility check
+    }, true);
+
+    // Also disable Firebase Auth user if Firebase is live
+    try {
+      const { auth } = await import('../firebase/firebaseAdmin.js');
+      if (auth) {
+        await auth.updateUser(userId, { disabled: true });
+      }
+    } catch (fbErr) {
+      console.warn('Firebase account disable notice:', fbErr.message);
+    }
+
+    // Clear auth cookie
+    const isProd = process.env.NODE_ENV === 'production';
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'lax'
+    });
+
+    return sendSuccess(res, { deactivatedAt: new Date().toISOString() }, 'Account deactivated successfully. You will be logged out.');
   } catch (err) {
     next(err);
   }

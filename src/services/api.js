@@ -122,6 +122,7 @@ export const API = {
     return apiCall('/auth/forgot-password', 'POST', payload);
   },
   logout: () => apiCall('/auth/logout', 'POST'),
+  deactivateAccount: () => apiCall('/auth/deactivate', 'POST'),
   getCurrentUser: () => apiCall('/auth/me', 'GET'),
   resendVerification: (data = {}) => apiCall('/auth/resend-verification', 'POST', data),
   verifyEmail: () => apiCall('/auth/verify-email', 'POST'),
@@ -131,6 +132,9 @@ export const API = {
   getProfile: () => apiCall('/profile', 'GET'),
   updateProfile: (profileData) => apiCall('/profile', 'PUT', profileData),
   uploadAvatar: (formData) => apiCall('/profile/upload-avatar', 'POST', formData, true),
+  getProfileResume: () => apiCall('/profile/resume', 'GET'),
+  uploadProfileResume: (formData) => apiCall('/profile/upload-resume', 'POST', formData, true),
+  deleteProfileResume: () => apiCall('/profile/resume', 'DELETE'),
 
   // Resume
   getResumes: () => apiCall('/resume', 'GET'),

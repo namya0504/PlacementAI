@@ -303,3 +303,128 @@ export const uploadAvatar = async (req, res, next) => {
   }
 };
 
+
+/**
+ * POST /api/profile/upload-resume
+ * Stores the user's own uploaded resume (PDF/DOCX) as their "profile resume".
+ * Old resume is deleted from Supabase before upload.
+ */
+export const uploadProfileResume = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    if (!req.file) return sendError(res, 'No resume file uploaded', 400);
+
+    const validation = validateFile('resumes', req.file.mimetype, req.file.size);
+    if (!validation.valid) return sendError(res, validation.error, 400);
+
+    const storagePath = generateStoragePath('resumes', userId, req.file.mimetype, `profile_resume_${userId}`);
+
+    // Delete existing profile resume if present
+    const userDoc = await FirestoreHelper.getDoc('users', userId);
+    if (userDoc?.resumeStorageProvider === 'supabase' && userDoc?.resumeStoragePath) {
+      try {
+        const { bucket, filePath } = parseStoragePath(userDoc.resumeStoragePath);
+        if (isOwnedByUser(filePath, userId)) await deleteFile(bucket, filePath);
+      } catch (delErr) {
+        console.warn('[Profile] Old resume cleanup notice:', delErr.message);
+      }
+    }
+
+    const result = await uploadFile('resumes', storagePath, req.file.buffer, req.file.mimetype);
+    const signedUrl = await getSignedDownloadUrl('resumes', storagePath, 3600);
+
+    await FirestoreHelper.setDoc('users', userId, {
+      resumeStorageProvider: 'supabase',
+      resumeStoragePath: result.storagePath,
+      resumeFileName: req.file.originalname || storagePath.split('/').pop(),
+      resumeFileType: req.file.mimetype,
+      resumeFileSize: req.file.size,
+      resumeUploadedAt: new Date().toISOString(),
+      resumeDownloadUrl: signedUrl
+    }, true);
+
+    return sendSuccess(res, {
+      resumeDownloadUrl: signedUrl,
+      resumeFileName: req.file.originalname,
+      resumeFileType: req.file.mimetype,
+      resumeFileSize: req.file.size,
+      resumeUploadedAt: new Date().toISOString()
+    }, 'Resume uploaded successfully');
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * DELETE /api/profile/resume
+ * Removes the user's profile resume from Supabase and clears the Firestore fields.
+ */
+export const deleteProfileResume = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const userDoc = await FirestoreHelper.getDoc('users', userId);
+
+    if (!userDoc?.resumeStoragePath) {
+      return sendError(res, 'No uploaded resume found to delete', 404);
+    }
+
+    try {
+      const { bucket, filePath } = parseStoragePath(userDoc.resumeStoragePath);
+      if (isOwnedByUser(filePath, userId)) await deleteFile(bucket, filePath);
+    } catch (delErr) {
+      console.warn('[Profile] Resume delete from storage notice:', delErr.message);
+    }
+
+    await FirestoreHelper.setDoc('users', userId, {
+      resumeStorageProvider: null,
+      resumeStoragePath: null,
+      resumeFileName: null,
+      resumeFileType: null,
+      resumeFileSize: null,
+      resumeUploadedAt: null,
+      resumeDownloadUrl: null
+    }, true);
+
+    return sendSuccess(res, {}, 'Resume removed successfully');
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * GET /api/profile/resume
+ * Returns a fresh signed URL for the user's uploaded profile resume.
+ */
+export const getProfileResume = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const userDoc = await FirestoreHelper.getDoc('users', userId);
+
+    if (!userDoc?.resumeStoragePath) {
+      return sendSuccess(res, { hasResume: false }, 'No uploaded resume on file');
+    }
+
+    let downloadUrl = userDoc.resumeDownloadUrl || '';
+    if (userDoc.resumeStorageProvider === 'supabase' && userDoc.resumeStoragePath) {
+      try {
+        const { bucket, filePath } = parseStoragePath(userDoc.resumeStoragePath);
+        downloadUrl = await getSignedDownloadUrl(bucket, filePath, 3600);
+        // Refresh cached URL in Firestore
+        await FirestoreHelper.setDoc('users', userId, { resumeDownloadUrl: downloadUrl }, true);
+      } catch (urlErr) {
+        console.warn('[Profile] Resume signed URL notice:', urlErr.message);
+      }
+    }
+
+    return sendSuccess(res, {
+      hasResume: true,
+      resumeDownloadUrl: downloadUrl,
+      resumeFileName: userDoc.resumeFileName || 'resume.pdf',
+      resumeFileType: userDoc.resumeFileType || 'application/pdf',
+      resumeFileSize: userDoc.resumeFileSize || 0,
+      resumeUploadedAt: userDoc.resumeUploadedAt || null
+    }, 'Profile resume retrieved');
+  } catch (err) {
+    next(err);
+  }
+};

@@ -101,19 +101,23 @@ export default function Signup() {
   );
 
   // Debounced email-exists probe: fires 600ms after the user stops typing
+  const [emailCheckMeta, setEmailCheckMeta] = useState(null); // extra info from check (deactivated, daysRemaining)
+
   const checkEmailExists = useCallback(async (val) => {
     const trimmed = val.trim();
     if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
       setEmailCheckStatus('idle');
+      setEmailCheckMeta(null);
       return;
     }
     setEmailCheckStatus('checking');
     try {
       const result = await API.checkEmail(trimmed);
+      setEmailCheckMeta(result);
       setEmailCheckStatus(result?.exists ? 'taken' : 'available');
     } catch {
-      // Network error during check — don't block the user, just reset
       setEmailCheckStatus('idle');
+      setEmailCheckMeta(null);
     }
   }, []);
 
@@ -444,8 +448,10 @@ export default function Signup() {
                 </div>
                 {emailCheckStatus === 'taken' && (
                   <p className="mt-1 text-[11px] text-red-600">
-                    This email is already in use.{' '}
-                    <Link to="/login" state={locationState.state} className="font-bold underline">Log in instead</Link>
+                    {emailCheckMeta?.deactivated && emailCheckMeta?.daysRemaining > 0
+                      ? <>This email was recently deactivated. Re-registration is available in <strong>{emailCheckMeta.daysRemaining} day{emailCheckMeta.daysRemaining !== 1 ? 's' : ''}</strong>.</>
+                      : <>This email is already in use.{' '}<Link to="/login" state={locationState.state} className="font-bold underline">Log in instead</Link></>
+                    }
                   </p>
                 )}
               </div>

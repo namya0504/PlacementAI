@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { UploadCloud, CheckCircle2, AlertTriangle, Download, Sparkles, FileText, Menu, RefreshCw } from 'lucide-react';
+import { UploadCloud, CheckCircle2, AlertTriangle, Download, Sparkles, FileText, Menu, RefreshCw, ChevronDown, User } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../services/api';
@@ -14,6 +14,11 @@ export default function ATSChecker() {
   const [targetRole, setTargetRole] = useState(currentUser?.role || currentUser?.targetRole || '');
   const [errorMessage, setErrorMessage] = useState('');
 
+  // Saved resumes + profile resume for the picker
+  const [savedResumes, setSavedResumes] = useState([]);
+  const [profileResume, setProfileResume] = useState(null);
+  const [selectedResumeId, setSelectedResumeId] = useState(''); // '' = none, 'profile' = uploaded, or a resumeId
+
   useEffect(() => {
     if (currentUser?.role || currentUser?.targetRole) {
       setTargetRole(currentUser.role || currentUser.targetRole);
@@ -24,6 +29,10 @@ export default function ATSChecker() {
         }
       }).catch(() => {});
     }
+
+    // Load saved resumes and profile-uploaded resume for the picker
+    API.getResumes().then(list => setSavedResumes(Array.isArray(list) ? list : [])).catch(() => {});
+    API.getProfileResume().then(r => { if (r?.hasResume) setProfileResume(r); }).catch(() => {});
   }, [currentUser]);
 
   useEffect(() => {
@@ -98,6 +107,51 @@ export default function ATSChecker() {
     }
   };
 
+  // Analyse the resume selected from the picker
+  const handleAnalyzeSelected = async () => {
+    if (!selectedResumeId) {
+      setErrorMessage('Please select a resume to analyse.');
+      return;
+    }
+    if (selectedResumeId === 'profile') {
+      // Profile-uploaded resume — download and send as a file upload
+      if (!profileResume?.resumeDownloadUrl) {
+        setErrorMessage('Your uploaded resume URL could not be loaded. Try re-uploading from the Profile page.');
+        return;
+      }
+      setIsScanning(true);
+      setErrorMessage('');
+      setScanResult(null);
+      try {
+        const resp = await fetch(profileResume.resumeDownloadUrl);
+        const blob = await resp.blob();
+        const file = new File([blob], profileResume.resumeFileName || 'profile_resume.pdf', { type: blob.type });
+        const formData = new FormData();
+        formData.append('resume', file);
+        formData.append('targetRole', targetRole);
+        const result = await API.analyzeATS(formData, true);
+        if (result && typeof result.overallScore === 'number') {
+          setScanResult({
+            score: result.overallScore,
+            goodPoints: result.summary?.goodPoints || [],
+            needsImprovement: result.summary?.needsImprovement || [],
+            metrics: result.metrics || { keywordMatch: 0, contentQuality: 0, formatting: 0, readability: 0 },
+            missingKeywords: result.missingKeywords || [],
+            actionableSuggestions: result.actionableSuggestions || []
+          });
+        } else {
+          throw new Error('Invalid analysis response.');
+        }
+      } catch (err) {
+        setErrorMessage(err.message || 'Failed to analyse profile resume.');
+      } finally {
+        setIsScanning(false);
+      }
+    } else {
+      handleAnalyzeSavedResume(selectedResumeId);
+    }
+  };
+
   const scoreLabel = scanResult
     ? scanResult.score >= 80 ? 'Excellent' : scanResult.score >= 65 ? 'Good' : 'Needs Optimization'
     : '';
@@ -149,9 +203,49 @@ export default function ATSChecker() {
               />
             </div>
             
-            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            {/* ── Saved Resume Picker ── */}
+            {(savedResumes.length > 0 || profileResume) && (
+              <div className="max-w-sm mx-auto w-full space-y-2">
+                <label className="text-xs font-bold text-slate-600 block">Select a saved resume to analyse:</label>
+                <div className="relative">
+                  <select
+                    value={selectedResumeId}
+                    onChange={e => setSelectedResumeId(e.target.value)}
+                    className="w-full pl-3 pr-8 py-2.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-600 appearance-none"
+                    disabled={isScanning}
+                  >
+                    <option value="">— choose a resume —</option>
+                    {profileResume && (
+                      <option value="profile">📎 {profileResume.resumeFileName || 'Uploaded Profile Resume'} (profile)</option>
+                    )}
+                    {savedResumes.map(r => (
+                      <option key={r.resumeId} value={r.resumeId}>
+                        {r.isPrimary ? '⭐ ' : ''}{r.title || 'Untitled Resume'} {r.role ? `· ${r.role}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAnalyzeSelected}
+                  disabled={isScanning || !selectedResumeId}
+                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition shadow-md disabled:opacity-50"
+                >
+                  {isScanning ? <><RefreshCw className="w-4 h-4 animate-spin" /> Analyzing…</> : <><Sparkles className="w-4 h-4" /> Analyse Selected Resume</>}
+                </button>
+              </div>
+            )}
+
+            <div className="flex items-center gap-3 max-w-sm mx-auto w-full">
+              <div className="flex-1 h-px bg-slate-200" />
+              <span className="text-[11px] text-slate-400 font-semibold uppercase">or upload a new file</span>
+              <div className="flex-1 h-px bg-slate-200" />
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center gap-3">
               <label className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-xs cursor-pointer shadow-md hover:shadow-lg transition ${isScanning ? 'opacity-70 pointer-events-none' : ''}`}>
-                {isScanning ? (
+                {isScanning && !selectedResumeId ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
                     <span>Analyzing Resume...</span>
@@ -167,12 +261,12 @@ export default function ATSChecker() {
 
               <button
                 type="button"
-                onClick={handleAnalyzeSavedResume}
+                onClick={() => handleAnalyzeSavedResume(null)}
                 disabled={isScanning}
                 className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition border border-slate-200 shadow-sm disabled:opacity-50"
               >
                 <Sparkles className="w-4 h-4 text-purple-600" />
-                <span>Analyze My Created Resume</span>
+                <span>Analyze Primary Resume</span>
               </button>
             </div>
 

@@ -90,6 +90,8 @@ export default function Login() {
         setError("No account found with this email. Check for typos or sign up for a new account.");
       } else if (err.errorCode === 'WRONG_PASSWORD') {
         setError("Incorrect password. Try again, or use 'Forgot Password' to reset it.");
+      } else if (err.errorCode === 'ACCOUNT_DEACTIVATED') {
+        setError(err.message || 'This account has been deactivated.');
       } else {
         setError(err.message || 'Failed to log in. Please check your credentials.');
       }

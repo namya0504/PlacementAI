@@ -9,7 +9,8 @@ import {
   resendVerificationEmail,
   confirmEmailVerification,
   completeProfile,
-  checkEmail
+  checkEmail,
+  deactivateAccount
 } from '../controllers/authController.js';
 import { protectRoute } from '../middlewares/authMiddleware.js';
 import { rateLimiter } from '../middlewares/rateLimiter.js';
@@ -41,5 +42,6 @@ router.post('/complete-profile', protectRoute, completeProfile);
 router.post('/verify-email', protectRoute, confirmEmailVerification);
 router.post('/logout', protectRoute, logoutUser);
 router.get('/me', protectRoute, getCurrentUser);
+router.post('/deactivate', protectRoute, deactivateAccount);
 
 export default router;
