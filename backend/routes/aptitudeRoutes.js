@@ -4,7 +4,8 @@ import {
   submitTest,
   getActiveTest,
   abandonTest,
-  getAptitudeStats
+  getAptitudeStats,
+  getAptitudeHistory
 } from '../controllers/aptitudeSessionController.js';
 import { getAptitudeQuestions, submitAptitudeTest } from '../controllers/aptitudeController.js';
 import { protectRoute } from '../middlewares/authMiddleware.js';
@@ -17,6 +18,7 @@ router.post('/submit', protectRoute, submitTest);
 router.get('/active', protectRoute, getActiveTest);
 router.post('/abandon', protectRoute, abandonTest);
 router.get('/stats', protectRoute, getAptitudeStats);
+router.get('/history', protectRoute, getAptitudeHistory);
 
 // Legacy Endpoints for Backward Compatibility
 router.get('/questions', protectRoute, getAptitudeQuestions);

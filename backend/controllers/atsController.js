@@ -4,6 +4,7 @@ import { GrokService } from '../services/grokService.js';
 import { getStudentContext } from '../services/studentContext.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import { calculatePlacementReadiness } from '../utils/scoring.js';
+import { validateFile, validateFileSignature } from '../services/storageService.js';
 
 /**
  * Formats structured resume data from PlacementAI into clean ATS-parseable text.
@@ -105,6 +106,11 @@ export const analyzeResume = async (req, res, next) => {
 
     // If a file was uploaded, extract text from it (PDF or DOCX)
     if (req.file) {
+      const validation = validateFile('resumes', req.file.mimetype, req.file.size);
+      if (!validation.valid) return sendError(res, validation.error, 400);
+      if (!validateFileSignature(req.file.buffer, req.file.mimetype)) {
+        return sendError(res, 'Resume content does not match its file type.', 400);
+      }
       console.log(`[ATS] File received: name=${req.file.originalname}, size=${req.file.size}, mime=${req.file.mimetype}`);
       resumeText = await TextExtractorService.extractTextFromFile(req.file.buffer, req.file.mimetype);
       console.log(`[ATS] Extracted text length: ${resumeText?.length || 0}`);

@@ -10,7 +10,8 @@ import {
   confirmEmailVerification,
   completeProfile,
   checkEmail,
-  deactivateAccount
+  deactivateAccount,
+  issueCsrfToken
 } from '../controllers/authController.js';
 import { protectRoute } from '../middlewares/authMiddleware.js';
 import { rateLimiter } from '../middlewares/rateLimiter.js';
@@ -31,7 +32,14 @@ const checkEmailLimiter = rateLimiter({
   message: 'Too many email check requests. Please wait a moment.'
 });
 
+const csrfLimiter = rateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 60,
+  message: 'Too many session setup requests. Please wait a moment and try again.'
+});
+
 router.get('/check-email', checkEmailLimiter, checkEmail);
+router.get('/csrf', csrfLimiter, issueCsrfToken);
 router.post('/register', authLimiter, registerUser);
 router.post('/login', authLimiter, loginUser);
 router.post('/google-login', authLimiter, googleLogin);

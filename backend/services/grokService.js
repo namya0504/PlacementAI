@@ -411,24 +411,41 @@ Evaluate ATS compliance and industry match accurately. Return a JSON object with
   /**
    * 5. Personalized HR Interview Questions
    */
-  async generateHRQuestions(userProfile = {}, studentContext = null) {
+  async generateHRQuestions(userProfile = {}, studentContext = null, round = 1, previousContext = []) {
     const role = userProfile.role || userProfile.targetRole || studentContext?.targetRole || '';
     const skills = userProfile.skills || studentContext?.skills || [];
     const projects = userProfile.projects || [];
     const interests = userProfile.interests || [];
 
-    const prompt = `Generate 4 realistic, personalized behavioral and situational HR interview questions for a candidate.
+    const roundFocus = {
+      1: 'Behavioral & Core Introduction — focus on self-introduction, strengths, weaknesses, motivation',
+      2: 'Technical & Project Deep-Dive — focus on project details, technical decisions, problem-solving approach',
+      3: 'Situational & Team Dynamics — focus on conflict resolution, teamwork, handling pressure',
+      4: 'Leadership & Culture Fit — focus on leadership style, long-term goals, company alignment'
+    };
+
+    const prevSection = previousContext.length > 0
+      ? `\nPrevious answers in this round (use these to generate FOLLOW-UP or DEEPER questions — do NOT repeat these):\n${previousContext.map((p, i) => `Q${i+1}: "${p.question}"\nAnswer: "${p.answer?.slice(0, 120)}..." (Score: ${p.score}/100)`).join('\n')}\n`
+      : '';
+
+    const prompt = `Generate 4 realistic, personalized HR interview questions for a candidate.
 Target Role: ${role}
 Candidate Skills: ${skills.slice(0, 6).join(', ')}
 Candidate Projects: ${projects.map(p => p.title || p).slice(0, 3).join(', ')}
 Interests: ${interests.slice(0, 4).join(', ')}
+Round ${round} Focus: ${roundFocus[round] || roundFocus[1]}
+${prevSection}
+RULES:
+- Questions must be specific to the candidate's role and skills above
+- Each question must be unique and not repeat any previous question listed above
+- If previous answers exist, ask deeper follow-up questions that probe further into those topics
 
 Return a JSON array of 4 objects with this exact structure:
 [
   {
     "id": "hr_gen_1",
     "title": "Question text here?",
-    "category": "Behavioral" | "Situational" | "Culture Fit" | "Leadership",
+    "category": "Behavioral" | "Situational" | "Culture Fit" | "Leadership" | "Technical",
     "difficulty": "Easy" | "Medium" | "Hard",
     "tip": "Practical advice on what the interviewer is looking for"
   }
@@ -873,6 +890,50 @@ Generate a personalized placement strategy. Return a JSON object with this exact
       return parsed;
     }
     throw new Error('Failed to generate recommendations');
+  },
+
+  /**
+   * 10. AI Progress Insights — analyzes cross-module history and returns intelligent insights
+   */
+  async generateProgressInsights(stats) {
+    const {
+      aptitude = {}, hr = {}, technical = {}, ats = {},
+      totalActivities = 0, period = 'all', targetRole = ''
+    } = stats;
+
+    const prompt = `You are an AI Placement Coach at a top engineering institute. Analyze the student's recent preparation data and generate actionable, honest insights.
+
+Student Profile: ${targetRole ? `Target Role: ${targetRole}` : 'General IT placement'}
+Time Period Analyzed: ${period === '24h' ? 'Last 24 hours' : period === 'week' ? 'Last 7 days' : period === 'month' ? 'Last 30 days' : 'All time'}
+Total Activities: ${totalActivities}
+
+Module Performance:
+- Aptitude: ${aptitude.count || 0} tests, Avg Score: ${aptitude.avgScore || 0}%, Best: ${aptitude.bestScore || 0}%, Pass Rate: ${aptitude.passRate || 0}%
+- HR Interview: ${hr.count || 0} answers, Avg Score: ${hr.avgScore || 0}%, Best: ${hr.bestScore || 0}%, Pass Rate: ${hr.passRate || 0}%
+- Technical: ${technical.count || 0} submissions, Avg Score: ${technical.avgScore || 0}%, Best: ${technical.bestScore || 0}%, Pass Rate: ${technical.passRate || 0}%
+- ATS Resume: ${ats.count || 0} analyses, Avg Score: ${ats.avgScore || 0}%, Best: ${ats.bestScore || 0}%
+
+Return a JSON object with this EXACT structure:
+{
+  "overallVerdict": "1-2 sentence honest summary of where the student stands right now",
+  "topStrength": "The single strongest area with specific numbers",
+  "criticalFocus": "The single most important area to improve right now with specific advice",
+  "weeklyGoal": "One specific, achievable goal for the next 7 days",
+  "insights": [
+    { "type": "positive" | "warning" | "info", "text": "Specific insight based on the data" },
+    { "type": "positive" | "warning" | "info", "text": "Specific insight based on the data" },
+    { "type": "positive" | "warning" | "info", "text": "Specific insight based on the data" }
+  ],
+  "nextActions": [
+    { "module": "module name", "action": "Specific action to take", "priority": "high" | "medium" | "low" }
+  ]
+}`;
+
+    const parsed = await generateJSON(prompt, { featureType: 'recommendations' });
+    if (parsed && parsed.overallVerdict && Array.isArray(parsed.insights)) {
+      return parsed;
+    }
+    throw new Error('Failed to generate progress insights');
   },
 
   /**

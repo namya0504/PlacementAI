@@ -76,7 +76,7 @@ The platform combines AI-assisted resume generation, ATS analysis, aptitude prac
 - Installable on Mobile
 - Responsive Design
 - Fast Loading
-- Offline Ready
+- Cached application shell and previously loaded assets; live account and AI data require a connection
 
 ---
 

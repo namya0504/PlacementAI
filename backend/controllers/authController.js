@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import { randomBytes } from 'node:crypto';
 import { config } from '../config/env.js';
 import { FirestoreHelper } from '../firebase/firestoreHelper.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
@@ -22,6 +23,18 @@ const setAuthCookie = (res, token) => {
     sameSite: isProd ? 'none' : 'lax', // 'none' allows cross-site cookie on Vercel→Render
     maxAge: 7 * 24 * 60 * 60 * 1000   // 7 days
   });
+};
+
+export const issueCsrfToken = (req, res) => {
+  const csrfToken = req.cookies?.csrfToken || randomBytes(32).toString('hex');
+  const isProd = process.env.NODE_ENV === 'production';
+  res.cookie('csrfToken', csrfToken, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000
+  });
+  return sendSuccess(res, { csrfToken }, 'CSRF token issued');
 };
 
 /**
@@ -264,7 +277,6 @@ export const registerUser = async (req, res, next) => {
       isNewUser: true,
       needsProfileCompletion: !hasCompulsoryData,
       verificationLink: process.env.NODE_ENV !== 'production' ? verificationLink : undefined,
-      token,
       stats: initialStats
     };
 
@@ -352,7 +364,6 @@ export const loginUser = async (req, res, next) => {
       onboarding: user.onboarding || null,
       isNewUser: false,
       needsProfileCompletion: !hasCompulsoryData,
-      token,
       stats: readinessDoc
     };
 
@@ -364,7 +375,7 @@ export const loginUser = async (req, res, next) => {
 
 export const googleLogin = async (req, res, next) => {
   try {
-    const { idToken, email, name, photoURL } = req.body;
+    const { idToken, name, photoURL } = req.body;
     const { auth, isMockFirebase } = await import('../firebase/firebaseAdmin.js');
 
     let userEmail = null;
@@ -413,14 +424,6 @@ export const googleLogin = async (req, res, next) => {
           console.warn('Firebase REST token verification network error:', restErr.message);
         }
       }
-    }
-
-    // 3. In non-production or development fallback
-    if (!userEmail && email && process.env.NODE_ENV !== 'production') {
-      userEmail = email.toLowerCase().trim();
-      displayName = displayName || userEmail.split('@')[0];
-      avatar = avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}`;
-      googleUid = 'dev_' + Date.now();
     }
 
     if (!userEmail) {
@@ -557,7 +560,6 @@ export const googleLogin = async (req, res, next) => {
       onboarding: user.onboarding || null,
       isNewUser,
       needsProfileCompletion: !hasCompulsoryData,
-      token,
       stats: readinessDoc
     }, 'Google Login successful');
   } catch (err) {

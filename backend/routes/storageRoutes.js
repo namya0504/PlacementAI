@@ -18,6 +18,7 @@ const storageRateLimiter = rateLimiter({
   maxRequests: 30,
   message: 'Too many storage requests. Please wait a moment before trying again.'
 });
+const metadataCollections = new Set(['users', 'profiles', 'resumes']);
 
 /**
  * GET /api/storage/download-url
@@ -71,10 +72,14 @@ router.delete('/file', protectRoute, storageRateLimiter, async (req, res, next) 
       return sendError(res, 'Access denied.', 403);
     }
 
-    // If the caller specifies a Firestore document, verify ownership there too
-    if (collection && docId) {
+    // If metadata is requested, require a known collection, an owned document,
+    // and an exact storage path match before changing its reference.
+    if (collection !== undefined || docId !== undefined) {
+      if (!collection || !docId || !metadataCollections.has(collection)) {
+        return sendError(res, 'Invalid storage metadata reference.', 400);
+      }
       const doc = await FirestoreHelper.getDoc(collection, docId);
-      if (doc && doc.userId && doc.userId !== uid) {
+      if (!doc || doc.userId !== uid || doc.storagePath !== storagePath) {
         return sendError(res, 'Access denied.', 403);
       }
     }

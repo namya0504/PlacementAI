@@ -2,6 +2,7 @@ import { FirestoreHelper } from '../firebase/firestoreHelper.js';
 import {
   uploadFile,
   validateFile,
+  validateFileSignature,
   generateStoragePath,
   getSignedDownloadUrl,
   deleteFile,
@@ -262,6 +263,9 @@ export const uploadAvatar = async (req, res, next) => {
     if (!validation.valid) {
       return sendError(res, validation.error, 400);
     }
+    if (!validateFileSignature(req.file.buffer, req.file.mimetype)) {
+      return sendError(res, 'Image content does not match its file type.', 400);
+    }
 
     // Generate safe storage path
     const storagePath = generateStoragePath('profile-images', userId, req.file.mimetype);
@@ -316,6 +320,9 @@ export const uploadProfileResume = async (req, res, next) => {
 
     const validation = validateFile('resumes', req.file.mimetype, req.file.size);
     if (!validation.valid) return sendError(res, validation.error, 400);
+    if (!validateFileSignature(req.file.buffer, req.file.mimetype)) {
+      return sendError(res, 'Resume content does not match its file type.', 400);
+    }
 
     const storagePath = generateStoragePath('resumes', userId, req.file.mimetype, `profile_resume_${userId}`);
 
@@ -424,6 +431,89 @@ export const getProfileResume = async (req, res, next) => {
       resumeFileSize: userDoc.resumeFileSize || 0,
       resumeUploadedAt: userDoc.resumeUploadedAt || null
     }, 'Profile resume retrieved');
+  } catch (err) {
+    next(err);
+  }
+};
+
+const MAX_RESUME_VERSIONS = 10;
+
+/**
+ * POST /api/profile/resume/save-version
+ * Saves a web-created resume (from builder) as a history version entry.
+ * Stores metadata only (no file — the resume data lives in `resumes` collection).
+ * Enforces max 10 versions by removing the oldest when limit is exceeded.
+ */
+export const saveWebResumeVersion = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const { resumeId, title, templateId, personalInfo, role, createdAt } = req.body;
+
+    if (!resumeId) return sendError(res, 'resumeId is required', 400);
+
+    const existingVersions = await FirestoreHelper.queryCollection('resume_versions', 'userId', userId);
+    existingVersions.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+    // Enforce max 10 — remove oldest if needed
+    if (existingVersions.length >= MAX_RESUME_VERSIONS) {
+      const toRemove = existingVersions.slice(0, existingVersions.length - MAX_RESUME_VERSIONS + 1);
+      for (const old of toRemove) {
+        await FirestoreHelper.deleteDoc('resume_versions', old.versionId);
+      }
+    }
+
+    const versionId = `rv_${userId}_${Date.now()}`;
+    const versionDoc = {
+      versionId,
+      userId,
+      resumeId,
+      title: title || `Resume v${existingVersions.length + 1}`,
+      templateId: templateId || 'modern',
+      role: role || '',
+      previewName: personalInfo?.fullName || '',
+      previewEmail: personalInfo?.email || '',
+      source: 'web-builder',
+      createdAt: createdAt || new Date().toISOString()
+    };
+
+    await FirestoreHelper.setDoc('resume_versions', versionId, versionDoc);
+
+    return sendSuccess(res, versionDoc, 'Resume version saved successfully');
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * GET /api/profile/resume/history
+ * Returns all web-created resume versions for the user, newest first.
+ */
+export const getResumeVersionHistory = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const versions = await FirestoreHelper.queryCollection('resume_versions', 'userId', userId);
+    versions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return sendSuccess(res, versions, 'Resume version history retrieved');
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * DELETE /api/profile/resume/version/:versionId
+ * Deletes a specific resume version record.
+ */
+export const deleteResumeVersion = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const { versionId } = req.params;
+
+    const doc = await FirestoreHelper.getDoc('resume_versions', versionId);
+    if (!doc) return sendError(res, 'Version not found', 404);
+    if (doc.userId !== userId) return sendError(res, 'Access denied', 403);
+
+    await FirestoreHelper.deleteDoc('resume_versions', versionId);
+    return sendSuccess(res, {}, 'Resume version deleted');
   } catch (err) {
     next(err);
   }

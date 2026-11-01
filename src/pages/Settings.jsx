@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Lock, Bell, Shield, Moon, Globe, Save, Menu, Eye, EyeOff } from 'lucide-react';
+import { User, Lock, Bell, Moon, Save, Menu, Eye, EyeOff } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../services/api';
@@ -13,7 +13,7 @@ export default function Settings() {
   const [email, setEmail] = useState(currentUser?.email || '');
   const [phone, setPhone] = useState(currentUser?.phone || '');
   const [location, setLocation] = useState(currentUser?.location || '');
-  const [language, setLanguage] = useState('English');
+
   const [savedMsg, setSavedMsg] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -94,11 +94,11 @@ export default function Settings() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-[#F8F9FE] flex font-sans">
       <Sidebar mobileOpen={mobileSidebarOpen} setMobileOpen={setMobileSidebarOpen} />
 
       <main className="flex-1 lg:pl-64 flex flex-col min-w-0">
-        <header className="h-20 bg-white border-b border-slate-200 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30">
+        <header className="h-20 bg-white border-b border-[#EAEBF4] px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-4">
             <button onClick={() => setMobileSidebarOpen(true)} className="lg:hidden p-2 text-slate-600 rounded-lg hover:bg-slate-100">
               <Menu className="w-6 h-6" />
@@ -112,26 +112,24 @@ export default function Settings() {
 
         <div className="p-4 sm:p-8 space-y-8 max-w-7xl mx-auto w-full">
           
-          {/* Settings Sub-Navigation & Form Layout (Screen 15 in Collage) */}
+          {/* Settings Sub-Navigation & Form Layout */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             
             {/* Left Sub-Tabs */}
-            <div className="lg:col-span-4 bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-1 h-fit">
+            <div className="lg:col-span-4 bg-white rounded-3xl p-4 border border-[#EAEBF4] shadow-xs space-y-1 h-fit">
               {[
                 { id: 'account', label: 'Account Settings', icon: User },
                 { id: 'password', label: 'Change Password', icon: Lock },
                 { id: 'notifications', label: 'Notification Settings', icon: Bell },
-                { id: 'privacy', label: 'Privacy', icon: Shield },
-                { id: 'appearance', label: 'Appearance', icon: Moon },
-                { id: 'language', label: 'Language Selection', icon: Globe }
+                { id: 'appearance', label: 'Appearance', icon: Moon }
               ].map(t => {
                 const Icon = t.icon;
                 return (
                   <button
                     key={t.id}
                     onClick={() => setActiveTab(t.id)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition text-left ${
-                      activeTab === t.id ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition text-left ${
+                      activeTab === t.id ? 'bg-[#7C3AED] text-white shadow-md shadow-purple-500/20' : 'text-slate-600 hover:bg-slate-50'
                     }`}
                   >
                     <Icon className="w-4 h-4" />
@@ -142,16 +140,16 @@ export default function Settings() {
             </div>
 
             {/* Right Main Settings Form */}
-            <div className="lg:col-span-8 bg-white rounded-2xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
+            <div className="lg:col-span-8 bg-white rounded-3xl p-6 sm:p-8 border border-[#EAEBF4] shadow-xs space-y-6">
               
               {savedMsg && (
-                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">
+                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">
                   ✓ Settings saved successfully!
                 </div>
               )}
 
               {errorMsg && (
-                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold">
+                <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold">
                   {errorMsg}
                 </div>
               )}
@@ -168,7 +166,7 @@ export default function Settings() {
                         placeholder="e.g. John Doe"
                         value={name}
                         onChange={e => setName(e.target.value)}
-                        className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                        className="w-full p-3 rounded-2xl border border-[#EAEBF4] bg-[#F8F9FE] text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none text-slate-800"
                       />
                     </div>
                     <div>
@@ -178,7 +176,7 @@ export default function Settings() {
                         placeholder="e.g. user@example.com"
                         value={email}
                         onChange={e => setEmail(e.target.value)}
-                        className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                        className="w-full p-3 rounded-2xl border border-[#EAEBF4] bg-[#F8F9FE] text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none text-slate-800"
                       />
                     </div>
                     <div>
@@ -188,7 +186,7 @@ export default function Settings() {
                         placeholder="e.g. +91 98765 43210"
                         value={phone}
                         onChange={e => setPhone(e.target.value)}
-                        className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                        className="w-full p-3 rounded-2xl border border-[#EAEBF4] bg-[#F8F9FE] text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none text-slate-800"
                       />
                     </div>
                     <div>
@@ -198,7 +196,7 @@ export default function Settings() {
                         placeholder="e.g. Bangalore, India"
                         value={location}
                         onChange={e => setLocation(e.target.value)}
-                        className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                        className="w-full p-3 rounded-2xl border border-[#EAEBF4] bg-[#F8F9FE] text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none text-slate-800"
                       />
                     </div>
                   </div>
@@ -206,7 +204,7 @@ export default function Settings() {
                   <div className="flex justify-end pt-4">
                     <button
                       type="submit"
-                      className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition flex items-center gap-2"
+                      className="px-6 py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-xs shadow-md shadow-purple-500/20 transition flex items-center gap-2"
                     >
                       <Save className="w-4 h-4" /> Save Changes
                     </button>
@@ -219,12 +217,12 @@ export default function Settings() {
                   <h3 className="text-lg font-bold text-slate-900 font-outfit">Change Password</h3>
 
                   {pwSavedMsg && (
-                    <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">
+                    <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">
                       ✓ Password updated successfully!
                     </div>
                   )}
                   {pwErrorMsg && (
-                    <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold">
+                    <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold">
                       {pwErrorMsg}
                     </div>
                   )}
@@ -233,16 +231,16 @@ export default function Settings() {
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Current Password</label>
                       <div className="relative">
-                        <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                        <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                         <input
                           type={showCurrentPw ? 'text' : 'password'}
                           value={currentPassword}
                           onChange={e => setCurrentPassword(e.target.value)}
-                          className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                          className="w-full pl-10 pr-10 py-3 rounded-2xl border border-[#EAEBF4] bg-[#F8F9FE] text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none text-slate-800"
                           placeholder="Enter current password"
                           required
                         />
-                        <button type="button" onClick={() => setShowCurrentPw(v => !v)} className="absolute right-3 top-3 text-slate-400 hover:text-slate-600" tabIndex={-1}>
+                        <button type="button" onClick={() => setShowCurrentPw(v => !v)} className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600" tabIndex={-1}>
                           {showCurrentPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
@@ -251,16 +249,16 @@ export default function Settings() {
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase mb-1">New Password</label>
                       <div className="relative">
-                        <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                        <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                         <input
                           type={showNewPw ? 'text' : 'password'}
                           value={newPassword}
                           onChange={e => setNewPassword(e.target.value)}
-                          className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                          className="w-full pl-10 pr-10 py-3 rounded-2xl border border-[#EAEBF4] bg-[#F8F9FE] text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none text-slate-800"
                           placeholder="Min 8 chars, upper, lower, number, special"
                           required
                         />
-                        <button type="button" onClick={() => setShowNewPw(v => !v)} className="absolute right-3 top-3 text-slate-400 hover:text-slate-600" tabIndex={-1}>
+                        <button type="button" onClick={() => setShowNewPw(v => !v)} className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600" tabIndex={-1}>
                           {showNewPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
@@ -269,12 +267,12 @@ export default function Settings() {
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Confirm New Password</label>
                       <div className="relative">
-                        <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                        <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                         <input
                           type="password"
                           value={confirmNewPassword}
                           onChange={e => setConfirmNewPassword(e.target.value)}
-                          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                          className="w-full pl-10 pr-4 py-3 rounded-2xl border border-[#EAEBF4] bg-[#F8F9FE] text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none text-slate-800"
                           placeholder="Re-enter new password"
                           required
                         />
@@ -285,7 +283,7 @@ export default function Settings() {
                   <div className="flex justify-end pt-2">
                     <button
                       type="submit"
-                      className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition flex items-center gap-2"
+                      className="px-6 py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-xs shadow-md shadow-purple-500/20 transition flex items-center gap-2"
                     >
                       <Save className="w-4 h-4" /> Update Password
                     </button>

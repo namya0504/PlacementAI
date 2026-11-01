@@ -495,6 +495,72 @@ export const submitTest = async (req, res, next) => {
  * Returns comprehensive student aptitude stats & real roadmap progress
  * GET /api/aptitude/stats
  */
+/**
+ * GET /api/aptitude/history
+ * Returns all submitted aptitude tests for the user, sorted newest first.
+ */
+export const getAptitudeHistory = async (req, res, next) => {
+  try {
+    const userId = req.user?.userId;
+    const tests = await FirestoreHelper.queryCollection('mock_tests', 'userId', userId);
+    tests.sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
+
+    // Build summary stats across all tests
+    const totalTests = tests.length;
+    const passed = tests.filter(t => t.passed).length;
+    const scores = tests.map(t => t.accuracy ?? t.score ?? 0);
+    const avgScore = totalTests > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / totalTests) : 0;
+    const bestScore = totalTests > 0 ? Math.max(...scores) : 0;
+
+    // Topic accuracy across all tests
+    const topicMap = {};
+    tests.forEach(t => {
+      (t.topicBreakdown || []).forEach(tb => {
+        if (!topicMap[tb.topic]) topicMap[tb.topic] = { total: 0, correct: 0 };
+        topicMap[tb.topic].total += tb.total || 0;
+        topicMap[tb.topic].correct += tb.correct || 0;
+      });
+    });
+    const topicSummary = Object.entries(topicMap).map(([topic, s]) => ({
+      topic,
+      accuracy: s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0,
+      total: s.total,
+      correct: s.correct
+    })).sort((a, b) => a.accuracy - b.accuracy);
+
+    // Improvement: compare oldest 3 vs newest 3 scores
+    let improvement = null;
+    if (scores.length >= 4) {
+      const oldest = scores.slice(-3);
+      const newest = scores.slice(0, 3);
+      const oldAvg = Math.round(oldest.reduce((a, b) => a + b, 0) / oldest.length);
+      const newAvg = Math.round(newest.reduce((a, b) => a + b, 0) / newest.length);
+      improvement = { oldAvg, newAvg, delta: newAvg - oldAvg };
+    }
+
+    return sendSuccess(res, {
+      tests: tests.map(t => ({
+        testId: t.testId,
+        category: t.category,
+        stage: t.stage,
+        score: t.accuracy ?? t.score ?? 0,
+        passed: t.passed,
+        totalQuestions: t.totalQuestions,
+        correctAnswers: t.correctAnswers,
+        wrongAnswers: t.wrongAnswers,
+        unanswered: t.unanswered,
+        topicBreakdown: t.topicBreakdown || [],
+        weakestTopic: t.weakestTopic || null,
+        timeTakenSeconds: t.timeTakenSeconds || 0,
+        completedAt: t.completedAt
+      })),
+      summary: { totalTests, passed, avgScore, bestScore, improvement, topicSummary }
+    }, 'Aptitude history retrieved');
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const getAptitudeStats = async (req, res, next) => {
   try {
     const userId = req.user?.userId;

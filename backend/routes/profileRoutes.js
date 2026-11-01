@@ -1,5 +1,9 @@
 import express from 'express';
-import { getProfile, updateProfile, uploadAvatar, uploadProfileResume, deleteProfileResume, getProfileResume } from '../controllers/profileController.js';
+import {
+  getProfile, updateProfile, uploadAvatar,
+  uploadProfileResume, deleteProfileResume, getProfileResume,
+  saveWebResumeVersion, getResumeVersionHistory, deleteResumeVersion
+} from '../controllers/profileController.js';
 import { protectRoute } from '../middlewares/authMiddleware.js';
 import { uploadFile } from '../middlewares/uploadMiddleware.js';
 
@@ -13,5 +17,10 @@ router.post('/upload-avatar', protectRoute, uploadFile.single('avatar'), uploadA
 router.get('/resume', protectRoute, getProfileResume);
 router.post('/upload-resume', protectRoute, uploadFile.single('resume'), uploadProfileResume);
 router.delete('/resume', protectRoute, deleteProfileResume);
+
+// Web-created Resume Version History
+router.get('/resume/history', protectRoute, getResumeVersionHistory);
+router.post('/resume/save-version', protectRoute, saveWebResumeVersion);
+router.delete('/resume/version/:versionId', protectRoute, deleteResumeVersion);
 
 export default router;

@@ -212,8 +212,10 @@ export const submitCode = async (req, res, next) => {
       submissionId,
       userId,
       questionId,
-      code,
+      code,           // store the actual submitted code
       language,
+      questionTitle: q?.title || null,
+      questionDescription: q?.description || q?.question || null,
       passCount,
       totalTests,
       status,
@@ -250,6 +252,64 @@ export const submitCode = async (req, res, next) => {
       },
       'Code evaluated successfully'
     );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * GET /api/technical/history
+ * Returns all technical practice submissions (code + MCQ) for the user, newest first.
+ */
+export const getTechnicalHistory = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const submissions = await FirestoreHelper.queryCollection('technical_practice', 'userId', userId);
+    submissions.sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
+
+    // Enrich with question titles from technical_questions collection
+    const questions = await FirestoreHelper.queryCollection('technical_questions');
+    const qMap = {};
+    questions.forEach(q => { qMap[q.questionId || q.id] = q; });
+
+    const enriched = submissions.map(s => {
+      const q = qMap[s.questionId] || {};
+      return {
+        submissionId: s.submissionId,
+        type: s.code ? 'code' : 'mcq',
+        questionId: s.questionId,
+        questionTitle: s.questionTitle || q.title || s.questionId || 'Practice Question',
+        questionDescription: s.questionDescription || q.description || q.question || null,
+        language: s.language || null,
+        code: s.code || null,           // return stored code
+        score: s.score ?? 0,
+        status: s.status || (s.isCorrect ? 'Passed' : 'Failed'),
+        passCount: s.passCount ?? null,
+        totalTests: s.totalTests ?? null,
+        testResults: s.testResults || [],
+        isCorrect: s.isCorrect ?? null,
+        difficulty: q.difficulty || null,
+        completedAt: s.completedAt
+      };
+    });
+
+    // Per-language stats for code submissions
+    const langMap = {};
+    enriched.filter(s => s.type === 'code').forEach(s => {
+      const lang = s.language || 'Unknown';
+      if (!langMap[lang]) langMap[lang] = { total: 0, passed: 0, totalScore: 0 };
+      langMap[lang].total++;
+      if (s.status === 'Passed') langMap[lang].passed++;
+      langMap[lang].totalScore += s.score;
+    });
+    const langStats = Object.entries(langMap).map(([lang, st]) => ({
+      language: lang,
+      total: st.total,
+      passed: st.passed,
+      avgScore: st.total > 0 ? Math.round(st.totalScore / st.total) : 0
+    }));
+
+    return sendSuccess(res, { submissions: enriched, langStats }, 'Technical history retrieved');
   } catch (err) {
     next(err);
   }

@@ -312,22 +312,28 @@ export default function Signup() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#F8F9FE] flex flex-col font-sans">
       <Navbar />
 
       <main className="flex-1 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-        <div className="absolute top-1/4 left-10 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute bottom-1/4 right-10 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        {/* Soft Ambient Background Elements */}
+        <div className="absolute top-10 left-10 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute bottom-10 right-10 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-        <div className="max-w-xl w-full bg-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-200/90 relative z-10 space-y-6">
+        <div className="max-w-xl w-full bg-white rounded-3xl p-6 sm:p-10 shadow-xl border border-[#EAEBF4] relative z-10 space-y-6">
           
-          {/* Header Title */}
+          {/* Header Title with Brand Logo */}
           <div className="text-center space-y-2">
-            <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center mx-auto shadow-inner">
-              <Sparkles className="w-6 h-6" />
+            <div className="inline-flex items-center gap-2 mb-1">
+              <div className="w-8 h-8 rounded-lg bg-[#7C3AED] text-white flex items-center justify-center shadow-sm shadow-purple-500/20">
+                <GraduationCap className="w-5 h-5 text-white" />
+              </div>
+              <span className="text-xl font-extrabold tracking-tight text-slate-900 font-outfit">
+                Placement<span className="text-[#7C3AED]">AI</span>
+              </span>
             </div>
             <h2 className="text-2xl font-extrabold text-slate-900 font-outfit">Create Your Account</h2>
-            <p className="text-xs text-slate-500">Join thousands of students preparing for top placements</p>
+            <p className="text-xs text-slate-500">Start your placement preparation journey</p>
           </div>
 
           {/* Stepper Indicator */}
@@ -337,7 +343,7 @@ export default function Signup() {
               onClick={() => setStep(1)}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold transition ${
                 step === 1
-                  ? 'bg-purple-600 text-white shadow-sm'
+                  ? 'bg-[#7C3AED] text-white shadow-sm'
                   : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
               }`}
             >
@@ -349,7 +355,7 @@ export default function Signup() {
               <span>1. Account</span>
             </button>
 
-            <div className={`h-0.5 w-8 transition-colors ${step === 2 ? 'bg-purple-600' : 'bg-slate-200'}`} />
+            <div className={`h-0.5 w-8 transition-colors ${step === 2 ? 'bg-[#7C3AED]' : 'bg-slate-200'}`} />
 
             <button
               type="button"
@@ -362,7 +368,7 @@ export default function Signup() {
               }}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold transition ${
                 step === 2
-                  ? 'bg-purple-600 text-white shadow-sm'
+                  ? 'bg-[#7C3AED] text-white shadow-sm'
                   : isStep1Valid
                   ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 cursor-pointer'
                   : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
@@ -510,7 +516,7 @@ export default function Signup() {
               <button
                 type="submit"
                 disabled={emailCheckStatus === 'checking' || emailCheckStatus === 'taken'}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-sm shadow-md shadow-purple-500/25 hover:shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-sm shadow-md shadow-purple-500/25 hover:shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {emailCheckStatus === 'checking'
                   ? <><Loader2 className="w-4 h-4 animate-spin" /> Checking email...</>
@@ -709,7 +715,7 @@ export default function Signup() {
                 <button
                   type="submit"
                   disabled={loading || isSubmitting}
-                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-sm shadow-md shadow-purple-500/25 hover:shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="flex-1 py-3 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-sm shadow-md shadow-purple-500/25 hover:shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {isSubmitting ? (
                     <>Setting up workspace...</>

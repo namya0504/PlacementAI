@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Clock, CheckCircle2, XCircle, AlertTriangle, HelpCircle,
   ArrowRight, ArrowLeft, Bookmark, Menu, Award, Sparkles,
-  RefreshCw, LogOut, Check, ChevronDown, Filter, RotateCcw
+  RefreshCw, LogOut, Check, ChevronDown, Filter, RotateCcw,
+  History, X, TrendingUp, TrendingDown, Minus, ChevronRight
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { API } from '../services/api';
@@ -40,6 +41,12 @@ export default function Aptitude() {
   // Result & Review State
   const [testResult, setTestResult] = useState(null); // Full result payload from server
   const [reviewFilter, setReviewFilter] = useState('all'); // 'all' | 'wrong' | 'unanswered'
+
+  // History Panel
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyData, setHistoryData] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [expandedHistoryId, setExpandedHistoryId] = useState(null);
 
   // Modals
   const [showSubmitConfirmModal, setShowSubmitConfirmModal] = useState(false);
@@ -243,14 +250,37 @@ export default function Aptitude() {
     return testResult.perQuestionResults;
   };
 
+  const loadHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const data = await API.getAptitudeHistory();
+      setHistoryData(data);
+    } catch (e) {
+      console.warn('History load error:', e.message);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleOpenHistory = () => {
+    setShowHistory(true);
+    loadHistory();
+  };
+
+  const formatDuration = (secs) => {
+    if (!secs) return '—';
+    const m = Math.floor(secs / 60), s = secs % 60;
+    return `${m}m ${s}s`;
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-[#F8F9FE] flex">
       <Sidebar mobileOpen={mobileSidebarOpen} setMobileOpen={setMobileSidebarOpen} />
 
       <main className="flex-1 lg:pl-64 flex flex-col min-w-0">
         
         {/* Top Header */}
-        <header className="h-20 bg-white border-b border-slate-200 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30">
+        <header className="h-20 bg-white border-b border-[#EAEBF4] px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-4">
             <button onClick={() => setMobileSidebarOpen(true)} className="lg:hidden p-2 text-slate-600 rounded-lg hover:bg-slate-100">
               <Menu className="w-6 h-6" />
@@ -261,7 +291,14 @@ export default function Aptitude() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+            <button
+              onClick={handleOpenHistory}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 font-bold text-xs transition"
+            >
+              <History className="w-4 h-4" />
+              <span className="hidden sm:inline">History</span>
+            </button>
+            <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-[#EDE9FE] text-[#7C3AED] border border-[#DDD6FE]">
               Aptitude Score: {aptitudeStats.aptitudeScore}%
             </span>
           </div>
@@ -282,7 +319,7 @@ export default function Aptitude() {
               )}
 
               {/* Verified Aptitude Roadmap Card */}
-              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+              <div className="bg-white rounded-3xl p-6 border border-[#EAEBF4] shadow-sm space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h3 className="text-lg font-bold text-slate-900 font-outfit">Your Aptitude Roadmap</h3>
@@ -290,7 +327,7 @@ export default function Aptitude() {
                       Completed: {aptitudeStats.testsCompleted} tests taken ({aptitudeStats.testsPassed} passed)
                     </p>
                   </div>
-                  <span className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
+                  <span className="text-xs font-bold text-[#7C3AED] bg-[#EDE9FE] px-3 py-1 rounded-full border border-[#DDD6FE]">
                     Stage {currentStageNum} of 4 ({stages.find(s => s.id === aptitudeStats.currentStage)?.name || 'Beginner'})
                   </span>
                 </div>
@@ -307,7 +344,7 @@ export default function Aptitude() {
                       bgClass = 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-sm';
                       statusLabel = 'Completed ✓';
                     } else if (isCurrent) {
-                      bgClass = 'bg-blue-600 text-white border-blue-600 shadow-md';
+                      bgClass = 'bg-[#7C3AED] text-white border-[#7C3AED] shadow-md';
                       statusLabel = 'Current Stage';
                     }
 
@@ -326,7 +363,7 @@ export default function Aptitude() {
               </div>
 
               {/* Test Configuration Selector */}
-              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+              <div className="bg-white rounded-3xl p-6 border border-[#EAEBF4] shadow-sm space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div>
                     <h4 className="font-bold text-slate-900 font-outfit text-base">Test Sizing & Timing</h4>
@@ -341,7 +378,7 @@ export default function Aptitude() {
                         onClick={() => setSelectedQuestionCount(count)}
                         className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border ${
                           selectedQuestionCount === count
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                            ? 'bg-[#7C3AED] text-white border-[#7C3AED] shadow-sm'
                             : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                         }`}
                       >
@@ -374,11 +411,11 @@ export default function Aptitude() {
                     badge: 'Verbal'
                   }
                 ].map((tp) => (
-                  <div key={tp.category} className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-5 flex flex-col justify-between hover:border-blue-300 transition">
+                  <div key={tp.category} className="bg-white rounded-3xl p-6 border border-[#EAEBF4] shadow-sm space-y-5 flex flex-col justify-between hover:border-purple-300 transition">
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <h4 className="font-bold text-slate-900 font-outfit text-base">{tp.title}</h4>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#EDE9FE] text-[#7C3AED]">
                           {tp.badge}
                         </span>
                       </div>
@@ -388,7 +425,7 @@ export default function Aptitude() {
                     <button
                       onClick={() => startTest(tp.category)}
                       disabled={loading}
-                      className="w-full py-3 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                      className="w-full py-3 rounded-xl bg-[#7C3AED] text-white font-bold text-xs hover:bg-[#6D28D9] transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
                     >
                       {loading && selectedCategory === tp.category ? (
                         <>
@@ -414,12 +451,12 @@ export default function Aptitude() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               
               {/* Question Screen Pane */}
-              <div className="lg:col-span-8 bg-white rounded-2xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
+              <div className="lg:col-span-8 bg-white rounded-3xl p-6 sm:p-8 border border-[#EAEBF4] shadow-sm space-y-6">
                 
                 {/* Question Header & Timer */}
                 <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
+                    <span className="text-xs font-bold text-[#7C3AED] uppercase tracking-wider">
                       {currentTest.questions[currentQuestionIndex]?.topic || currentTest.category}
                     </span>
                     <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
@@ -430,7 +467,7 @@ export default function Aptitude() {
                   <div className={`flex items-center gap-2 font-mono font-bold text-sm px-3 py-1.5 rounded-xl border ${
                     timeLeft < 180 ? 'bg-red-50 text-red-700 border-red-200 animate-pulse' : 'bg-slate-100 text-slate-800 border-slate-200'
                   }`}>
-                    <Clock className="w-4 h-4 text-blue-600" />
+                    <Clock className="w-4 h-4 text-[#7C3AED]" />
                     <span>{formatTime(timeLeft)}</span>
                   </div>
                 </div>
@@ -455,12 +492,12 @@ export default function Aptitude() {
                         onClick={() => handleSelectOption(optIdx)}
                         className={`p-4 rounded-xl border cursor-pointer font-medium text-sm transition flex items-center gap-3 ${
                           isSelected
-                            ? 'border-blue-600 bg-blue-50/90 font-bold text-blue-900 shadow-sm ring-1 ring-blue-600'
+                            ? 'border-[#7C3AED] bg-[#EDE9FE]/90 font-bold text-[#7C3AED] shadow-sm ring-1 ring-[#7C3AED]'
                             : 'border-slate-200 bg-slate-50 hover:border-slate-300 text-slate-800'
                         }`}
                       >
                         <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                          isSelected ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'
+                          isSelected ? 'bg-[#7C3AED] text-white' : 'bg-slate-200 text-slate-600'
                         }`}>
                           {String.fromCharCode(65 + optIdx)}
                         </div>
@@ -496,7 +533,7 @@ export default function Aptitude() {
                     {currentQuestionIndex < currentTest.questions.length - 1 ? (
                       <button
                         onClick={() => setCurrentQuestionIndex(prev => prev + 1)}
-                        className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs shadow hover:bg-blue-700 transition"
+                        className="px-5 py-2 rounded-xl bg-[#7C3AED] text-white font-bold text-xs shadow hover:bg-[#6D28D9] transition"
                       >
                         Next <ArrowRight className="w-3.5 h-3.5 inline ml-1" />
                       </button>
@@ -515,7 +552,7 @@ export default function Aptitude() {
               </div>
 
               {/* Question Navigation Palette (ONLY visible during active test) */}
-              <div className="lg:col-span-4 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-6 h-fit">
+              <div className="lg:col-span-4 bg-white rounded-3xl p-6 border border-[#EAEBF4] shadow-sm space-y-6 h-fit">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div>
                     <h4 className="font-bold text-slate-900 font-outfit text-sm">Question Palette</h4>
@@ -536,7 +573,7 @@ export default function Aptitude() {
                     const isCurrent = currentQuestionIndex === idx;
 
                     let bg = 'bg-slate-100 text-slate-700 border-slate-200';
-                    if (isCurrent) bg = 'ring-2 ring-blue-600 bg-blue-50 text-blue-700 font-black border-blue-400';
+                    if (isCurrent) bg = 'ring-2 ring-[#7C3AED] bg-[#EDE9FE] text-[#7C3AED] font-black border-[#DDD6FE]';
                     else if (isMarked) bg = 'bg-amber-100 text-amber-800 font-bold border-amber-300';
                     else if (isAnswered) bg = 'bg-emerald-600 text-white font-bold border-emerald-600';
 
@@ -627,21 +664,21 @@ export default function Aptitude() {
                   <div className="text-xs text-slate-500 font-semibold mt-1">Score</div>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm text-center">
-                  <div className={`text-2xl font-black font-outfit ${testResult.passed ? 'text-emerald-600' : 'text-blue-600'}`}>
+                <div className="bg-white p-5 rounded-3xl border border-[#EAEBF4] shadow-sm text-center">
+                  <div className={`text-2xl font-black font-outfit ${testResult.passed ? 'text-emerald-600' : 'text-[#7C3AED]'}`}>
                     {testResult.accuracy}%
                   </div>
                   <div className="text-xs text-slate-500 font-semibold mt-1">Accuracy</div>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm text-center">
+                <div className="bg-white p-5 rounded-3xl border border-[#EAEBF4] shadow-sm text-center">
                   <div className="text-2xl font-black text-emerald-600 font-outfit">
                     +{testResult.xpGained} XP
                   </div>
                   <div className="text-xs text-slate-500 font-semibold mt-1">XP Earned</div>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm text-center">
+                <div className="bg-white p-5 rounded-3xl border border-[#EAEBF4] shadow-sm text-center">
                   <div className="text-2xl font-black text-slate-700 font-outfit">
                     {formatTime(testResult.timeTakenSeconds)}
                   </div>
@@ -650,7 +687,7 @@ export default function Aptitude() {
               </div>
 
               {/* Performance Breakdown & Weakest Topic */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+              <div className="bg-white p-6 rounded-3xl border border-[#EAEBF4] shadow-sm space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
                   <h4 className="font-bold text-slate-900 font-outfit text-base">Topic-wise Performance</h4>
                   {testResult.weakestTopic && testResult.weakestTopic !== 'None' && (
@@ -687,7 +724,7 @@ export default function Aptitude() {
               <div className="flex flex-wrap items-center justify-center gap-4 py-2">
                 <button
                   onClick={() => startTest(testResult.category)}
-                  className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition flex items-center gap-2"
+                  className="px-6 py-3 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-xs shadow-md transition flex items-center gap-2"
                 >
                   <RotateCcw className="w-4 h-4" />
                   <span>Try Another Test (New Questions)</span>
@@ -838,12 +875,12 @@ export default function Aptitude() {
                       </div>
 
                       {/* Step-by-Step Solution / Explanation */}
-                      <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200 text-xs text-blue-950 space-y-1">
-                        <div className="font-bold flex items-center gap-1.5 text-blue-900">
-                          <HelpCircle className="w-3.5 h-3.5 text-blue-600" />
+                      <div className="p-4 rounded-xl bg-[#EDE9FE]/70 border border-[#DDD6FE] text-xs text-[#5B21B6] space-y-1">
+                        <div className="font-bold flex items-center gap-1.5 text-[#5B21B6]">
+                          <HelpCircle className="w-3.5 h-3.5 text-[#7C3AED]" />
                           <span>Step-by-Step Solution:</span>
                         </div>
-                        <div className="leading-relaxed whitespace-pre-wrap text-[11px] text-blue-900">
+                        <div className="leading-relaxed whitespace-pre-wrap text-[11px] text-[#5B21B6]">
                           {item.explanation}
                         </div>
                       </div>
@@ -913,6 +950,168 @@ export default function Aptitude() {
               >
                 Quit Session
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Aptitude History Panel ────────────────────────────── */}
+      {showHistory && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setShowHistory(false)} />
+          <div className="relative ml-auto w-full max-w-2xl bg-white shadow-2xl flex flex-col h-full overflow-hidden">
+            {/* Header */}
+            <div className="h-16 border-b border-[#EAEBF4] px-6 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <History className="w-5 h-5 text-[#7C3AED]" />
+                <h2 className="font-bold text-slate-900 font-outfit text-base">Aptitude Test History</h2>
+              </div>
+              <button onClick={() => setShowHistory(false)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {historyLoading ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
+                  <RefreshCw className="w-8 h-8 animate-spin text-[#7C3AED]" />
+                  <p className="text-sm font-medium">Loading history…</p>
+                </div>
+              ) : !historyData || historyData.tests?.length === 0 ? (
+                <div className="text-center py-20 space-y-2">
+                  <History className="w-10 h-10 text-slate-300 mx-auto" />
+                  <p className="text-sm font-semibold text-slate-500">No tests completed yet</p>
+                  <p className="text-xs text-slate-400">Complete a test to see your history here.</p>
+                </div>
+              ) : (
+                <>
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      { label: 'Tests Taken', val: historyData.summary.totalTests, color: 'blue' },
+                      { label: 'Tests Passed', val: historyData.summary.passed, color: 'emerald' },
+                      { label: 'Avg Score', val: `${historyData.summary.avgScore}%`, color: 'purple' },
+                      { label: 'Best Score', val: `${historyData.summary.bestScore}%`, color: 'amber' }
+                    ].map(({ label, val, color }) => (
+                      <div key={label} className={`p-3 rounded-xl bg-${color}-50 border border-${color}-100 text-center`}>
+                        <div className={`text-xl font-black text-${color}-700 font-outfit`}>{val}</div>
+                        <div className="text-[11px] text-slate-500 font-semibold mt-0.5">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Improvement Insight */}
+                  {historyData.summary.improvement && (
+                    <div className={`p-4 rounded-xl border flex items-center gap-3 ${
+                      historyData.summary.improvement.delta >= 0
+                        ? 'bg-emerald-50 border-emerald-200'
+                        : 'bg-rose-50 border-rose-200'
+                    }`}>
+                      {historyData.summary.improvement.delta > 0
+                        ? <TrendingUp className="w-5 h-5 text-emerald-600 shrink-0" />
+                        : historyData.summary.improvement.delta < 0
+                        ? <TrendingDown className="w-5 h-5 text-rose-600 shrink-0" />
+                        : <Minus className="w-5 h-5 text-slate-500 shrink-0" />
+                      }
+                      <div>
+                        <div className="text-xs font-bold text-slate-800">
+                          {historyData.summary.improvement.delta > 0
+                            ? `📈 Improved by ${historyData.summary.improvement.delta}% — keep it up!`
+                            : historyData.summary.improvement.delta < 0
+                            ? `📉 Score dipped by ${Math.abs(historyData.summary.improvement.delta)}% — review weak topics`
+                            : 'Consistent performance across tests'}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Earlier avg: {historyData.summary.improvement.oldAvg}% → Recent avg: {historyData.summary.improvement.newAvg}%
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Topic Summary */}
+                  {historyData.summary.topicSummary?.length > 0 && (
+                    <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 space-y-3">
+                      <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">All-Time Topic Accuracy</h4>
+                      <div className="space-y-2">
+                        {historyData.summary.topicSummary.slice(0, 8).map(tp => (
+                          <div key={tp.topic} className="space-y-1">
+                            <div className="flex justify-between text-xs font-bold">
+                              <span className="text-slate-700 truncate">{tp.topic}</span>
+                              <span className={tp.accuracy >= 60 ? 'text-emerald-700' : 'text-rose-600'}>{tp.accuracy}%</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${tp.accuracy >= 60 ? 'bg-emerald-500' : 'bg-rose-500'}`}
+                                style={{ width: `${tp.accuracy}%` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Timeline */}
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Test Timeline</h4>
+                    {historyData.tests.map((t) => (
+                      <div key={t.testId} className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                        <button
+                          onClick={() => setExpandedHistoryId(expandedHistoryId === t.testId ? null : t.testId)}
+                          className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50 transition"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-black ${
+                              t.passed ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                            }`}>
+                              {t.score}%
+                            </div>
+                            <div className="text-left min-w-0">
+                              <div className="text-xs font-bold text-slate-800 truncate">{t.category} · {t.stage}</div>
+                              <div className="text-[11px] text-slate-500">
+                                {t.correctAnswers}/{t.totalQuestions} correct · {formatDuration(t.timeTakenSeconds)} · {new Date(t.completedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0 ml-2">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              t.passed ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                            }`}>
+                              {t.passed ? 'Passed' : 'Failed'}
+                            </span>
+                            <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expandedHistoryId === t.testId ? 'rotate-90' : ''}`} />
+                          </div>
+                        </button>
+
+                        {expandedHistoryId === t.testId && t.topicBreakdown?.length > 0 && (
+                          <div className="px-4 pb-4 pt-1 border-t border-slate-100 space-y-2">
+                            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Topic Breakdown</div>
+                            {t.topicBreakdown.map(tb => (
+                              <div key={tb.topic} className="flex items-center gap-3">
+                                <span className="text-[11px] text-slate-600 w-36 truncate shrink-0">{tb.topic}</span>
+                                <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${tb.accuracy >= 60 ? 'bg-emerald-500' : 'bg-rose-400'}`}
+                                    style={{ width: `${tb.accuracy}%` }}
+                                  />
+                                </div>
+                                <span className={`text-[11px] font-bold w-8 text-right shrink-0 ${tb.accuracy >= 60 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                                  {tb.accuracy}%
+                                </span>
+                              </div>
+                            ))}
+                            {t.weakestTopic && t.weakestTopic !== 'None' && (
+                              <div className="mt-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
+                                Focus area: <strong>{t.weakestTopic}</strong>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

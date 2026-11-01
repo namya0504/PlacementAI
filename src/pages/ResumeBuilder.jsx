@@ -27,7 +27,11 @@ import {
   GitBranch,
   ExternalLink,
   AlertCircle,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Save,
+  CheckCircle2,
+  AlertTriangle,
+  Loader2
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
@@ -93,6 +97,11 @@ export default function ResumeBuilder() {
   const [uploadingResumeFile, setUploadingResumeFile] = useState(false);
   const [uploadError, setUploadError] = useState('');
 
+  // Save / Cancel state for created resume
+  const [isSavingResume, setIsSavingResume] = useState(false);
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
+  const [showCancelConfirmModal, setShowCancelConfirmModal] = useState(false);
+
   // "Save as Profile Resume" banner state (shown after download)
   const [showSaveProfileBanner, setShowSaveProfileBanner] = useState(false);
   const [savingProfileResume, setSavingProfileResume] = useState(false);
@@ -103,7 +112,15 @@ export default function ResumeBuilder() {
   const previewRef = useRef(null);
 
   // Resume State - Dynamic to authenticated user
-  const [role, setRole] = useState(user?.role || user?.targetRole || '');
+  const [role, setRole] = useState(user?.targetRole || user?.role || '');
+
+  // Keep role in sync with profile/user state changes when not viewing a specific saved resume query
+  useEffect(() => {
+    const updatedRole = user?.targetRole || user?.role;
+    if (updatedRole && !searchParams.get('resumeId')) {
+      setRole(updatedRole);
+    }
+  }, [user?.targetRole, user?.role, searchParams]);
   const [template, setTemplate] = useState(searchParams.get('template') || 'modern');
   const [templateOptions, setTemplateOptions] = useState({
     accentColor: '',
@@ -228,8 +245,13 @@ export default function ResumeBuilder() {
     let isMounted = true;
     async function loadResumeData() {
       try {
-        const resumes = await API.getResumes();
+        const [resumes, profile] = await Promise.all([
+          API.getResumes().catch(() => []),
+          API.getProfile().catch(() => null)
+        ]);
         if (!isMounted) return;
+
+        const effectiveProfileRole = profile?.targetRole || profile?.role || user?.targetRole || user?.role || '';
 
         // Helpers to detect and filter out legacy hardcoded mock/seed data
         const isMockEdu = (item) => {
@@ -265,13 +287,20 @@ export default function ResumeBuilder() {
         };
 
         if (Array.isArray(resumes) && resumes.length > 0) {
-          setMyResumes(resumes);
+          const sorted = [...resumes].sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
+          setMyResumes(sorted);
           const primaryResume = resumes.find(r => r.isPrimary && r.personalInfo) ||
                                [...resumes].reverse().find(r => r.personalInfo) ||
                                resumes[resumes.length - 1];
 
           if (primaryResume) {
-            setActiveResumeId(primaryResume.resumeId);
+            // Only lock activeResumeId if specifically editing a requested resume via URL
+            const isExplicitResumeParam = Boolean(searchParams.get('resumeId'));
+            if (isExplicitResumeParam) {
+              setActiveResumeId(searchParams.get('resumeId'));
+            } else {
+              setActiveResumeId(null);
+            }
             if (primaryResume.personalInfo) {
               setPersonal(prev => ({
                 ...prev,
@@ -286,7 +315,16 @@ export default function ResumeBuilder() {
                   : ''
               }));
             }
-            if (primaryResume.role) setRole(primaryResume.role);
+            
+            // Respect user's profile target role over legacy resume role, unless specific resume requested via URL
+            if (isExplicitResumeParam && primaryResume.role) {
+              setRole(primaryResume.role);
+            } else if (effectiveProfileRole) {
+              setRole(effectiveProfileRole);
+            } else if (primaryResume.role) {
+              setRole(primaryResume.role);
+            }
+
             if (primaryResume.templateId) setTemplate(primaryResume.templateId);
             if (primaryResume.templateOptions) setTemplateOptions(primaryResume.templateOptions);
 
@@ -365,7 +403,8 @@ export default function ResumeBuilder() {
     try {
       const list = await API.getResumes();
       if (Array.isArray(list)) {
-        setMyResumes(list);
+        const sorted = [...list].sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
+        setMyResumes(sorted);
       }
     } catch (err) {
       console.warn('Failed to refresh resumes:', err.message);
@@ -663,7 +702,7 @@ export default function ResumeBuilder() {
     // 3. Persist resume document & record download in backend
     try {
       const resumePayload = {
-        title: `${personal.fullName || 'Candidate'}'s Resume`,
+        title: `${personal.fullName || 'Candidate'}'s ${role ? `${role} ` : ''}Resume`,
         role,
         templateId: template,
         templateOptions,
@@ -678,7 +717,7 @@ export default function ResumeBuilder() {
       };
 
       let saved;
-      if (activeResumeId) {
+      if (activeResumeId && searchParams.get('resumeId')) {
         saved = await API.updateResume(activeResumeId, resumePayload);
       } else {
         saved = await API.saveResume(resumePayload);
@@ -746,7 +785,7 @@ export default function ResumeBuilder() {
     // Persist resume document & record download in backend
     try {
       const resumePayload = {
-        title: `${personal.fullName || 'Candidate'}'s Resume`,
+        title: `${personal.fullName || 'Candidate'}'s ${role ? `${role} ` : ''}Resume`,
         role,
         templateId: template,
         templateOptions,
@@ -761,7 +800,7 @@ export default function ResumeBuilder() {
       };
 
       let saved;
-      if (activeResumeId) {
+      if (activeResumeId && searchParams.get('resumeId')) {
         saved = await API.updateResume(activeResumeId, resumePayload);
       } else {
         saved = await API.saveResume(resumePayload);
@@ -772,6 +811,24 @@ export default function ResumeBuilder() {
         resumeId: saved?.resumeId || activeResumeId || 'res_' + Date.now(),
         fileName
       });
+
+      // Save a version snapshot to resume history (max 10 enforced by backend)
+      const savedResumeId = saved?.resumeId || activeResumeId;
+      if (savedResumeId) {
+        try {
+          await API.saveWebResumeVersion({
+            resumeId: savedResumeId,
+            title: `${personal.fullName || 'Candidate'}'s Resume – ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`,
+            templateId: template,
+            personalInfo: personal,
+            role,
+            createdAt: new Date().toISOString()
+          });
+        } catch (vErr) {
+          console.warn('Resume version save notice:', vErr.message);
+        }
+      }
+
       refreshResumesList();
     } catch (e) {
       console.warn('Resume persist during download notice:', e.message);
@@ -800,22 +857,84 @@ export default function ResumeBuilder() {
     }
   };
 
+  // Handle Save Created Resume (Explicit User Action in Step 3)
+  const handleSaveCreatedResume = async () => {
+    if (!validateBeforeStep3()) {
+      setCurrentStep(2);
+      setActiveTab('personal');
+      window.scrollTo({ top: 120, behavior: 'smooth' });
+      return;
+    }
+
+    setIsSavingResume(true);
+    setSaveSuccessMsg('');
+
+    try {
+      const resumePayload = {
+        title: `${personal.fullName || 'Candidate'}'s ${role ? `${role} ` : ''}Resume`,
+        role: role || user?.targetRole || user?.role || '',
+        templateId: template,
+        templateOptions,
+        templateVersion: 1,
+        personalInfo: personal,
+        summary: personal.summary,
+        experience,
+        education,
+        skills,
+        projects,
+        certificates: certifications
+      };
+
+      // Always save as a new resume entry so existing resumes are preserved and never overwritten
+      const saved = await API.saveResume(resumePayload);
+      if (saved?.resumeId) setActiveResumeId(saved.resumeId);
+
+      await refreshResumesList();
+      setSaveSuccessMsg('Resume stored in My Resumes! All your previously created resumes are kept intact.');
+      setTimeout(() => setSaveSuccessMsg(''), 7000);
+    } catch (err) {
+      console.error('Failed to save resume:', err);
+      alert('Failed to save resume: ' + (err.message || 'Please check all required fields.'));
+    } finally {
+      setIsSavingResume(false);
+    }
+  };
+
+  // Handle Cancel Created Resume
+  const handleCancelCreatedResume = () => {
+    setShowCancelConfirmModal(true);
+  };
+
+  const handleConfirmCancel = () => {
+    setShowCancelConfirmModal(false);
+    if (activeResumeId) {
+      const existing = myResumes.find(r => r.resumeId === activeResumeId);
+      if (existing) {
+        handleLoadResume(existing);
+      } else {
+        setCurrentStep(2);
+      }
+    } else {
+      setCurrentStep(2);
+    }
+  };
+
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-[#F8F9FE] flex">
       <Sidebar mobileOpen={mobileSidebarOpen} setMobileOpen={setMobileSidebarOpen} />
 
       <main className="flex-1 lg:pl-64 flex flex-col min-w-0">
         
-        {/* Top Header */}
-        <header className="h-20 bg-white border-b border-slate-200 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setMobileSidebarOpen(true)} className="lg:hidden p-2 text-slate-600 rounded-lg hover:bg-slate-100">
-              <Menu className="w-6 h-6" />
+        {/* Top Header matching reference screen */}
+        <header className="h-20 bg-white border-b border-[#EAEBF4] px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setMobileSidebarOpen(true)} className="lg:hidden p-2 text-slate-600 rounded-lg hover:bg-slate-100" aria-label="Open navigation">
+              <Menu className="w-5 h-5" />
             </button>
             <div>
-              <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 font-outfit">AI Resume Builder</h1>
-              <p className="text-xs text-slate-500">Step {currentStep} of 3</p>
+              <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 font-outfit">Resume Builder</h1>
+              <p className="text-xs text-slate-500">Create a professional resume with AI assistance.</p>
             </div>
           </div>
 
@@ -823,80 +942,188 @@ export default function ResumeBuilder() {
             <button
               type="button"
               onClick={() => setShowMyResumesModal(true)}
-              className="px-4 py-2 rounded-xl border border-slate-200 hover:border-purple-300 bg-white hover:bg-purple-50 text-slate-700 hover:text-purple-700 text-xs font-bold flex items-center gap-2 transition shadow-xs"
+              className="px-4 py-2 rounded-xl border border-slate-200 hover:border-purple-300 bg-white hover:bg-purple-50 text-slate-700 hover:text-[#7C3AED] text-xs font-bold flex items-center gap-2 transition shadow-xs"
             >
-              <FolderOpen className="w-4 h-4 text-purple-600" />
+              <FolderOpen className="w-4 h-4 text-[#7C3AED]" />
               <span>My Resumes</span>
               {myResumes.length > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 text-[10px] font-mono">
+                <span className="px-1.5 py-0.5 rounded-full bg-purple-100 text-[#7C3AED] text-[10px] font-mono">
                   {myResumes.length}
                 </span>
               )}
             </button>
 
             {currentStep === 3 && (
-              <button
-                onClick={handleDownloadPdf}
-                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md flex items-center gap-2 transition"
-              >
-                <Download className="w-4 h-4" /> Download PDF
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCancelCreatedResume}
+                  className="hidden sm:inline-flex px-3.5 py-2 rounded-xl border border-slate-200 hover:border-red-200 bg-white hover:bg-red-50 text-slate-700 hover:text-red-600 font-bold text-xs items-center gap-1.5 transition"
+                >
+                  <X className="w-3.5 h-3.5" /> Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveCreatedResume}
+                  disabled={isSavingResume}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition disabled:opacity-50"
+                >
+                  {isSavingResume ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  <span>Save</span>
+                </button>
+
+                <button
+                  onClick={handleDownloadPdf}
+                  className="px-4 py-2 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-xs shadow-md shadow-purple-500/20 flex items-center gap-1.5 transition"
+                >
+                  <Download className="w-3.5 h-3.5" /> PDF
+                </button>
+              </div>
             )}
           </div>
         </header>
 
-        <div className="p-4 sm:p-8 space-y-8 max-w-7xl mx-auto w-full">
+        <div className="p-4 sm:p-8 space-y-6 max-w-7xl mx-auto w-full">
           
-          {/* Step Indicator Header (Screen 5/6/7 Wizard Header) */}
-          <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200 shadow-sm flex items-center justify-between">
-            
-            <div className={`flex items-center gap-3 ${currentStep >= 1 ? 'text-blue-600 font-bold' : 'text-slate-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs ${currentStep >= 1 ? 'bg-blue-600 text-white' : 'bg-slate-100'}`}>
-                1
-              </div>
-              <span className="text-xs sm:text-sm hidden sm:inline">Role & Template</span>
+          {/* Step Indicator Header matching reference screen */}
+          <div className="bg-white rounded-3xl p-4 sm:p-6 border border-[#EAEBF4] shadow-xs">
+            <div className="flex items-center justify-between overflow-x-auto pb-1 scrollbar-none">
+              {[
+                { id: 1, label: 'Personal Details', step: 2, tab: 'personal' },
+                { id: 2, label: 'Education', step: 2, tab: 'education' },
+                { id: 3, label: 'Skills', step: 2, tab: 'skills' },
+                { id: 4, label: 'Projects', step: 2, tab: 'projects' },
+                { id: 5, label: 'Preview & Download', step: 3, tab: null },
+              ].map((s, idx, arr) => {
+                const currentActiveStepId = currentStep === 3 ? 5 : (
+                  activeTab === 'personal' ? 1 :
+                  activeTab === 'education' ? 2 :
+                  activeTab === 'skills' ? 3 :
+                  4
+                );
+                const isCurrent = currentActiveStepId === s.id;
+                const isCompleted = currentActiveStepId > s.id;
+
+                return (
+                  <React.Fragment key={s.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (s.step === 3) {
+                          if (validateBeforeStep3()) setCurrentStep(3);
+                        } else {
+                          setCurrentStep(2);
+                          setActiveTab(s.tab);
+                        }
+                      }}
+                      className="flex items-center gap-2.5 group cursor-pointer shrink-0"
+                    >
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition ${
+                        isCurrent
+                          ? 'bg-[#7C3AED] text-white shadow-sm ring-4 ring-purple-100'
+                          : isCompleted
+                          ? 'bg-purple-100 text-[#7C3AED]'
+                          : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200'
+                      }`}>
+                        {isCompleted ? '✓' : s.id}
+                      </div>
+                      <span className={`text-xs font-bold whitespace-nowrap ${
+                        isCurrent ? 'text-[#7C3AED]' : isCompleted ? 'text-slate-800' : 'text-slate-400'
+                      }`}>
+                        {s.label}
+                      </span>
+                    </button>
+                    {idx < arr.length - 1 && (
+                      <div className={`h-0.5 w-6 sm:w-12 mx-2 shrink-0 ${isCompleted ? 'bg-[#7C3AED]' : 'bg-slate-200'}`} />
+                    )}
+                  </React.Fragment>
+                );
+              })}
             </div>
-            
-            <div className="h-0.5 bg-slate-200 flex-1 mx-4"></div>
-
-            <div className={`flex items-center gap-3 ${currentStep >= 2 ? 'text-blue-600 font-bold' : 'text-slate-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs ${currentStep >= 2 ? 'bg-blue-600 text-white' : 'bg-slate-100'}`}>
-                2
-              </div>
-              <span className="text-xs sm:text-sm hidden sm:inline">Information</span>
-            </div>
-
-            <div className="h-0.5 bg-slate-200 flex-1 mx-4"></div>
-
-            <div className={`flex items-center gap-3 ${currentStep >= 3 ? 'text-blue-600 font-bold' : 'text-slate-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs ${currentStep >= 3 ? 'bg-blue-600 text-white' : 'bg-slate-100'}`}>
-                3
-              </div>
-              <span className="text-xs sm:text-sm hidden sm:inline">Preview & Download</span>
-            </div>
-
           </div>
 
           {/* STEP 1: ROLE & TEMPLATE */}
           {currentStep === 1 && (
             <div className="space-y-8">
               
+              {/* MY RESUMES BOX / FIELD */}
+              {myResumes.length > 0 && (
+                <div className="bg-white rounded-3xl p-6 border border-[#EAEBF4] shadow-xs space-y-4">
+                  <div className="flex items-center justify-between border-b border-[#EAEBF4] pb-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center">
+                        <FolderOpen className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-slate-900 font-outfit">My Saved Resumes</h3>
+                        <p className="text-xs text-slate-500">Pick any saved resume to edit or customize</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowMyResumesModal(true)}
+                      className="text-xs font-bold text-[#7C3AED] hover:text-[#6D28D9] flex items-center gap-1 transition"
+                    >
+                      <span>Manage All ({myResumes.length})</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {myResumes.map(r => (
+                      <div
+                        key={r.resumeId}
+                        onClick={() => handleLoadResume(r)}
+                        className={`p-3.5 rounded-2xl border cursor-pointer transition ${
+                          activeResumeId === r.resumeId
+                            ? 'border-[#7C3AED] bg-purple-50/40 shadow-xs ring-2 ring-[#7C3AED]/20'
+                            : 'border-[#EAEBF4] bg-[#F8F9FE] hover:border-purple-200 hover:bg-purple-50/20'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="font-bold text-xs text-slate-900 truncate">
+                            {r.title || 'Untitled Resume'}
+                          </div>
+                          {r.isPrimary && (
+                            <span className="px-2 py-0.5 rounded-full bg-purple-100 text-[#7C3AED] text-[10px] font-extrabold shrink-0">
+                              ⭐ Primary
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-1 truncate">
+                          {r.role || role} · {resolveTemplate(r.templateId).name}
+                        </p>
+                        <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[10px] text-slate-400">
+                          <span>{r.updatedAt ? new Date(r.updatedAt).toLocaleDateString() : 'Saved'}</span>
+                          <span className="text-[#7C3AED] font-bold">Edit →</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
                 <h3 className="text-lg font-bold text-slate-900 font-outfit">Select Target Job Role</h3>
                 <select
                   value={role}
                   onChange={e => setRole(e.target.value)}
-                  className="w-full max-w-md p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                  className="w-full max-w-md p-3 rounded-xl border border-[#EAEBF4] bg-white text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#7C3AED] focus:outline-none"
                 >
                   <option value="">Select Target Job Role</option>
-                  {role && !['Software Developer', 'Data Scientist', 'Product Manager', 'Full Stack Engineer', 'UI/UX Designer'].includes(role) && (
+                  {role && !['Machine Learning', 'Machine Learning Engineer', 'ML Engineer', 'Data Scientist', 'Software Developer', 'Full Stack Engineer', 'Mobile App Developer', 'Product Manager', 'UI/UX Designer', 'Cloud / DevOps Engineer'].includes(role) && (
                     <option value={role}>{role}</option>
                   )}
-                  <option value="Software Developer">Software Developer</option>
+                  <option value="Machine Learning">Machine Learning</option>
+                  <option value="Machine Learning Engineer">Machine Learning Engineer</option>
                   <option value="Data Scientist">Data Scientist</option>
-                  <option value="Product Manager">Product Manager</option>
+                  <option value="Software Developer">Software Developer</option>
                   <option value="Full Stack Engineer">Full Stack Engineer</option>
+                  <option value="Mobile App Developer">Mobile App Developer</option>
+                  <option value="Product Manager">Product Manager</option>
                   <option value="UI/UX Designer">UI/UX Designer</option>
+                  <option value="Cloud / DevOps Engineer">Cloud / DevOps Engineer</option>
                 </select>
               </div>
 
@@ -921,7 +1148,7 @@ export default function ResumeBuilder() {
               <div className="flex justify-end pt-2">
                 <button
                   onClick={() => setCurrentStep(2)}
-                  className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-sm shadow-lg hover:shadow-xl transition flex items-center gap-2"
+                  className="px-8 py-3.5 rounded-2xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-sm shadow-md shadow-purple-500/20 hover:shadow-lg transition flex items-center gap-2"
                 >
                   <span>Next: Fill Information</span>
                   <ArrowRight className="w-4 h-4" />
@@ -936,7 +1163,7 @@ export default function ResumeBuilder() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               
               {/* Left Sub-Navigation Tabs */}
-              <div className="lg:col-span-3 bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-1 h-fit">
+              <div className="lg:col-span-3 bg-white rounded-3xl p-4 border border-[#EAEBF4] shadow-xs space-y-1 h-fit">
                 {SECTION_TABS.map(t => {
                   const Icon = t.icon;
                   return (
@@ -944,7 +1171,7 @@ export default function ResumeBuilder() {
                       key={t.key}
                       onClick={() => setActiveTab(t.key)}
                       className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition text-left ${
-                        activeTab === t.key ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'
+                        activeTab === t.key ? 'bg-[#7C3AED] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
                       }`}
                     >
                       <Icon className="w-4 h-4" />
@@ -969,7 +1196,7 @@ export default function ResumeBuilder() {
                           placeholder="e.g. John Doe"
                           value={personal.fullName}
                           onChange={e => setPersonal({ ...personal, fullName: e.target.value })}
-                          className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                          className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none"
                         />
                       </div>
                       <div>
@@ -979,7 +1206,7 @@ export default function ResumeBuilder() {
                           placeholder="e.g. user@example.com"
                           value={personal.email}
                           onChange={e => setPersonal({ ...personal, email: e.target.value })}
-                          className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                          className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none"
                         />
                       </div>
                       <div>
@@ -989,7 +1216,7 @@ export default function ResumeBuilder() {
                           placeholder="e.g. +91 98765 43210"
                           value={personal.phone}
                           onChange={e => setPersonal({ ...personal, phone: e.target.value })}
-                          className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                          className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none"
                         />
                       </div>
                       <div>
@@ -999,7 +1226,7 @@ export default function ResumeBuilder() {
                           placeholder="e.g. Bangalore, India"
                           value={personal.location}
                           onChange={e => setPersonal({ ...personal, location: e.target.value })}
-                          className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                          className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none"
                         />
                       </div>
                       <div>
@@ -1009,7 +1236,7 @@ export default function ResumeBuilder() {
                           placeholder="e.g. https://linkedin.com/in/yourname"
                           value={personal.linkedin || ''}
                           onChange={e => setPersonal({ ...personal, linkedin: e.target.value })}
-                          className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                          className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none"
                         />
                       </div>
                       <div>
@@ -1026,7 +1253,7 @@ export default function ResumeBuilder() {
                           placeholder="e.g. https://github.com/yourname"
                           value={personal.github || ''}
                           onChange={e => setPersonal({ ...personal, github: e.target.value })}
-                          className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                          className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none"
                         />
                         <p className="text-[11px] text-slate-400 mt-1">
                           AI reads your public repositories and bio to ground your summary in your actual coding work.
@@ -1059,7 +1286,7 @@ export default function ResumeBuilder() {
                         placeholder="Write a concise overview of your professional background, key technical strengths, and career ambitions..."
                         value={personal.summary}
                         onChange={e => setPersonal({ ...personal, summary: e.target.value })}
-                        className="w-full p-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                        className="w-full p-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none"
                       />
 
                       <div className="mt-1 flex items-center justify-between text-[11px] text-slate-400">
@@ -1089,7 +1316,7 @@ export default function ResumeBuilder() {
                       <button
                         type="button"
                         onClick={handleAddEducation}
-                        className="px-3.5 py-2 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold text-xs flex items-center gap-1.5 transition"
+                        className="px-3.5 py-2 rounded-xl bg-[#EDE9FE] text-[#7C3AED] hover:bg-[#DDD6FE] font-bold text-xs flex items-center gap-1.5 transition"
                       >
                         <Plus className="w-4 h-4" /> Add Education
                       </button>
@@ -1097,7 +1324,7 @@ export default function ResumeBuilder() {
 
                     {education.length === 0 ? (
                       <div className="text-center py-10 px-4 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 space-y-3">
-                        <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
+                        <div className="w-12 h-12 rounded-2xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center mx-auto">
                           <GraduationCap className="w-6 h-6" />
                         </div>
                         <div>
@@ -1109,7 +1336,7 @@ export default function ResumeBuilder() {
                         <button
                           type="button"
                           onClick={handleAddEducation}
-                          className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs shadow hover:bg-blue-700 transition inline-flex items-center gap-1.5"
+                          className="px-4 py-2 rounded-xl bg-[#7C3AED] text-white font-bold text-xs shadow hover:bg-[#6D28D9] transition inline-flex items-center gap-1.5"
                         >
                           <Plus className="w-4 h-4" /> Add Your First Education
                         </button>
@@ -1119,7 +1346,7 @@ export default function ResumeBuilder() {
                         <div key={edu.id || idx} className="p-5 rounded-2xl border border-slate-200 bg-slate-50/70 space-y-4 relative group">
                           <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
                             <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                              <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold">
+                              <span className="w-5 h-5 rounded-full bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center text-[10px] font-bold">
                                 {idx + 1}
                               </span>
                               {edu.degree || `Education #${idx + 1}`}
@@ -1142,7 +1369,7 @@ export default function ResumeBuilder() {
                                 placeholder="e.g. B.Tech Computer Science & Engineering"
                                 value={edu.degree}
                                 onChange={e => setEducation(education.map(ed => ed.id === edu.id ? { ...ed, degree: e.target.value } : ed))}
-                                className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
+                                className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none bg-white"
                               />
                             </div>
                             <div>
@@ -1152,7 +1379,7 @@ export default function ResumeBuilder() {
                                 placeholder="e.g. National Institute of Technology"
                                 value={edu.college}
                                 onChange={e => setEducation(education.map(ed => ed.id === edu.id ? { ...ed, college: e.target.value } : ed))}
-                                className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
+                                className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none bg-white"
                               />
                             </div>
                             <div>
@@ -1162,7 +1389,7 @@ export default function ResumeBuilder() {
                                 placeholder="e.g. 8.6 / 10.0 or 84%"
                                 value={edu.cgpa}
                                 onChange={e => setEducation(education.map(ed => ed.id === edu.id ? { ...ed, cgpa: e.target.value } : ed))}
-                                className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
+                                className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none bg-white"
                               />
                             </div>
                             <div>
@@ -1172,7 +1399,7 @@ export default function ResumeBuilder() {
                                 placeholder="e.g. 2022 - 2026"
                                 value={edu.year}
                                 onChange={e => setEducation(education.map(ed => ed.id === edu.id ? { ...ed, year: e.target.value } : ed))}
-                                className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
+                                className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none bg-white"
                               />
                             </div>
                           </div>
@@ -1206,7 +1433,7 @@ export default function ResumeBuilder() {
                             }
                           }
                         }}
-                        className="flex-1 p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
+                        className="flex-1 p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none bg-white"
                       />
                       <button
                         type="button"
@@ -1216,7 +1443,7 @@ export default function ResumeBuilder() {
                             setNewSkill('');
                           }
                         }}
-                        className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition"
+                        className="px-4 py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-xs transition"
                       >
                         Add Skill
                       </button>
@@ -1236,7 +1463,7 @@ export default function ResumeBuilder() {
                             className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition ${
                               skills.includes(s)
                                 ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-default'
-                                : 'bg-white text-slate-700 border-slate-200 hover:border-blue-400 hover:text-blue-600'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-[#7C3AED] hover:text-[#7C3AED]'
                             }`}
                           >
                             + {s}
@@ -1247,7 +1474,7 @@ export default function ResumeBuilder() {
 
                     <div className="flex flex-wrap gap-2 pt-2">
                       {skills.map((sk, i) => (
-                        <span key={i} className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-100 text-blue-700 text-xs font-semibold flex items-center gap-2">
+                        <span key={i} className="px-3 py-1.5 rounded-xl bg-[#EDE9FE] border border-[#DDD6FE] text-[#7C3AED] text-xs font-semibold flex items-center gap-2">
                           {sk}
                           <button
                             type="button"
@@ -1273,7 +1500,7 @@ export default function ResumeBuilder() {
                       <button
                         type="button"
                         onClick={handleAddProject}
-                        className="px-3.5 py-2 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold text-xs flex items-center gap-1.5 transition"
+                        className="px-3.5 py-2 rounded-xl bg-[#EDE9FE] text-[#7C3AED] hover:bg-[#DDD6FE] font-bold text-xs flex items-center gap-1.5 transition"
                       >
                         <Plus className="w-4 h-4" /> Add Project
                       </button>
@@ -1342,7 +1569,7 @@ export default function ResumeBuilder() {
                                     <div className="flex items-center gap-2 flex-wrap">
                                       <span className="font-bold text-slate-800">{r.name}</span>
                                       {r.language && (
-                                        <span className="px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-semibold">{r.language}</span>
+                                        <span className="px-1.5 py-0.5 rounded-full bg-[#EDE9FE] text-[#7C3AED] text-[10px] font-semibold">{r.language}</span>
                                       )}
                                       {r.stars > 0 && (
                                         <span className="flex items-center gap-0.5 text-amber-600 text-[10px]">
@@ -1355,7 +1582,7 @@ export default function ResumeBuilder() {
                                           target="_blank"
                                           rel="noopener noreferrer"
                                           onClick={e => e.stopPropagation()}
-                                          className="text-blue-500 hover:text-blue-700"
+                                          className="text-[#7C3AED] hover:text-[#6D28D9]"
                                         >
                                           <ExternalLink className="w-3 h-3" />
                                         </a>
@@ -1397,7 +1624,7 @@ export default function ResumeBuilder() {
 
                     {projects.length === 0 ? (
                       <div className="text-center py-10 px-4 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 space-y-3">
-                        <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
+                        <div className="w-12 h-12 rounded-2xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center mx-auto">
                           <FileText className="w-6 h-6" />
                         </div>
                         <div>
@@ -1409,7 +1636,7 @@ export default function ResumeBuilder() {
                         <button
                           type="button"
                           onClick={handleAddProject}
-                          className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs shadow hover:bg-blue-700 transition inline-flex items-center gap-1.5"
+                          className="px-4 py-2 rounded-xl bg-[#7C3AED] text-white font-bold text-xs shadow hover:bg-[#6D28D9] transition inline-flex items-center gap-1.5"
                         >
                           <Plus className="w-4 h-4" /> Add Your First Project
                         </button>
@@ -1419,7 +1646,7 @@ export default function ResumeBuilder() {
                         <div key={p.id || idx} className="p-5 rounded-2xl border border-slate-200 bg-slate-50/70 space-y-4 relative group">
                           <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
                             <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                              <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold">
+                              <span className="w-5 h-5 rounded-full bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center text-[10px] font-bold">
                                 {idx + 1}
                               </span>
                               {p.title || `Project #${idx + 1}`}
@@ -1442,7 +1669,7 @@ export default function ResumeBuilder() {
                                 placeholder="e.g. PlacementAI — AI Prep Portal"
                                 value={p.title}
                                 onChange={e => setProjects(projects.map(pr => pr.id === p.id ? { ...pr, title: e.target.value } : pr))}
-                                className="w-full p-2.5 rounded-xl border border-slate-200 text-sm font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
+                                className="w-full p-2.5 rounded-xl border border-slate-200 text-sm font-semibold focus:ring-2 focus:ring-[#7C3AED] focus:outline-none bg-white"
                               />
                             </div>
                             <div>
@@ -1452,7 +1679,7 @@ export default function ResumeBuilder() {
                                 placeholder="e.g. React, Node.js, Express, PostgreSQL, Docker"
                                 value={p.tech}
                                 onChange={e => setProjects(projects.map(pr => pr.id === p.id ? { ...pr, tech: e.target.value } : pr))}
-                                className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
+                                className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none bg-white"
                               />
                             </div>
                           </div>
@@ -1464,7 +1691,7 @@ export default function ResumeBuilder() {
                               placeholder="e.g. https://github.com/myusername/project-repo"
                               value={p.link || ''}
                               onChange={e => setProjects(projects.map(pr => pr.id === p.id ? { ...pr, link: e.target.value } : pr))}
-                              className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
+                              className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none bg-white"
                             />
                           </div>
 
@@ -1485,7 +1712,7 @@ export default function ResumeBuilder() {
                               placeholder="• Built a scalable full-stack application serving over 1,000 active students...&#10;• Implemented automated resume score feedback using an intelligent matching engine..."
                               value={p.description}
                               onChange={e => setProjects(projects.map(pr => pr.id === p.id ? { ...pr, description: e.target.value } : pr))}
-                              className="w-full p-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
+                              className="w-full p-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none bg-white"
                             />
                           </div>
                         </div>
@@ -1523,14 +1750,14 @@ export default function ResumeBuilder() {
                               }
                             }
                           }}
-                          className="flex-1 p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
+                          className="flex-1 p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none bg-white"
                         />
                         <input
                           type="url"
                           placeholder="Certificate URL (optional)"
                           value={newCertLink}
                           onChange={e => setNewCertLink(e.target.value)}
-                          className="flex-1 p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
+                          className="flex-1 p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none bg-white"
                         />
                         <button
                           type="button"
@@ -1541,7 +1768,7 @@ export default function ResumeBuilder() {
                               setNewCertLink('');
                             }
                           }}
-                          className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition whitespace-nowrap"
+                          className="px-4 py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-xs transition whitespace-nowrap"
                         >
                           Add Cert
                         </button>
@@ -1559,7 +1786,7 @@ export default function ResumeBuilder() {
                                 href={c.link}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="shrink-0 text-blue-500 hover:text-blue-700 flex items-center gap-1"
+                                className="shrink-0 text-[#7C3AED] hover:text-[#6D28D9] flex items-center gap-1"
                                 title="View Certificate"
                               >
                                 <LinkIcon className="w-3 h-3" />
@@ -1591,7 +1818,7 @@ export default function ResumeBuilder() {
                       <button
                         type="button"
                         onClick={handleAddExperience}
-                        className="px-3.5 py-2 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold text-xs flex items-center gap-1.5 transition"
+                        className="px-3.5 py-2 rounded-xl bg-[#EDE9FE] text-[#7C3AED] hover:bg-[#DDD6FE] font-bold text-xs flex items-center gap-1.5 transition"
                       >
                         <Plus className="w-4 h-4" /> Add Experience
                       </button>
@@ -1599,7 +1826,7 @@ export default function ResumeBuilder() {
 
                     {experience.length === 0 ? (
                       <div className="text-center py-10 px-4 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 space-y-3">
-                        <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
+                        <div className="w-12 h-12 rounded-2xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center mx-auto">
                           <Briefcase className="w-6 h-6" />
                         </div>
                         <div>
@@ -1611,7 +1838,7 @@ export default function ResumeBuilder() {
                         <button
                           type="button"
                           onClick={handleAddExperience}
-                          className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs shadow hover:bg-blue-700 transition inline-flex items-center gap-1.5"
+                          className="px-4 py-2 rounded-xl bg-[#7C3AED] text-white font-bold text-xs shadow hover:bg-[#6D28D9] transition inline-flex items-center gap-1.5"
                         >
                           <Plus className="w-4 h-4" /> Add Your First Experience
                         </button>
@@ -1621,7 +1848,7 @@ export default function ResumeBuilder() {
                         <div key={exp.id || idx} className="p-5 rounded-2xl border border-slate-200 bg-slate-50/70 space-y-4 relative group">
                           <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
                             <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                              <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold">
+                              <span className="w-5 h-5 rounded-full bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center text-[10px] font-bold">
                                 {idx + 1}
                               </span>
                               {exp.title ? `${exp.title} at ${exp.company || 'Company'}` : `Experience #${idx + 1}`}
@@ -1644,7 +1871,7 @@ export default function ResumeBuilder() {
                                 placeholder="e.g. Software Developer Intern"
                                 value={exp.title}
                                 onChange={e => setExperience(experience.map(ex => ex.id === exp.id ? { ...ex, title: e.target.value } : ex))}
-                                className="w-full p-2.5 rounded-xl border border-slate-200 text-sm font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
+                                className="w-full p-2.5 rounded-xl border border-slate-200 text-sm font-semibold focus:ring-2 focus:ring-[#7C3AED] focus:outline-none bg-white"
                               />
                             </div>
                             <div>
@@ -1654,7 +1881,7 @@ export default function ResumeBuilder() {
                                 placeholder="e.g. Google India / Tech Corp"
                                 value={exp.company}
                                 onChange={e => setExperience(experience.map(ex => ex.id === exp.id ? { ...ex, company: e.target.value } : ex))}
-                                className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
+                                className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none bg-white"
                               />
                             </div>
                             <div>
@@ -1664,7 +1891,7 @@ export default function ResumeBuilder() {
                                 placeholder="e.g. Jun 2025 - Aug 2025"
                                 value={exp.duration || ''}
                                 onChange={e => setExperience(experience.map(ex => ex.id === exp.id ? { ...ex, duration: e.target.value } : ex))}
-                                className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
+                                className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none bg-white"
                               />
                             </div>
                             <div>
@@ -1674,7 +1901,7 @@ export default function ResumeBuilder() {
                                 placeholder="e.g. Bangalore, India (Remote)"
                                 value={exp.location || ''}
                                 onChange={e => setExperience(experience.map(ex => ex.id === exp.id ? { ...ex, location: e.target.value } : ex))}
-                                className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
+                                className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none bg-white"
                               />
                             </div>
                           </div>
@@ -1686,7 +1913,7 @@ export default function ResumeBuilder() {
                               placeholder="• Engineered RESTful APIs and integrated frontend React components...&#10;• Collaborated with cross-functional agile teams to deliver features on schedule..."
                               value={exp.details}
                               onChange={e => setExperience(experience.map(ex => ex.id === exp.id ? { ...ex, details: e.target.value } : ex))}
-                              className="w-full p-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none bg-white"
+                              className="w-full p-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-[#7C3AED] focus:outline-none bg-white"
                             />
                           </div>
                         </div>
@@ -1730,11 +1957,7 @@ export default function ResumeBuilder() {
                   <button
                     type="button"
                     onClick={handleNextSection}
-                    className={`px-6 py-2.5 rounded-xl text-white font-bold text-xs shadow transition flex items-center gap-2 ${
-                      activeTab === 'experience'
-                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-md shadow-purple-500/20'
-                        : 'bg-blue-600 hover:bg-blue-700'
-                    }`}
+                    className="px-6 py-2.5 rounded-xl text-white font-bold text-xs shadow transition flex items-center gap-2 bg-[#7C3AED] hover:bg-[#6D28D9]"
                   >
                     {activeTab === 'experience' ? (
                       <>Next: Preview Resume <ArrowRight className="w-4 h-4" /></>
@@ -1764,7 +1987,39 @@ export default function ResumeBuilder() {
                   <span>Edit Information</span>
                 </button>
 
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  {/* Save Button */}
+                  <button
+                    type="button"
+                    onClick={handleSaveCreatedResume}
+                    disabled={isSavingResume}
+                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 flex items-center gap-2 transition disabled:opacity-50"
+                  >
+                    {isSavingResume ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Saving…</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        <span>Save Resume</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Cancel Button */}
+                  <button
+                    type="button"
+                    onClick={handleCancelCreatedResume}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 hover:border-red-200 bg-white hover:bg-red-50 text-slate-700 hover:text-red-600 font-bold text-xs flex items-center gap-1.5 transition"
+                  >
+                    <X className="w-4 h-4" />
+                    <span>Cancel</span>
+                  </button>
+
+                  <div className="h-6 w-px bg-slate-200 hidden sm:block mx-1" />
+
                   <button
                     type="button"
                     onClick={handleDirectDownloadHtml2Pdf}
@@ -1781,10 +2036,37 @@ export default function ResumeBuilder() {
                     className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs shadow-md hover:shadow-lg transition flex items-center gap-2"
                   >
                     <Download className="w-4 h-4" />
-                    <span>Download Vector PDF (Print / Save A4)</span>
+                    <span>Download Vector PDF</span>
                   </button>
                 </div>
               </div>
+
+              {/* Save Success Alert Banner */}
+              {saveSuccessMsg && (
+                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex flex-col sm:flex-row sm:items-center justify-between gap-3 no-print animate-in fade-in duration-200">
+                  <div className="flex items-center gap-2.5">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <span>{saveSuccessMsg}</span>
+                  </div>
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => setShowMyResumesModal(true)}
+                      className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-xs transition flex items-center gap-1.5"
+                    >
+                      <FolderOpen className="w-3.5 h-3.5" />
+                      <span>View in My Resumes ({myResumes.length})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSaveSuccessMsg('')}
+                      className="p-1 text-emerald-600 hover:text-emerald-800 rounded-lg hover:bg-emerald-100"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* "Save as Profile Resume" Banner — appears after Direct PDF download */}
               {showSaveProfileBanner && (
@@ -1870,6 +2152,57 @@ export default function ResumeBuilder() {
                   </div>
                 </div>
 
+              </div>
+
+              {/* Bottom Action Footer for Step 3 */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-5 rounded-3xl border border-[#EAEBF4] shadow-xs no-print">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center shrink-0">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900">{personal.fullName || 'Candidate'}'s Resume</h4>
+                    <p className="text-[11px] text-slate-500">Target Role: <span className="font-semibold text-[#7C3AED]">{role}</span> · {resolveTemplate(template).name}</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={handleCancelCreatedResume}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 hover:border-red-200 bg-white hover:bg-red-50 text-slate-700 hover:text-red-600 font-bold text-xs flex items-center gap-1.5 transition"
+                  >
+                    <X className="w-4 h-4" /> Cancel
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveCreatedResume}
+                    disabled={isSavingResume}
+                    className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition disabled:opacity-50"
+                  >
+                    {isSavingResume ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Saving…</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        <span>Save Resume</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleDownloadPdf}
+                    className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-xs shadow-md shadow-purple-500/20 flex items-center justify-center gap-2 transition"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download PDF</span>
+                  </button>
+                </div>
               </div>
 
             </div>
@@ -1964,7 +2297,7 @@ export default function ResumeBuilder() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-start gap-3">
-                          <div className={`p-2.5 rounded-xl shrink-0 ${isUploaded ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'}`}>
+                          <div className={`p-2.5 rounded-xl shrink-0 ${isUploaded ? 'bg-[#EDE9FE] text-[#7C3AED]' : 'bg-[#EDE9FE] text-[#7C3AED]'}`}>
                             <FileText className="w-5 h-5" />
                           </div>
                           <div>
@@ -1973,12 +2306,12 @@ export default function ResumeBuilder() {
                                 {resume.title || (isUploaded ? 'Uploaded Resume' : 'PlacementAI Resume')}
                               </h4>
                               {isPrimary && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-600 text-white text-[10px] font-bold shadow-xs">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#7C3AED] text-white text-[10px] font-bold shadow-xs">
                                   <Star className="w-2.5 h-2.5 fill-white" /> Primary
                                 </span>
                               )}
                               <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                isUploaded ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'
+                                isUploaded ? 'bg-[#EDE9FE] text-[#7C3AED]' : 'bg-slate-100 text-slate-600'
                               }`}>
                                 {isUploaded ? 'Uploaded file' : 'Built in Builder'}
                               </span>
@@ -2031,7 +2364,7 @@ export default function ResumeBuilder() {
                             setShowMyResumesModal(false);
                             navigate(`/ats-checker?resumeId=${resume.resumeId}`);
                           }}
-                          className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition flex items-center gap-1.5"
+                          className="px-3 py-1.5 rounded-xl bg-[#EDE9FE] hover:bg-[#DDD6FE] text-[#7C3AED] text-xs font-bold transition flex items-center gap-1.5"
                         >
                           <FileCheck className="w-3.5 h-3.5" />
                           <span>Run ATS Check</span>
@@ -2069,6 +2402,44 @@ export default function ResumeBuilder() {
                   <p className="text-xs">No resumes saved yet. Build your first resume or upload a file above!</p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Resume Creation Confirmation Modal */}
+      {showCancelConfirmModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-[#EAEBF4] animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 text-amber-600">
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 font-outfit">Discard Unsaved Changes?</h3>
+                <p className="text-xs text-slate-500">Cancel resume creation</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              If you cancel now, any unsaved information will not be saved to your <strong className="text-slate-800">My Resumes</strong> list.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowCancelConfirmModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition"
+              >
+                Keep Editing
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCancel}
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition shadow-sm"
+              >
+                Discard & Cancel
+              </button>
             </div>
           </div>
         </div>

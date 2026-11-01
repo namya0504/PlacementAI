@@ -88,7 +88,7 @@ export default function Onboarding() {
   const [customRole, setCustomRole] = useState('');
   const [linkedinText, setLinkedinText] = useState('');
   const [showLinkedInTextarea, setShowLinkedInTextarea] = useState(false);
-  const [consentAgreed, setConsentAgreed] = useState(true);
+  const [consentAgreed, setConsentAgreed] = useState(false);
 
   // Step 3: Analysis status & progress simulation
   const [analysisProgress, setAnalysisProgress] = useState(10);
@@ -387,12 +387,12 @@ export default function Onboarding() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#F8F9FE] flex flex-col font-sans">
       
       {/* Top Wizard Navigation Bar */}
-      <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-sm">
+      <header className="h-16 bg-white border-b border-[#EAEBF4] px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white font-black text-sm shadow-md">
+          <div className="w-9 h-9 rounded-xl bg-[#7C3AED] flex items-center justify-center text-white font-black text-sm shadow-md">
             P
           </div>
           <div>
@@ -413,7 +413,7 @@ export default function Onboarding() {
               <div
                 className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
                   step === st.num
-                    ? 'bg-purple-600 text-white shadow'
+                    ? 'bg-[#7C3AED] text-white shadow'
                     : step > st.num
                     ? 'bg-emerald-500 text-white'
                     : 'bg-slate-200 text-slate-500'
@@ -457,10 +457,10 @@ export default function Onboarding() {
 
         {/* STEP 1: RESUME (Upload or Manual) */}
         {step === 1 && (
-          <div className="bg-white rounded-3xl p-6 sm:p-10 border border-slate-200 shadow-sm space-y-8 animate-fadeIn">
+          <div className="bg-white rounded-3xl p-6 sm:p-10 border border-[#EAEBF4] shadow-sm space-y-8 animate-fadeIn">
             <div className="text-center space-y-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-50 text-purple-700 text-xs font-semibold border border-purple-200/60">
-                <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#EDE9FE] text-[#7C3AED] text-xs font-semibold border border-[#DDD6FE]">
+                <Sparkles className="w-3.5 h-3.5 text-[#7C3AED]" />
                 <span>Step 1: Your Baseline Resume</span>
               </div>
               <h2 className="text-2xl sm:text-3xl font-black text-slate-900 font-outfit">
@@ -561,8 +561,9 @@ export default function Onboarding() {
               <div className="space-y-6 max-w-xl mx-auto">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-700">Full Name *</label>
+                    <label htmlFor="onboarding-full-name" className="text-xs font-bold text-slate-700">Full Name *</label>
                     <input
+                      id="onboarding-full-name"
                       type="text"
                       value={manualData.fullName}
                       onChange={(e) => setManualData({ ...manualData, fullName: e.target.value })}
@@ -571,8 +572,9 @@ export default function Onboarding() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-700">College / University</label>
+                    <label htmlFor="onboarding-college" className="text-xs font-bold text-slate-700">College / University</label>
                     <input
+                      id="onboarding-college"
                       type="text"
                       value={manualData.college}
                       onChange={(e) => setManualData({ ...manualData, college: e.target.value })}
@@ -581,8 +583,9 @@ export default function Onboarding() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-700">Branch / Major</label>
+                    <label htmlFor="onboarding-branch" className="text-xs font-bold text-slate-700">Branch / Major</label>
                     <input
+                      id="onboarding-branch"
                       type="text"
                       value={manualData.branch}
                       onChange={(e) => setManualData({ ...manualData, branch: e.target.value })}
@@ -591,8 +594,9 @@ export default function Onboarding() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-700">Passing Year</label>
+                    <label htmlFor="onboarding-passing-year" className="text-xs font-bold text-slate-700">Passing Year</label>
                     <input
+                      id="onboarding-passing-year"
                       type="text"
                       value={manualData.passingYear}
                       onChange={(e) => setManualData({ ...manualData, passingYear: e.target.value })}
@@ -603,8 +607,9 @@ export default function Onboarding() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">Technical Skills (comma-separated) *</label>
+                  <label htmlFor="onboarding-skills" className="text-xs font-bold text-slate-700">Technical Skills (comma-separated) *</label>
                   <input
+                    id="onboarding-skills"
                     type="text"
                     value={manualData.skills}
                     onChange={(e) => setManualData({ ...manualData, skills: e.target.value })}
@@ -629,6 +634,7 @@ export default function Onboarding() {
                     <div key={idx} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2 relative">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <input
+                          aria-label={`Project ${idx + 1} title`}
                           type="text"
                           value={proj.title}
                           onChange={(e) => handleUpdateManualProject(idx, 'title', e.target.value)}
@@ -636,6 +642,7 @@ export default function Onboarding() {
                           className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs outline-none"
                         />
                         <input
+                          aria-label={`Project ${idx + 1} technologies`}
                           type="text"
                           value={proj.technologies}
                           onChange={(e) => handleUpdateManualProject(idx, 'technologies', e.target.value)}
@@ -644,6 +651,7 @@ export default function Onboarding() {
                         />
                       </div>
                       <input
+                        aria-label={`Project ${idx + 1} description`}
                         type="text"
                         value={proj.description}
                         onChange={(e) => handleUpdateManualProject(idx, 'description', e.target.value)}
@@ -685,7 +693,7 @@ export default function Onboarding() {
               <button
                 type="button"
                 onClick={handleContinueFromStep1}
-                className="px-6 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-md flex items-center gap-2 transition"
+                className="px-6 py-3 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-xs shadow-md flex items-center gap-2 transition"
               >
                 Continue to Profiles <ArrowRight className="w-4 h-4" />
               </button>
@@ -695,10 +703,10 @@ export default function Onboarding() {
 
         {/* STEP 2: ONLINE PROFILES & TARGET ROLE */}
         {step === 2 && (
-          <div className="bg-white rounded-3xl p-6 sm:p-10 border border-slate-200 shadow-sm space-y-8 animate-fadeIn">
+          <div className="bg-white rounded-3xl p-6 sm:p-10 border border-[#EAEBF4] shadow-sm space-y-8 animate-fadeIn">
             <div className="text-center space-y-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-semibold border border-indigo-200/60">
-                <Layers className="w-3.5 h-3.5 text-indigo-600" />
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#EDE9FE] text-[#7C3AED] text-xs font-semibold border border-[#DDD6FE]">
+                <Layers className="w-3.5 h-3.5 text-[#7C3AED]" />
                 <span>Step 2: Connect Online Profiles</span>
               </div>
               <h2 className="text-2xl sm:text-3xl font-black text-slate-900 font-outfit">
@@ -821,8 +829,8 @@ export default function Onboarding() {
                   className="mt-0.5 w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer"
                 />
                 <label htmlFor="consentCheckbox" className="text-xs text-slate-600 cursor-pointer leading-relaxed">
-                  <span className="font-semibold text-slate-900">Candidate AI Consent: </span>
-                  I agree to let PlacementAI analyze my resume and public profile information using AI to personalize my preparation roadmap.
+                  <span className="font-semibold text-slate-900">AI analysis consent: </span>
+                  I agree to send my resume and profile text to PlacementAI’s configured AI provider to generate my preparation roadmap. This is optional; I can skip onboarding instead.
                 </label>
               </div>
 
@@ -840,7 +848,7 @@ export default function Onboarding() {
               <button
                 type="button"
                 onClick={handleStartAnalysis}
-                className="px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs shadow-md flex items-center gap-2 transition"
+                className="px-6 py-3 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-xs shadow-md flex items-center gap-2 transition"
               >
                 <Sparkles className="w-4 h-4" /> Start AI Analysis
               </button>
@@ -850,7 +858,7 @@ export default function Onboarding() {
 
         {/* STEP 3: ANIMATED ANALYSIS PROGRESS */}
         {step === 3 && (
-          <div className="bg-white rounded-3xl p-8 sm:p-12 border border-slate-200 shadow-sm text-center max-w-lg mx-auto space-y-8 animate-fadeIn">
+          <div className="bg-white rounded-3xl p-8 sm:p-12 border border-[#EAEBF4] shadow-sm text-center max-w-lg mx-auto space-y-8 animate-fadeIn">
             {!analysisFailed ? (
               <>
                 <div className="w-20 h-20 rounded-3xl bg-purple-50 text-purple-600 flex items-center justify-center mx-auto shadow-inner relative">
@@ -918,7 +926,7 @@ export default function Onboarding() {
 
         {/* STEP 4: REVIEW & CONFIRMATION */}
         {step === 4 && analysisResults && (
-          <div className="bg-white rounded-3xl p-6 sm:p-10 border border-slate-200 shadow-sm space-y-8 animate-fadeIn">
+          <div className="bg-white rounded-3xl p-6 sm:p-10 border border-[#EAEBF4] shadow-sm space-y-8 animate-fadeIn">
             
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
@@ -1094,7 +1102,7 @@ export default function Onboarding() {
                 type="button"
                 onClick={handleConfirmAndComplete}
                 disabled={loading}
-                className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-black text-xs shadow-lg flex items-center justify-center gap-2 transition"
+                className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-black text-xs shadow-lg flex items-center justify-center gap-2 transition"
               >
                 {loading ? (
                   <>

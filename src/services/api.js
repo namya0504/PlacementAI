@@ -4,19 +4,27 @@ const API_BASE_URL = rawApiBase.endsWith('/api')
   ? rawApiBase
   : (rawApiBase ? `${rawApiBase}/api` : '/api');
 
-const getAuthHeaders = () => {
-  const savedUser = localStorage.getItem('placement_ai_user');
-  let token = null;
-  if (savedUser) {
-    try {
-      token = JSON.parse(savedUser).token;
-    } catch (e) {}
+let csrfToken = null;
+let csrfTokenRequest = null;
+
+const getCsrfToken = async () => {
+  if (csrfToken) return csrfToken;
+  if (!csrfTokenRequest) {
+    csrfTokenRequest = fetch(`${API_BASE_URL}/auth/csrf`, { credentials: 'include' })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Could not establish a secure session. Please try again.');
+        const result = await response.json();
+        const token = result?.data?.csrfToken;
+        if (typeof token !== 'string' || !token) throw new Error('Could not establish a secure session. Please try again.');
+        csrfToken = token;
+        return token;
+      })
+      .finally(() => { csrfTokenRequest = null; });
   }
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {})
-  };
+  return csrfTokenRequest;
 };
+
+const getAuthHeaders = () => ({});
 
 // Fast in-memory GET cache with short TTL (15s) to eliminate duplicate calls during navigation
 const getCache = new Map();
@@ -44,8 +52,9 @@ export const apiCall = async (endpoint, method = 'GET', body = null, isFormData 
   }
 
   const headers = getAuthHeaders();
-  if (isFormData) {
-    delete headers['Content-Type'];
+  if (body && !isFormData) headers['Content-Type'] = 'application/json';
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase())) {
+    headers['X-CSRF-Token'] = await getCsrfToken();
   }
 
   // Dynamic timeout: AI & heavy generation routes get 45s, normal requests get 25s
@@ -138,6 +147,9 @@ export const API = {
   getProfileResume: () => apiCall('/profile/resume', 'GET'),
   uploadProfileResume: (formData) => apiCall('/profile/upload-resume', 'POST', formData, true),
   deleteProfileResume: () => apiCall('/profile/resume', 'DELETE'),
+  getResumeVersionHistory: () => apiCall('/profile/resume/history', 'GET'),
+  saveWebResumeVersion: (payload) => apiCall('/profile/resume/save-version', 'POST', payload),
+  deleteResumeVersion: (versionId) => apiCall(`/profile/resume/version/${versionId}`, 'DELETE'),
 
   // Resume
   getResumes: () => apiCall('/resume', 'GET'),
@@ -160,20 +172,28 @@ export const API = {
   getActiveAptitudeTest: () => apiCall('/aptitude/active', 'GET'),
   abandonAptitudeTest: (payload) => apiCall('/aptitude/abandon', 'POST', payload),
   getAptitudeStats: () => apiCall('/aptitude/stats', 'GET'),
+  getAptitudeHistory: () => apiCall('/aptitude/history', 'GET'),
 
   // Technical Practice
   getTechnicalQuestions: (params = '') => apiCall(`/technical/questions${params}`, 'GET'),
   submitTechnicalMCQ: (payload) => apiCall('/technical/submit-mcq', 'POST', payload),
   submitTechnicalCode: (payload) => apiCall('/technical/submit-code', 'POST', payload),
+  getTechnicalHistory: () => apiCall('/technical/history', 'GET'),
 
   // HR Interview
   getHRQuestions: (round = 1, generate = false) => apiCall(`/hr/questions?round=${round}${generate ? '&generate=true' : ''}`, 'GET'),
   evaluateHRAnswer: (payload) => apiCall('/hr/evaluate', 'POST', payload),
+  getHRHistory: () => apiCall('/hr/history', 'GET'),
+  getHRProgress: () => apiCall('/hr/progress', 'GET'),
 
   // Company Prep
   getCompanies: () => apiCall('/company', 'GET'),
   getCompanyById: (id) => apiCall(`/company/${id}`, 'GET'),
   getCompanyPrepGuide: (companyName, refresh = false) => apiCall(`/company/prep/${encodeURIComponent(companyName)}${refresh ? '?refresh=true' : ''}`, 'GET'),
+
+  // Combined Progress
+  getCombinedProgress: (period = 'all') => apiCall(`/progress/combined?period=${period}`, 'GET'),
+  getProgressInsights: (period = 'all', refresh = false) => apiCall(`/progress/insights?period=${period}${refresh ? '&refresh=true' : ''}`, 'GET'),
 
   // Dashboard & Recommendations
   getDashboardStats: () => apiCall('/dashboard/stats', 'GET'),

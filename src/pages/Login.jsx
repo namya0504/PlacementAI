@@ -1,15 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { Mail, Lock, Sparkles, ArrowRight, AlertCircle, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import {
+  Mail,
+  Lock,
+  ArrowRight,
+  AlertCircle,
+  Eye,
+  EyeOff,
+  CheckCircle2,
+  GraduationCap,
+  Sparkles,
+  Laptop,
+  BookOpen
+} from 'lucide-react';
 import { FaGoogle } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../services/api';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import { ROUTES } from '../routes/paths';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [infoMessage, setInfoMessage] = useState('');
@@ -27,12 +41,12 @@ export default function Login() {
       : null;
 
     if (userObj?.emailVerified === false) {
-      return '/verify-email-pending';
+      return ROUTES.verifyEmail;
     }
     if (userObj?.onboarding?.status === 'in_progress' || userObj?.onboarding?.status === 'not_started') {
-      return '/onboarding';
+      return ROUTES.onboarding;
     }
-    return fromPath || '/dashboard';
+    return fromPath || ROUTES.dashboard;
   };
 
   // Check URL parameters for email verification or registration feedback
@@ -48,12 +62,10 @@ export default function Login() {
     }
   }, [searchParams]);
 
-  // If already authenticated when the page mounts (e.g. back-button after logout),
-  // redirect away once the mount-time session sync has finished.
   useEffect(() => {
     if (currentUser && !authLoading) {
       if (currentUser.emailVerified === false) {
-        navigate('/verify-email-pending', { replace: true });
+        navigate(ROUTES.verifyEmail, { replace: true });
         return;
       }
       const dest = getRedirectPath(currentUser);
@@ -85,9 +97,8 @@ export default function Login() {
       const dest = getRedirectPath(user);
       navigate(dest, { replace: true });
     } catch (err) {
-      // Use errorCode from backend to give contextual hints without exposing DB enumeration
       if (err.errorCode === 'EMAIL_NOT_FOUND') {
-        setError("No account found with this email. Check for typos or sign up for a new account.");
+        setError('No account found with this email. Check for typos or sign up for a new account.');
       } else if (err.errorCode === 'WRONG_PASSWORD') {
         setError("Incorrect password. Try again, or use 'Forgot Password' to reset it.");
       } else if (err.errorCode === 'ACCOUNT_DEACTIVATED') {
@@ -112,9 +123,6 @@ export default function Login() {
 
     try {
       setForgotLoading(true);
-
-      // Primary path: Firebase Client SDK sends the reset email directly.
-      // Firebase handles link generation, delivery, and the hosted reset page.
       const { sendFirebasePasswordReset } = await import('../services/firebase/authService');
       const firebaseResult = await sendFirebasePasswordReset(email.trim());
 
@@ -123,7 +131,6 @@ export default function Login() {
         return;
       }
 
-      // Fallback: backend (handles accounts created before Firebase Auth sync)
       const res = await API.forgotPassword(email.trim());
       setInfoMessage(res?.message || 'Password reset instructions have been dispatched.');
     } catch (err) {
@@ -149,78 +156,102 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#F8F9FE] flex flex-col font-sans">
       <Navbar />
 
       <main className="flex-1 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-        <div className="absolute top-1/4 left-10 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute bottom-1/4 right-10 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        {/* Soft Ambient Background Elements */}
+        <div className="absolute top-10 left-10 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute bottom-10 right-10 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-        <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-xl border border-slate-200/90 relative z-10 space-y-6">
-          <div className="text-center space-y-2">
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto shadow-inner">
-              <Sparkles className="w-6 h-6" />
+        {/* Decorative Side Cards matching Reference Screen */}
+        <div className="hidden xl:flex flex-col items-center gap-4 absolute left-12 top-1/2 -translate-y-1/2 pointer-events-none opacity-90">
+          <div className="w-56 p-5 rounded-3xl bg-white/80 backdrop-blur-md border border-[#EAEBF4] shadow-xl space-y-3 transform -rotate-3 hover:rotate-0 transition-transform duration-500">
+            <div className="w-10 h-10 rounded-2xl bg-purple-100 text-[#7C3AED] flex items-center justify-center">
+              <Laptop className="w-5 h-5" />
             </div>
-            <h2 className="text-2xl font-extrabold text-slate-900 font-outfit">Welcome Back!</h2>
-            <p className="text-xs text-slate-500">Login to continue your placement preparation</p>
+            <h4 className="text-sm font-bold text-slate-800">AI-Powered Placement</h4>
+            <p className="text-xs text-slate-500">Prepare for top tech companies with intelligent mock tests.</p>
+          </div>
+        </div>
+
+        <div className="hidden xl:flex flex-col items-center gap-4 absolute right-12 top-1/2 -translate-y-1/2 pointer-events-none opacity-90">
+          <div className="w-56 p-5 rounded-3xl bg-white/80 backdrop-blur-md border border-[#EAEBF4] shadow-xl space-y-3 transform rotate-3 hover:rotate-0 transition-transform duration-500">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+              <BookOpen className="w-5 h-5" />
+            </div>
+            <h4 className="text-sm font-bold text-slate-800">Placement Preparation</h4>
+            <p className="text-xs text-slate-500">Track aptitude, coding &amp; mock interview readiness live.</p>
+          </div>
+        </div>
+
+        {/* Main Login Card Matching Reference UI */}
+        <div className="max-w-md w-full bg-white rounded-3xl p-8 sm:p-10 shadow-xl border border-[#EAEBF4] relative z-10 space-y-6">
+          
+          {/* Brand Logo & Heading */}
+          <div className="text-center space-y-2">
+            <div className="inline-flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 rounded-lg bg-[#7C3AED] text-white flex items-center justify-center shadow-sm shadow-purple-500/20">
+                <GraduationCap className="w-5 h-5 text-white" />
+              </div>
+              <span className="text-xl font-extrabold tracking-tight text-slate-900 font-outfit">
+                Placement<span className="text-[#7C3AED]">AI</span>
+              </span>
+            </div>
+            <h2 className="text-2xl font-extrabold text-slate-900 font-outfit">
+              Welcome Back! <span className="text-xl">👋</span>
+            </h2>
+            <p className="text-xs text-slate-500">
+              Log in to continue your placement journey
+            </p>
           </div>
 
           {error && (
-            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2 animate-in fade-in">
+            <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
               <span>{error}</span>
             </div>
           )}
 
           {infoMessage && (
-            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 animate-in fade-in">
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
               <span>{infoMessage}</span>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            
+            {/* Email / College ID Input */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Email Address</label>
-                {email && (
-                  <span className={`text-[11px] font-medium ${isEmailValid ? 'text-emerald-600' : 'text-red-500'}`}>
-                    {isEmailValid ? '✓ Valid' : 'Invalid email'}
-                  </span>
-                )}
-              </div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Email or College ID
+              </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
-                  placeholder="e.g. candidate@domain.com"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent text-sm transition"
+                  placeholder="name@college.edu or candidate@domain.com"
                   required
                 />
               </div>
             </div>
 
+            {/* Password Input */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Password</label>
-                <button
-                  type="button"
-                  onClick={handleForgotPassword}
-                  disabled={forgotLoading}
-                  className="text-xs text-blue-600 hover:underline font-medium disabled:opacity-50"
-                >
-                  {forgotLoading ? 'Sending...' : 'Forgot Password?'}
-                </button>
-              </div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Password
+              </label>
               <div className="relative">
                 <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm"
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent text-sm transition"
                   placeholder="Enter your password"
                   required
                 />
@@ -235,32 +266,72 @@ export default function Login() {
               </div>
             </div>
 
+            {/* Remember me & Forgot Password Row */}
+            <div className="flex items-center justify-between text-xs pt-1">
+              <label className="flex items-center gap-2 cursor-pointer text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 text-[#7C3AED] border-slate-300 rounded focus:ring-[#7C3AED]"
+                />
+                <span>Remember me</span>
+              </label>
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                disabled={forgotLoading}
+                className="text-xs text-[#7C3AED] hover:text-[#6D28D9] font-semibold hover:underline disabled:opacity-50"
+              >
+                {forgotLoading ? 'Sending...' : 'Forgot password?'}
+              </button>
+            </div>
+
+            {/* Solid Purple Login Button */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-sm shadow-md shadow-blue-500/25 hover:shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full py-3 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-sm shadow-md shadow-purple-500/20 hover:shadow-lg hover:shadow-purple-500/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              {loading ? 'Logging in...' : <>Login <ArrowRight className="w-4 h-4" /></>}
+              {loading ? (
+                'Logging in...'
+              ) : (
+                <>
+                  <span>Login</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </form>
 
-          <div className="relative flex items-center justify-center my-4">
-            <div className="border-t border-slate-200 w-full"></div>
-            <span className="bg-white px-3 text-[11px] text-slate-400 font-semibold uppercase">or continue with</span>
+          {/* Social Divider */}
+          <div className="relative flex items-center justify-center my-3">
+            <div className="border-t border-slate-100 w-full"></div>
+            <span className="bg-white px-3 text-[11px] text-slate-400 font-semibold uppercase">
+              or continue with
+            </span>
           </div>
 
-          <div className="w-full">
-            <button
-              type="button"
-              onClick={() => handleSocialLogin('Google')}
-              className="w-full py-2.5 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-700 text-xs font-bold flex items-center justify-center gap-2.5 transition shadow-sm"
+          {/* Social Login Button */}
+          <button
+            type="button"
+            onClick={() => handleSocialLogin('Google')}
+            className="w-full py-2.5 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 text-xs font-bold flex items-center justify-center gap-2.5 transition shadow-xs"
+          >
+            <FaGoogle className="text-red-500 text-sm" />
+            <span>Continue with Google</span>
+          </button>
+
+          {/* Footer Register Link */}
+          <p className="text-center text-xs text-slate-500 pt-1">
+            Don't have an account?{' '}
+            <Link
+              to={ROUTES.signup}
+              state={location.state}
+              className="text-[#7C3AED] font-bold hover:underline"
             >
-              <FaGoogle className="text-red-500 text-sm" /> Continue with Google
-            </button>
-          </div>
-
-          <p className="text-center text-xs text-slate-500 pt-2">
-            Don't have an account? <Link to="/signup" state={location.state} className="text-blue-600 font-bold hover:underline">Sign up</Link>
+              Register
+            </Link>
           </p>
         </div>
       </main>

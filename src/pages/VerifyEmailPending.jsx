@@ -133,24 +133,24 @@ export default function VerifyEmailPending() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#F8F9FE] flex flex-col font-sans">
       <Navbar />
 
       <main className="flex-1 flex items-center justify-center py-16 px-4">
-        <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-xl border border-slate-200/90 space-y-6 text-center">
+        <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-xl border border-[#EAEBF4] space-y-6 text-center">
 
           {/* Icon */}
-          <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
+          <div className="w-16 h-16 rounded-2xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center mx-auto shadow-xs">
             <MailCheck className="w-8 h-8" />
           </div>
 
           {/* Heading */}
           <div className="space-y-2">
-            <h2 className="text-2xl font-extrabold text-slate-900">Check Your Inbox</h2>
+            <h2 className="text-2xl font-extrabold text-slate-900 font-outfit">Check Your Inbox</h2>
             <p className="text-sm text-slate-500">
               A verification link has been sent to
             </p>
-            <p className="text-sm font-bold text-purple-700 break-all">{email}</p>
+            <p className="text-sm font-bold text-[#7C3AED] break-all">{email}</p>
             <p className="text-xs text-slate-400 pt-1">
               Click the <strong>Verify My Email Address</strong> button in that email, then come back here and press <em>"I've verified my email"</em>.
             </p>
@@ -161,7 +161,7 @@ export default function VerifyEmailPending() {
 
           {/* Feedback message */}
           {resendMsg && (
-            <div className={`p-3.5 rounded-xl text-xs flex items-start gap-2 text-left ${
+            <div className={`p-3.5 rounded-2xl text-xs flex items-start gap-2 text-left ${
               resendStatus === 'sent'
                 ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
                 : 'bg-red-50 border border-red-200 text-red-700'
@@ -178,7 +178,7 @@ export default function VerifyEmailPending() {
             <button
               onClick={handleCheckVerification}
               disabled={checkingVerification}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-sm shadow-md shadow-purple-500/25 hover:shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full py-3 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-sm shadow-md shadow-purple-500/25 hover:shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {checkingVerification
                 ? <><RefreshCw className="w-4 h-4 animate-spin" /> Checking...</>
@@ -188,10 +188,10 @@ export default function VerifyEmailPending() {
             <button
               onClick={handleResend}
               disabled={resendStatus === 'sending' || resendCooldown > 0}
-              className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold text-sm hover:bg-slate-50 transition flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full py-2.5 rounded-xl border border-[#EAEBF4] text-slate-700 font-semibold text-sm hover:bg-purple-50 hover:text-[#7C3AED] transition flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {resendStatus === 'sending'
-                ? <><RefreshCw className="w-4 h-4 animate-spin" /> Sending...</>
+                ? <><RefreshCw className="w-4 h-4 animate-spin text-[#7C3AED]" /> Sending...</>
                 : resendCooldown > 0
                 ? <><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Resend in {resendCooldown}s</>
                 : <>Resend verification email</>}
@@ -200,7 +200,7 @@ export default function VerifyEmailPending() {
 
           <p className="text-xs text-slate-400">
             Wrong account?{' '}
-            <button onClick={handleLogout} className="text-purple-600 font-semibold hover:underline">
+            <button onClick={handleLogout} className="text-[#7C3AED] font-semibold hover:underline">
               Sign out and start over
             </button>
           </p>

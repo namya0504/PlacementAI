@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Send, CheckCircle2, Code2, Menu, Clock, Terminal, Sparkles, RefreshCw, XCircle, AlertCircle } from 'lucide-react';
+import { Play, Send, CheckCircle2, Code2, Menu, Clock, Terminal, Sparkles, RefreshCw, XCircle, AlertCircle, History, X, ChevronRight, ChevronDown, ChevronLeft } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { API } from '../services/api';
+
+const HIST_PAGE_SIZE = 10;
 
 const DEFAULT_STARTERS = {
   Python: 'def solution(args):\n    # Write your Python solution here\n    pass',
@@ -20,6 +22,13 @@ export default function Technical() {
   const [questionData, setQuestionData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState({ technicalScore: 0 });
+
+  // History panel
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyData, setHistoryData] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [expandedHistoryId, setExpandedHistoryId] = useState(null);
+  const [historyPage, setHistoryPage] = useState(1);
 
   const fetchStats = async () => {
     try {
@@ -74,6 +83,24 @@ export default function Technical() {
     } else {
       loadQuestion(newLang, false);
     }
+  };
+
+  const loadHistory = async () => {
+    setHistoryLoading(true);
+    setHistoryPage(1);
+    try {
+      const data = await API.getTechnicalHistory();
+      setHistoryData(data);
+    } catch (e) {
+      console.warn('Technical history load error:', e.message);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleOpenHistory = () => {
+    setShowHistory(true);
+    loadHistory();
   };
 
   useEffect(() => {
@@ -138,12 +165,12 @@ export default function Technical() {
     selectedLang === 'SQL' ? 'sql' : 'js';
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-[#F8F9FE] flex">
       <Sidebar mobileOpen={mobileSidebarOpen} setMobileOpen={setMobileSidebarOpen} />
 
       <main className="flex-1 lg:pl-64 flex flex-col min-w-0">
         
-        <header className="h-20 bg-white border-b border-slate-200 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30">
+        <header className="h-20 bg-white border-b border-[#EAEBF4] px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-4">
             <button onClick={() => setMobileSidebarOpen(true)} className="lg:hidden p-2 text-slate-600 rounded-lg hover:bg-slate-100">
               <Menu className="w-6 h-6" />
@@ -154,13 +181,20 @@ export default function Technical() {
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <button
+              onClick={handleOpenHistory}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 font-bold text-xs transition"
+            >
+              <History className="w-4 h-4" />
+              <span className="hidden sm:inline">History</span>
+            </button>
             {['Python', 'Java', 'C++', 'SQL', 'JavaScript'].map(l => (
               <button
                 key={l}
                 onClick={() => handleLanguageChange(l)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                  selectedLang === l ? 'bg-purple-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  selectedLang === l ? 'bg-[#7C3AED] text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
                 {l}
@@ -172,14 +206,14 @@ export default function Technical() {
         <div className="p-4 sm:p-8 space-y-8 max-w-7xl mx-auto w-full">
           
           {/* Stages Overview Navigation */}
-          <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
+          <div className="bg-white rounded-3xl p-4 sm:p-6 border border-[#EAEBF4] shadow-sm flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+              <div className="w-10 h-10 rounded-xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center font-bold">
                 <Code2 className="w-5 h-5" />
               </div>
               <div>
                 <h3 className="font-bold text-slate-900 font-outfit text-base">{selectedLang} Track</h3>
-                <p className="text-xs text-purple-700 font-medium">{stageName}</p>
+                <p className="text-xs text-[#7C3AED] font-medium">{stageName}</p>
               </div>
             </div>
 
@@ -187,9 +221,9 @@ export default function Technical() {
               <button
                 onClick={() => loadQuestion(selectedLang, true)}
                 disabled={loading}
-                className="px-4 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs flex items-center gap-1.5 transition border border-purple-200"
+                className="px-4 py-2 rounded-xl bg-[#EDE9FE] hover:bg-[#DDD6FE] text-[#7C3AED] font-bold text-xs flex items-center gap-1.5 transition border border-[#DDD6FE]"
               >
-                <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                <Sparkles className="w-3.5 h-3.5 text-[#7C3AED]" />
                 <span>{loading ? 'Generating...' : 'New AI Challenge'}</span>
               </button>
             </div>
@@ -199,10 +233,10 @@ export default function Technical() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             
             {/* Left Pane: Problem Description & Test Cases */}
-            <div className="lg:col-span-5 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-6 flex flex-col justify-between">
+            <div className="lg:col-span-5 bg-white rounded-3xl p-6 border border-[#EAEBF4] shadow-sm space-y-6 flex flex-col justify-between">
               {loading ? (
                 <div className="py-20 text-center space-y-3">
-                  <RefreshCw className="w-8 h-8 text-purple-600 animate-spin mx-auto" />
+                  <RefreshCw className="w-8 h-8 text-[#7C3AED] animate-spin mx-auto" />
                   <div className="text-sm font-bold text-slate-700">Generating Coding Challenge...</div>
                   <div className="text-xs text-slate-400">Preparing test cases and system constraints</div>
                 </div>
@@ -239,7 +273,7 @@ export default function Technical() {
                   <p className="text-sm font-medium">No challenges loaded yet.</p>
                   <button
                     onClick={() => loadQuestion(selectedLang, true)}
-                    className="px-4 py-2 rounded-xl bg-purple-600 text-white font-bold text-xs"
+                    className="px-4 py-2 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-xs"
                   >
                     Generate AI Challenge
                   </button>
@@ -347,7 +381,7 @@ export default function Technical() {
                 <button
                   onClick={handleRunCode}
                   disabled={isRunning}
-                  className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-mono font-bold text-xs flex items-center gap-2 shadow-lg shadow-purple-600/30 transition disabled:opacity-50"
+                  className="px-6 py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-mono font-bold text-xs flex items-center gap-2 shadow-lg shadow-purple-600/30 transition disabled:opacity-50"
                 >
                   <Send className="w-4 h-4" /> {isRunning ? 'Evaluating...' : 'Submit Code'}
                 </button>
@@ -359,6 +393,112 @@ export default function Technical() {
 
         </div>
       </main>
+
+      {/* ── Technical History Panel ──────────────────────────── */}
+      {showHistory && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setShowHistory(false)} />
+          <div className="relative ml-auto w-full max-w-2xl bg-white shadow-2xl flex flex-col h-full overflow-hidden">
+            <div className="h-16 border-b border-[#EAEBF4] px-6 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <History className="w-5 h-5 text-[#7C3AED]" />
+                <h2 className="font-bold text-slate-900 font-outfit text-base">Technical Practice History</h2>
+              </div>
+              <button onClick={() => setShowHistory(false)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {historyLoading ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
+                  <RefreshCw className="w-8 h-8 animate-spin text-[#7C3AED]" />
+                  <p className="text-sm font-medium">Loading history…</p>
+                </div>
+              ) : !historyData || historyData.submissions?.length === 0 ? (
+                <div className="text-center py-20 space-y-2">
+                  <History className="w-10 h-10 text-slate-300 mx-auto" />
+                  <p className="text-sm font-semibold text-slate-500">No submissions yet</p>
+                  <p className="text-xs text-slate-400">Submit code or MCQ answers to see your history here.</p>
+                </div>
+              ) : (
+                <>
+                  {/* Per-language stats */}
+                  {historyData.langStats?.length > 0 && (
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">By Language</h4>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {historyData.langStats.map(ls => (
+                          <div key={ls.language} className="p-3 rounded-xl border border-slate-200 bg-slate-50 text-center">
+                            <div className="text-sm font-black text-slate-800 font-outfit">{ls.language}</div>
+                            <div className="text-[11px] text-slate-500 mt-0.5">{ls.total} submitted · {ls.passed} passed</div>
+                            <div className={`text-xs font-bold mt-1 ${ls.avgScore >= 60 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                              Avg {ls.avgScore}%
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Timeline */}
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Submission Timeline</h4>
+                    {historyData.submissions.map(s => {
+                      const isExpanded = expandedHistoryId === s.submissionId;
+                      return (
+                        <div key={s.submissionId} className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                          <button
+                            onClick={() => setExpandedHistoryId(isExpanded ? null : s.submissionId)}
+                            className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50 transition"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-black ${
+                                s.status === 'Passed' || s.isCorrect
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : s.status === 'Partial'
+                                  ? 'bg-amber-100 text-amber-700'
+                                  : 'bg-rose-100 text-rose-700'
+                              }`}>
+                                {s.score}%
+                              </div>
+                              <div className="text-left min-w-0">
+                                <div className="text-xs font-bold text-slate-800 truncate">{s.questionTitle}</div>
+                                <div className="text-[11px] text-slate-500">
+                                  {s.language ? `${s.language} · ` : ''}{s.type === 'code' ? 'Code' : 'MCQ'} · {new Date(s.completedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                s.status === 'Passed' || s.isCorrect
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : s.status === 'Partial'
+                                  ? 'bg-amber-100 text-amber-700'
+                                  : 'bg-rose-100 text-rose-700'
+                              }`}>
+                                {s.status || (s.isCorrect ? 'Passed' : 'Failed')}
+                              </span>
+                              <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                            </div>
+                          </button>
+
+                          {isExpanded && s.type === 'code' && s.passCount !== null && (
+                            <div className="px-4 pb-3 pt-2 border-t border-slate-100 text-xs text-slate-600 bg-slate-50">
+                              {s.passCount}/{s.totalTests} test cases passed
+                              {s.difficulty && <span className="ml-2 text-slate-400">· {s.difficulty}</span>}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

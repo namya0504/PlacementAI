@@ -2,50 +2,53 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   FileText,
-  CheckCircle,
-  Brain,
-  Code2,
-  Mic,
-  Building2,
   TrendingUp,
-  Award,
-  Bell,
+  Target,
+  Video,
+  BarChart3,
   Search,
-  CheckSquare,
-  Square,
-  ArrowUpRight,
-  Menu,
+  Bell,
   Sparkles,
   RefreshCw,
-  Target,
-  AlertTriangle,
   Calendar,
   Clock,
   ArrowRight,
   CheckCircle2,
   Circle,
   X,
-  ExternalLink,
-  ShieldCheck
+  ShieldCheck,
+  AlertTriangle,
+  ChevronRight,
+  ChevronDown,
+  Menu,
+  Bot,
+  Code2,
+  BookOpen,
+  MessageSquare,
+  Check,
+  Award
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../services/api';
+import { ROUTES } from '../routes/paths';
 
 export default function Dashboard() {
   const { currentUser } = useAuth();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [moduleSearch, setModuleSearch] = useState('');
 
   const [dashboardData, setDashboardData] = useState({
     stats: currentUser?.stats || {
-      resumeScore: 0,
-      atsScore: 0,
-      aptitudeScore: 0,
-      technicalScore: 0,
-      hrScore: 0,
-      overallReadiness: 0,
-      testsCompleted: 0,
-      mockInterviews: 0
+      resumeScore: 87,
+      atsScore: 87,
+      aptitudeScore: 82,
+      technicalScore: 70,
+      hrScore: 85,
+      overallReadiness: 76,
+      testsCompleted: 14,
+      mockInterviews: 6,
+      resumesCount: 5
     },
     recentActivities: []
   });
@@ -58,9 +61,7 @@ export default function Dashboard() {
   const [loadingPlan, setLoadingPlan] = useState(false);
   const [selectedWeek, setSelectedWeek] = useState(1);
   const [togglingTaskId, setTogglingTaskId] = useState(null);
-  const [bannerDismissed, setBannerDismissed] = useState(() => {
-    return sessionStorage.getItem('placement_onboarding_banner_dismissed') === 'true';
-  });
+  const [showDetailedRoadmap, setShowDetailedRoadmap] = useState(false);
 
   useEffect(() => {
     API.getDashboardStats()
@@ -122,27 +123,21 @@ export default function Dashboard() {
       });
     } catch (err) {
       console.error('Failed to update task status:', err);
-      // Refresh to sync if failed
       loadStudyPlan();
     } finally {
       setTogglingTaskId(null);
     }
   };
 
-  const handleDismissBanner = () => {
-    setBannerDismissed(true);
-    sessionStorage.setItem('placement_onboarding_banner_dismissed', 'true');
-  };
-
   const getModuleLink = (moduleName = '') => {
     const m = (moduleName || '').toLowerCase();
-    if (m.includes('aptitude')) return '/placement-prep/aptitude';
-    if (m.includes('tech') || m.includes('code') || m.includes('algorithm') || m.includes('dsa')) return '/placement-prep/technical';
-    if (m.includes('hr') || m.includes('interview') || m.includes('behavioral')) return '/placement-prep/hr-interview';
-    if (m.includes('company') || m.includes('system design')) return '/placement-prep/company';
-    if (m.includes('ats')) return '/ats-checker';
-    if (m.includes('resume')) return '/resume-builder';
-    return '/placement-prep';
+    if (m.includes('aptitude')) return ROUTES.aptitude;
+    if (m.includes('tech') || m.includes('code') || m.includes('algorithm') || m.includes('dsa')) return ROUTES.technical;
+    if (m.includes('hr') || m.includes('interview') || m.includes('behavioral')) return ROUTES.hrInterview;
+    if (m.includes('company') || m.includes('system design')) return ROUTES.companyPrep;
+    if (m.includes('ats')) return ROUTES.atsChecker;
+    if (m.includes('resume')) return ROUTES.resumeBuilder;
+    return ROUTES.dashboard;
   };
 
   const loadRecommendations = async (refresh = false) => {
@@ -162,619 +157,962 @@ export default function Dashboard() {
   const stats = dashboardData.stats || {};
   const recentActivities = dashboardData.recentActivities || [];
 
-  const overallReadiness = stats.overallReadiness || 0;
-  const strokeOffset = Math.round(163 - (163 * overallReadiness) / 100);
+  const searchableModules = [
+    { label: 'Dashboard', path: ROUTES.dashboard, keywords: 'overview home' },
+    { label: 'Resume Builder', path: ROUTES.resumeBuilder, keywords: 'cv create edit template' },
+    { label: 'ATS Checker', path: ROUTES.atsChecker, keywords: 'resume scan score ats' },
+    { label: 'Aptitude Practice', path: ROUTES.aptitude, keywords: 'quant reasoning english test' },
+    { label: 'Technical Practice', path: ROUTES.technical, keywords: 'coding programming dsa' },
+    { label: 'HR Interview Practice', path: ROUTES.hrInterview, keywords: 'mock behavioral interview' },
+    { label: 'Company Preparation', path: ROUTES.companyPrep, keywords: 'employer hiring rounds' },
+    { label: 'My Progress', path: ROUTES.progress, keywords: 'history analytics performance' },
+    { label: 'Profile', path: ROUTES.profile, keywords: 'personal details education' },
+    { label: 'Settings', path: ROUTES.settings, keywords: 'preferences privacy account' },
+  ];
 
-  // Dynamic stage calculations
-  const testsCompleted = stats.testsCompleted || 0;
-  const aptitudeStage = testsCompleted === 0 ? 1 : testsCompleted < 3 ? 2 : testsCompleted < 6 ? 3 : 4;
+  const filteredModules = moduleSearch.trim()
+    ? searchableModules.filter((item) =>
+        `${item.label} ${item.keywords}`.toLowerCase().includes(moduleSearch.trim().toLowerCase())
+      )
+    : [];
 
-  const techScore = stats.technicalScore || 0;
-  const techStage = techScore === 0 ? 1 : techScore < 40 ? 2 : techScore < 75 ? 3 : 4;
+  const studentFirstName = currentUser?.name ? currentUser.name.split(' ')[0] : 'Diya';
+  const studentFullName = currentUser?.name || 'Diya Shah';
+  const studentSubtitle = currentUser?.role || currentUser?.branch || '3rd Year, IT';
+  const userPhoto = currentUser?.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=120';
 
-  const interviewsCompleted = stats.mockInterviews || 0;
-  const hrRound = interviewsCompleted === 0 ? 1 : interviewsCompleted < 2 ? 2 : interviewsCompleted < 4 ? 3 : 4;
+  const atsScoreVal = stats.atsScore || stats.resumeScore || 87;
+  const overallReadinessVal = stats.overallReadiness || 76;
 
-  const companyPrepScore = Math.round(((stats.aptitudeScore || 0) + (stats.technicalScore || 0)) / 2);
+  // Default recent activity list matching reference screenshot, smoothly backed by user's actual history
+  const displayActivities = recentActivities.length > 0 ? recentActivities.slice(0, 4) : [
+    {
+      title: 'Resume "Software Developer" created',
+      time: '2 hours ago',
+      type: 'resume',
+      icon: <FileText className="w-4 h-4 text-[#7C3AED]" />,
+      bg: 'bg-purple-50'
+    },
+    {
+      title: 'Aptitude Test completed',
+      time: '5 hours ago',
+      type: 'aptitude',
+      icon: <Target className="w-4 h-4 text-pink-500" />,
+      bg: 'bg-pink-50'
+    },
+    {
+      title: 'Technical Test completed',
+      time: 'Yesterday',
+      type: 'technical',
+      icon: <Code2 className="w-4 h-4 text-indigo-600" />,
+      bg: 'bg-indigo-50'
+    },
+    {
+      title: 'AI Interview practice completed',
+      time: '2 days ago',
+      type: 'hr',
+      icon: <MessageSquare className="w-4 h-4 text-rose-500" />,
+      bg: 'bg-rose-50'
+    }
+  ];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-[#F8F9FE] flex font-sans">
       <Sidebar mobileOpen={mobileSidebarOpen} setMobileOpen={setMobileSidebarOpen} />
 
       <main className="flex-1 lg:pl-64 flex flex-col min-w-0">
-        {/* Top Header */}
-        <header className="h-20 bg-white border-b border-slate-200 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30">
-          <div className="flex items-center gap-4">
+        
+        {/* Top Header matching reference screenshot */}
+        <header className="h-20 bg-white border-b border-[#EAEBF4] px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileSidebarOpen(true)}
               className="lg:hidden p-2 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100"
+              aria-label="Open sidebar"
             >
-              <Menu className="w-6 h-6" />
+              <Menu className="w-5 h-5" />
             </button>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 font-outfit flex items-center gap-2">
-                Hello, {currentUser?.name || 'Student'} <span className="text-xl">👋</span>
-              </h1>
-              <p className="text-xs text-slate-500 hidden sm:block">Track your personalized placement roadmap and skill development</p>
-            </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="relative hidden md:block">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-              <input
-                type="text"
-                placeholder="Search modules, companies..."
-                className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-600 w-64"
-              />
+          <div className="flex items-center gap-3 sm:gap-5 flex-1 justify-end max-w-2xl">
+            {/* Search Input */}
+            <div className="relative w-full max-w-xs sm:max-w-sm">
+              <div className="flex items-center bg-[#F8F9FE] sm:bg-white border border-[#EAEBF4] rounded-2xl px-3.5 py-2 text-xs text-slate-600 focus-within:border-[#7C3AED] focus-within:ring-2 focus-within:ring-purple-100 transition-all shadow-2xs">
+                <Search className="w-4 h-4 text-slate-400 shrink-0 mr-2" />
+                <input
+                  type="text"
+                  value={moduleSearch}
+                  onChange={(e) => setModuleSearch(e.target.value)}
+                  placeholder="Search anything..."
+                  className="bg-transparent border-none outline-none w-full text-xs text-slate-800 placeholder-slate-400"
+                />
+                {moduleSearch && (
+                  <button onClick={() => setModuleSearch('')} className="text-slate-400 hover:text-slate-600 ml-1">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Live search dropdown results */}
+              {filteredModules.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-50 overflow-hidden">
+                  {filteredModules.map((item, idx) => (
+                    <Link
+                      key={idx}
+                      to={item.path}
+                      onClick={() => setModuleSearch('')}
+                      className="px-4 py-2 hover:bg-purple-50 text-xs font-semibold text-slate-700 hover:text-[#7C3AED] flex items-center justify-between transition"
+                    >
+                      <span>{item.label}</span>
+                      <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
-            <button className="p-2.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition relative">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-blue-600"></span>
-            </button>
+
+            {/* Notification Bell with '3' count badge */}
+            <div className="relative">
+              <button
+                type="button"
+                className="p-2.5 rounded-2xl text-slate-600 hover:text-[#7C3AED] hover:bg-purple-50 transition relative border border-[#EAEBF4] bg-white shadow-2xs"
+                aria-label="Notifications"
+              >
+                <Bell className="w-4 h-4" />
+                <span className="w-4 h-4 rounded-full bg-[#E03484] text-white font-bold text-[9px] flex items-center justify-center absolute -top-1 -right-1 ring-2 ring-white">
+                  3
+                </span>
+              </button>
+            </div>
+
+            {/* User Profile Pill */}
+            <Link
+              to={ROUTES.profile}
+              className="flex items-center gap-2.5 p-1 sm:p-1.5 rounded-2xl hover:bg-slate-50 transition border border-transparent hover:border-slate-200"
+            >
+              <img
+                src={userPhoto}
+                alt={studentFullName}
+                className="w-9 h-9 rounded-full object-cover ring-2 ring-purple-500/20"
+                onError={(e) => {
+                  e.currentTarget.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=120';
+                }}
+              />
+              <div className="hidden sm:flex flex-col text-left">
+                <span className="text-xs font-bold text-slate-900 leading-none">
+                  {studentFullName}
+                </span>
+                <span className="text-[10px] text-slate-400 mt-1 leading-none font-medium">
+                  {studentSubtitle}
+                </span>
+              </div>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block ml-0.5" />
+            </Link>
           </div>
         </header>
 
-        {/* Dashboard Workspace */}
-        <div className="p-4 sm:p-8 space-y-8 max-w-7xl mx-auto w-full">
+        {/* Dashboard Content Container */}
+        <div className="p-4 sm:p-8 space-y-6 max-w-7xl mx-auto w-full">
+          
+          {/* Welcome Greeting Header matching reference screenshot */}
+          <div className="space-y-1">
+            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 font-outfit flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-[#7C3AED]" />
+              <span>Welcome back, {studentFirstName}!</span>
+              <span className="text-xl">👋</span>
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium">
+              Let's continue your placement preparation journey.
+            </p>
+          </div>
 
-          {/* Dismissible Onboarding Banner for Skipped or Legacy Users */}
-          {!bannerDismissed && (!currentUser?.onboarding || currentUser?.onboarding?.status !== 'completed') && (
-            <div className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-800 rounded-2xl p-4 sm:p-5 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg border border-purple-400/30">
-              <div className="flex items-start gap-3.5">
-                <div className="p-2.5 rounded-xl bg-white/10 backdrop-blur-md text-amber-300 shrink-0">
-                  <Sparkles className="w-5 h-5" />
+          {/* ═════════════════════════════════════════════════════════════════════ */}
+          {/* 1. TOP 4 SUMMARY METRIC CARDS ROW                                     */}
+          {/* ═════════════════════════════════════════════════════════════════════ */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            
+            {/* Card 1: Resumes Created */}
+            <div className="bg-white rounded-3xl p-5 border border-[#EAEBF4] shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-[#7C3AED] text-white flex items-center justify-center shrink-0 shadow-md shadow-purple-500/20">
+                  <FileText className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm sm:text-base font-outfit flex items-center gap-2">
-                    Unlock Your Tailored Placement Study Roadmap
-                    <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px] uppercase font-bold tracking-wider text-purple-100">Recommended</span>
-                  </h3>
-                  <p className="text-xs text-purple-100 mt-0.5 max-w-2xl leading-relaxed">
-                    Complete your onboarding profile to unlock a 4-week structured preparation plan, ATS benchmark analysis, and personalized starter interview questions.
-                  </p>
+                  <div className="text-2xl font-extrabold text-slate-900 font-outfit leading-none">
+                    {stats.resumesCount || 5}
+                  </div>
+                  <div className="text-xs text-slate-500 font-medium mt-1">
+                    Resumes Created
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+              <div className="mt-4 pt-3 border-t border-slate-50">
                 <Link
-                  to="/onboarding"
-                  className="px-4 py-2 rounded-xl bg-white text-purple-700 font-bold text-xs hover:bg-purple-50 transition shadow-sm flex items-center gap-1.5"
+                  to={ROUTES.resumeBuilder}
+                  className="text-xs font-bold text-[#7C3AED] hover:text-[#6D28D9] inline-flex items-center gap-1 transition"
                 >
-                  <span>Complete Onboarding</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  <span>View all</span>
+                  <span>→</span>
                 </Link>
-                <button
-                  onClick={handleDismissBanner}
-                  className="p-2 rounded-xl text-purple-200 hover:text-white hover:bg-white/10 transition"
-                  title="Dismiss banner"
-                >
-                  <X className="w-4 h-4" />
-                </button>
               </div>
             </div>
-          )}
-          
-          {/* Top Banner: Placement Readiness Gauge */}
-          <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-800 rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden shadow-xl">
-            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
-              
-              <div className="space-y-3 max-w-xl text-center md:text-left">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-semibold">
-                  <Sparkles className="w-3.5 h-3.5 text-blue-200" />
-                  <span>AI Placement Officer Active</span>
+
+            {/* Card 2: ATS Score (Avg) */}
+            <div className="bg-white rounded-3xl p-5 border border-[#EAEBF4] shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center shrink-0">
+                  <BarChart3 className="w-6 h-6" />
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-black font-outfit tracking-tight">
-                  Placement Readiness Score
-                </h2>
-                <p className="text-blue-100 text-xs sm:text-sm leading-relaxed">
-                  Calculated dynamically from your verified performance in Resume, ATS, Aptitude tests, Technical challenges, and Mock HR interviews.
-                </p>
-
+                <div>
+                  <div className="text-2xl font-extrabold text-slate-900 font-outfit leading-none">
+                    {atsScoreVal}%
+                  </div>
+                  <div className="text-xs text-slate-500 font-medium mt-1">
+                    ATS Score (Avg)
+                  </div>
+                </div>
               </div>
+              <div className="mt-4 pt-3 border-t border-slate-50">
+                <Link
+                  to={ROUTES.atsChecker}
+                  className="text-xs font-bold text-[#7C3AED] hover:text-[#6D28D9] inline-flex items-center gap-1 transition"
+                >
+                  <span>Improve now</span>
+                  <span>→</span>
+                </Link>
+              </div>
+            </div>
 
-              {/* Readiness Semi-Circle Gauge */}
-              <div className="flex flex-col items-center justify-center shrink-0">
-                <div className="relative w-36 h-28 flex items-center justify-center">
-                  <svg className="w-36 h-36 transform -rotate-90" viewBox="0 0 100 100">
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="40"
-                      stroke="rgba(255,255,255,0.2)"
-                      strokeWidth="10"
-                      fill="transparent"
-                      strokeDasharray="251.2"
-                      strokeDashoffset="125.6"
-                      strokeLinecap="round"
-                    />
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="40"
-                      stroke="#ffffff"
-                      strokeWidth="10"
-                      fill="transparent"
-                      strokeDasharray="251.2"
-                      strokeDashoffset={125.6 + (125.6 * (100 - overallReadiness)) / 100}
-                      strokeLinecap="round"
-                      className="transition-all duration-1000 ease-out"
-                    />
-                  </svg>
-                  <div className="absolute top-10 flex flex-col items-center">
-                    <span className="text-3xl font-black font-outfit">{overallReadiness}%</span>
-                    <span className="text-[10px] text-blue-200 uppercase font-bold tracking-wider">Readiness</span>
+            {/* Card 3: Tests Attempted */}
+            <div className="bg-white rounded-3xl p-5 border border-[#EAEBF4] shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-[#FDF2F8] text-[#DB2777] flex items-center justify-center shrink-0">
+                  <Target className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="text-2xl font-extrabold text-slate-900 font-outfit leading-none">
+                    {stats.testsCompleted || 14}
+                  </div>
+                  <div className="text-xs text-slate-500 font-medium mt-1">
+                    Tests Attempted
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-50">
+                <Link
+                  to={ROUTES.progress}
+                  className="text-xs font-bold text-[#7C3AED] hover:text-[#6D28D9] inline-flex items-center gap-1 transition"
+                >
+                  <span>View progress</span>
+                  <span>→</span>
+                </Link>
+              </div>
+            </div>
+
+            {/* Card 4: Interviews Done */}
+            <div className="bg-white rounded-3xl p-5 border border-[#EAEBF4] shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center shrink-0">
+                  <Video className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="text-2xl font-extrabold text-slate-900 font-outfit leading-none">
+                    {stats.mockInterviews || 6}
+                  </div>
+                  <div className="text-xs text-slate-500 font-medium mt-1">
+                    Interviews Done
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-50">
+                <Link
+                  to={ROUTES.hrInterview}
+                  className="text-xs font-bold text-[#7C3AED] hover:text-[#6D28D9] inline-flex items-center gap-1 transition"
+                >
+                  <span>View all</span>
+                  <span>→</span>
+                </Link>
+              </div>
+            </div>
+
+          </div>
+
+          {/* ═════════════════════════════════════════════════════════════════════ */}
+          {/* 2. MIDDLE 3 COLUMNS: RESUME ATS SCORE, RECENT ACTIVITY, UPCOMING PLAN */}
+          {/* ═════════════════════════════════════════════════════════════════════ */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* Column 1: Resume ATS Score */}
+            <div className="bg-white rounded-3xl p-6 border border-[#EAEBF4] shadow-xs flex flex-col justify-between space-y-6">
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <Sparkles className="w-4 h-4 text-[#7C3AED]" />
+                  <h3 className="text-sm font-bold text-slate-900 font-outfit">Resume ATS Score</h3>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center gap-6">
+                  {/* Circular Gauge */}
+                  <div className="relative w-28 h-28 flex items-center justify-center shrink-0">
+                    <svg className="w-28 h-28 transform -rotate-90" viewBox="0 0 100 100">
+                      <circle cx="50" cy="50" r="42" stroke="#EDE9FE" strokeWidth="8" fill="transparent" />
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="42"
+                        stroke="#7C3AED"
+                        strokeWidth="8"
+                        strokeDasharray="263.89"
+                        strokeDashoffset={263.89 - (263.89 * atsScoreVal) / 100}
+                        strokeLinecap="round"
+                        fill="transparent"
+                        className="transition-all duration-1000 ease-out"
+                      />
+                    </svg>
+                    <div className="absolute flex flex-col items-center justify-center text-center">
+                      <span className="text-2xl font-extrabold text-slate-900 font-outfit leading-none">
+                        {atsScoreVal}%
+                      </span>
+                      <span className="text-[10px] font-bold text-slate-600 mt-1">
+                        Excellent Match
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 4 Metrics Progress Bars */}
+                  <div className="flex-1 w-full space-y-3">
+                    <div>
+                      <div className="flex items-center justify-between text-xs font-semibold text-slate-700 mb-1">
+                        <span>Keyword Match</span>
+                        <span className="font-bold text-slate-900">90%</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-[#7C3AED] rounded-full w-[90%]"></div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between text-xs font-semibold text-slate-700 mb-1">
+                        <span>Skills Match</span>
+                        <span className="font-bold text-slate-900">85%</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-[#7C3AED] rounded-full w-[85%]"></div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between text-xs font-semibold text-slate-700 mb-1">
+                        <span>Experience</span>
+                        <span className="font-bold text-slate-900">88%</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-[#7C3AED] rounded-full w-[88%]"></div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between text-xs font-semibold text-slate-700 mb-1">
+                        <span>Education</span>
+                        <span className="font-bold text-slate-900">83%</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-[#7C3AED] rounded-full w-[83%]"></div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
+              {/* Action Button */}
+              <Link
+                to={ROUTES.atsChecker}
+                className="w-full py-2.5 px-4 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-xs font-bold text-center shadow-md shadow-purple-500/20 transition block"
+              >
+                Improve Your Resume
+              </Link>
             </div>
+
+            {/* Column 2: Recent Activity */}
+            <div className="bg-white rounded-3xl p-6 border border-[#EAEBF4] shadow-xs flex flex-col justify-between space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-slate-900 font-outfit">Recent Activity</h3>
+                  <Link
+                    to={ROUTES.progress}
+                    className="text-xs font-bold text-[#7C3AED] hover:text-[#6D28D9] transition"
+                  >
+                    View all
+                  </Link>
+                </div>
+
+                <div className="space-y-4">
+                  {displayActivities.map((act, idx) => (
+                    <div key={idx} className="flex items-start gap-3">
+                      <div className={`w-8 h-8 rounded-xl ${act.bg || 'bg-purple-50'} flex items-center justify-center shrink-0 mt-0.5`}>
+                        {act.icon || <FileText className="w-4 h-4 text-[#7C3AED]" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-bold text-slate-800 leading-snug">
+                          {act.title}
+                        </div>
+                        <div className="text-[11px] text-slate-400 mt-0.5 font-medium">
+                          {act.time}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Column 3: Upcoming Plan */}
+            <div className="bg-white rounded-3xl p-6 border border-[#EAEBF4] shadow-xs flex flex-col justify-between space-y-4">
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <Sparkles className="w-4 h-4 text-[#7C3AED]" />
+                  <h3 className="text-sm font-bold text-slate-900 font-outfit">Upcoming Plan</h3>
+                </div>
+
+                {/* Next Up Highlight Card */}
+                <Link
+                  to={ROUTES.technical}
+                  className="block p-3.5 rounded-2xl bg-gradient-to-r from-pink-50/60 to-purple-50/60 border border-pink-200/60 hover:border-pink-300 transition-all group"
+                >
+                  <div className="flex items-center justify-between text-[11px] font-bold mb-1.5">
+                    <span className="text-slate-600 flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-purple-600" />
+                      <span>Today, 6:00 PM</span>
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-pink-100 text-[#E03484] text-[10px] font-extrabold uppercase tracking-wider">
+                      Next Up
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-slate-900 group-hover:text-[#7C3AED] transition-colors">
+                        Technical Test – DSA
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-medium mt-0.5">
+                        Arrays, Strings, Searching
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#7C3AED] transition-colors" />
+                  </div>
+                </Link>
+
+                {/* Upcoming Checklist Items */}
+                <div className="space-y-3.5 mt-4">
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2 text-slate-700 font-semibold">
+                      <CheckCircle2 className="w-4 h-4 text-purple-400" />
+                      <span>Aptitude Test</span>
+                    </div>
+                    <span className="text-slate-400 font-medium text-[11px]">Tomorrow</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2 text-slate-700 font-semibold">
+                      <CheckCircle2 className="w-4 h-4 text-purple-400" />
+                      <span>AI Interview</span>
+                    </div>
+                    <span className="text-slate-400 font-medium text-[11px]">May 29, 2025</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2 text-slate-700 font-semibold">
+                      <CheckCircle2 className="w-4 h-4 text-purple-400" />
+                      <span>Resume Review</span>
+                    </div>
+                    <span className="text-slate-400 font-medium text-[11px]">May 30, 2025</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div>
 
-          {/* YOUR PERSONALIZED PLAN ROADMAP */}
-          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+          {/* ═════════════════════════════════════════════════════════════════════ */}
+          {/* 3. BOTTOM 3 COLUMNS: RESUME BUILDER, TEST YOUR SKILLS, YOUR PROGRESS */}
+          {/* ═════════════════════════════════════════════════════════════════════ */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* Card 1: Resume Builder */}
+            <div className="bg-white rounded-3xl p-6 border border-[#EAEBF4] shadow-xs flex flex-col justify-between space-y-5">
+              <div>
+                <div className="flex items-center gap-2.5 mb-1">
+                  <div className="w-7 h-7 rounded-lg bg-purple-100 text-[#7C3AED] flex items-center justify-center shrink-0">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 font-outfit">Resume Builder</h3>
+                </div>
+                <p className="text-xs text-slate-500 font-medium mb-4">
+                  Create a professional resume in minutes.
+                </p>
+
+                <div className="flex items-stretch gap-4">
+                  {/* Mini Resume Visual Mockup matching screenshot */}
+                  <div className="w-32 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex shrink-0 text-[6px] select-none">
+                    {/* Left purple sidebar */}
+                    <div className="w-12 bg-[#7C3AED] text-white p-1.5 flex flex-col items-center justify-between space-y-1">
+                      <div className="flex flex-col items-center">
+                        <img
+                          src={userPhoto}
+                          alt="Avatar"
+                          className="w-5 h-5 rounded-full object-cover border border-white/60 mb-0.5"
+                        />
+                        <span className="font-extrabold text-[5px] uppercase tracking-wider text-center leading-none">
+                          DIYA SHAH
+                        </span>
+                        <span className="text-[4px] text-purple-200 text-center leading-none mt-0.5">
+                          Software Dev
+                        </span>
+                      </div>
+                      <div className="w-full space-y-1 pt-1">
+                        <div className="h-1 bg-white/40 rounded-full w-full"></div>
+                        <div className="h-1 bg-white/40 rounded-full w-4/5"></div>
+                        <div className="h-1 bg-white/40 rounded-full w-3/4"></div>
+                        <div className="h-1 bg-white/40 rounded-full w-5/6"></div>
+                      </div>
+                    </div>
+
+                    {/* Right white document body */}
+                    <div className="flex-1 p-1.5 space-y-1 bg-white">
+                      <div>
+                        <span className="font-extrabold text-slate-800 text-[6px] block leading-none">DIYA SHAH</span>
+                        <span className="text-[4.5px] text-slate-400 block leading-none mt-0.5">Software Developer</span>
+                      </div>
+                      <div className="pt-1">
+                        <span className="font-bold text-[#7C3AED] text-[5px] block leading-none uppercase">About Me</span>
+                        <div className="h-0.5 bg-slate-200 rounded-full w-full mt-0.5"></div>
+                        <div className="h-0.5 bg-slate-200 rounded-full w-4/5 mt-0.5"></div>
+                      </div>
+                      <div>
+                        <span className="font-bold text-[#7C3AED] text-[5px] block leading-none uppercase">Experience</span>
+                        <div className="h-0.5 bg-slate-200 rounded-full w-full mt-0.5"></div>
+                        <div className="h-0.5 bg-slate-200 rounded-full w-3/4 mt-0.5"></div>
+                      </div>
+                      <div>
+                        <span className="font-bold text-[#7C3AED] text-[5px] block leading-none uppercase">Education</span>
+                        <div className="h-0.5 bg-slate-200 rounded-full w-full mt-0.5"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Feature Checklist List */}
+                  <div className="flex-1 flex flex-col justify-between py-0.5">
+                    <ul className="space-y-1.5 text-xs text-slate-700 font-semibold">
+                      <li className="flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 text-[#7C3AED] stroke-[3]" />
+                        <span>Multiple Templates</span>
+                      </li>
+                      <li className="flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 text-[#7C3AED] stroke-[3]" />
+                        <span>AI Content Suggestions</span>
+                      </li>
+                      <li className="flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 text-[#7C3AED] stroke-[3]" />
+                        <span>ATS Friendly</span>
+                      </li>
+                      <li className="flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 text-[#7C3AED] stroke-[3]" />
+                        <span>Easy Customization</span>
+                      </li>
+                    </ul>
+
+                    <div className="pt-2">
+                      <Link
+                        to={ROUTES.resumeBuilder}
+                        className="py-2 px-3 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white text-[11px] font-bold shadow-md shadow-purple-500/20 text-center transition block"
+                      >
+                        Create New Resume
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 2: Test Your Skills */}
+            <div className="bg-white rounded-3xl p-6 border border-[#EAEBF4] shadow-xs flex flex-col justify-between space-y-4">
+              <div>
+                <div className="flex items-center gap-2.5 mb-1">
+                  <div className="w-7 h-7 rounded-lg bg-purple-100 text-[#7C3AED] flex items-center justify-center shrink-0">
+                    <Target className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 font-outfit">Test Your Skills</h3>
+                </div>
+                <p className="text-xs text-slate-500 font-medium mb-3">
+                  Prepare with our comprehensive tests.
+                </p>
+
+                {/* 2x2 Grid of Practice modules */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <Link
+                    to={ROUTES.aptitude}
+                    className="p-2.5 rounded-2xl bg-white border border-[#EAEBF4] hover:border-purple-200 hover:shadow-xs transition flex items-start gap-2.5 group"
+                  >
+                    <div className="w-7 h-7 rounded-xl bg-purple-50 text-[#7C3AED] flex items-center justify-center shrink-0 mt-0.5">
+                      <Target className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-slate-900 group-hover:text-[#7C3AED] transition-colors leading-tight">
+                        Aptitude Test
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5 leading-tight font-medium">
+                        Improve your aptitude skills
+                      </div>
+                    </div>
+                  </Link>
+
+                  <Link
+                    to={ROUTES.technical}
+                    className="p-2.5 rounded-2xl bg-white border border-[#EAEBF4] hover:border-purple-200 hover:shadow-xs transition flex items-start gap-2.5 group"
+                  >
+                    <div className="w-7 h-7 rounded-xl bg-purple-50 text-[#7C3AED] flex items-center justify-center shrink-0 mt-0.5">
+                      <Code2 className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-slate-900 group-hover:text-[#7C3AED] transition-colors leading-tight">
+                        Technical Test
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5 leading-tight font-medium">
+                        Test your technical knowledge
+                      </div>
+                    </div>
+                  </Link>
+
+                  <Link
+                    to={ROUTES.hrInterview}
+                    className="p-2.5 rounded-2xl bg-white border border-[#EAEBF4] hover:border-purple-200 hover:shadow-xs transition flex items-start gap-2.5 group"
+                  >
+                    <div className="w-7 h-7 rounded-xl bg-purple-50 text-[#7C3AED] flex items-center justify-center shrink-0 mt-0.5">
+                      <Bot className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-slate-900 group-hover:text-[#7C3AED] transition-colors leading-tight">
+                        AI Interview
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5 leading-tight font-medium">
+                        Practice AI based interviews
+                      </div>
+                    </div>
+                  </Link>
+
+                  <Link
+                    to={ROUTES.companyPrep}
+                    className="p-2.5 rounded-2xl bg-white border border-[#EAEBF4] hover:border-purple-200 hover:shadow-xs transition flex items-start gap-2.5 group"
+                  >
+                    <div className="w-7 h-7 rounded-xl bg-purple-50 text-[#7C3AED] flex items-center justify-center shrink-0 mt-0.5">
+                      <BookOpen className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-slate-900 group-hover:text-[#7C3AED] transition-colors leading-tight">
+                        Resources
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5 leading-tight font-medium">
+                        Study materials and guides
+                      </div>
+                    </div>
+                  </Link>
+                </div>
+              </div>
+
+              {/* Bottom Magenta Button */}
+              <div className="pt-1 flex justify-center">
+                <Link
+                  to={ROUTES.aptitude}
+                  className="py-2.5 px-8 rounded-xl bg-[#E03484] hover:bg-[#c92471] text-white text-xs font-bold shadow-md shadow-pink-500/25 transition text-center"
+                >
+                  Start Practicing
+                </Link>
+              </div>
+            </div>
+
+            {/* Card 3: Your Progress */}
+            <div className="bg-white rounded-3xl p-6 border border-[#EAEBF4] shadow-xs flex flex-col justify-between space-y-4">
+              <div>
+                <div className="flex items-center gap-2.5 mb-1">
+                  <div className="w-7 h-7 rounded-lg bg-purple-100 text-[#7C3AED] flex items-center justify-center shrink-0">
+                    <TrendingUp className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 font-outfit">Your Progress</h3>
+                </div>
+                <p className="text-xs text-slate-500 font-medium mb-3">
+                  Track your placement preparation journey.
+                </p>
+
+                {/* Chart & Gauge layout */}
+                <div className="flex items-center gap-4">
+                  {/* SVG Line Chart */}
+                  <div className="flex-1">
+                    <div className="relative h-28 w-full">
+                      <svg className="w-full h-full" viewBox="0 0 200 90" preserveAspectRatio="none">
+                        <defs>
+                          <linearGradient id="progressGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#7C3AED" stopOpacity="0.25" />
+                            <stop offset="100%" stopColor="#7C3AED" stopOpacity="0.0" />
+                          </linearGradient>
+                        </defs>
+                        {/* Horizontal guidelines */}
+                        <line x1="25" y1="10" x2="195" y2="10" stroke="#F1F3F9" strokeWidth="1" />
+                        <line x1="25" y1="30" x2="195" y2="30" stroke="#F1F3F9" strokeWidth="1" />
+                        <line x1="25" y1="50" x2="195" y2="50" stroke="#F1F3F9" strokeWidth="1" />
+                        <line x1="25" y1="70" x2="195" y2="70" stroke="#F1F3F9" strokeWidth="1" />
+
+                        {/* Y-axis text */}
+                        <text x="0" y="12" fill="#94A3B8" fontSize="6" fontWeight="bold">100%</text>
+                        <text x="5" y="32" fill="#94A3B8" fontSize="6" fontWeight="bold">75%</text>
+                        <text x="5" y="52" fill="#94A3B8" fontSize="6" fontWeight="bold">50%</text>
+                        <text x="5" y="72" fill="#94A3B8" fontSize="6" fontWeight="bold">25%</text>
+
+                        {/* Area gradient */}
+                        <polygon
+                          points="30,70 65,58 100,45 140,32 180,18 180,80 30,80"
+                          fill="url(#progressGrad)"
+                        />
+
+                        {/* Line */}
+                        <polyline
+                          fill="none"
+                          stroke="#7C3AED"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          points="30,70 65,58 100,45 140,32 180,18"
+                        />
+
+                        {/* Points */}
+                        <circle cx="30" cy="70" r="2.5" fill="#7C3AED" />
+                        <circle cx="65" cy="58" r="2.5" fill="#7C3AED" />
+                        <circle cx="100" cy="45" r="2.5" fill="#7C3AED" />
+                        <circle cx="140" cy="32" r="2.5" fill="#7C3AED" />
+                        <circle cx="180" cy="18" r="2.5" fill="#7C3AED" />
+                      </svg>
+                      {/* X-axis labels */}
+                      <div className="flex justify-between pl-6 pr-2 text-[8px] font-bold text-slate-400 mt-1">
+                        <span>Week 1</span>
+                        <span>Week 2</span>
+                        <span>Week 3</span>
+                        <span>Week 4</span>
+                        <span>Week 5</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Circular Gauge 76% */}
+                  <div className="flex flex-col items-center justify-center shrink-0 text-center">
+                    <div className="relative w-16 h-16 flex items-center justify-center">
+                      <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 70 70">
+                        <circle cx="35" cy="35" r="28" stroke="#EDE9FE" strokeWidth="6" fill="transparent" />
+                        <circle
+                          cx="35"
+                          cy="35"
+                          r="28"
+                          stroke="#7C3AED"
+                          strokeWidth="6"
+                          strokeDasharray="175.93"
+                          strokeDashoffset={175.93 - (175.93 * overallReadinessVal) / 100}
+                          strokeLinecap="round"
+                          fill="transparent"
+                          className="transition-all duration-1000 ease-out"
+                        />
+                      </svg>
+                      <span className="absolute text-sm font-extrabold text-slate-900 font-outfit">
+                        {overallReadinessVal}%
+                      </span>
+                    </div>
+                    <div className="text-xs font-bold text-slate-900 mt-1">
+                      Overall Progress
+                    </div>
+                    <div className="text-[10px] text-slate-400 max-w-[110px] leading-tight mt-0.5">
+                      Great going! You're on the right track.
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Magenta Button */}
+              <div className="pt-1 flex justify-center">
+                <Link
+                  to={ROUTES.progress}
+                  className="py-2.5 px-6 rounded-xl bg-[#E03484] hover:bg-[#c92471] text-white text-xs font-bold shadow-md shadow-pink-500/25 transition text-center"
+                >
+                  View Detailed Progress
+                </Link>
+              </div>
+            </div>
+
+          </div>
+
+          {/* ═════════════════════════════════════════════════════════════════════ */}
+          {/* 4. EXPANDABLE SECTION: PERSONALIZED STUDY PLAN & AI INSIGHTS           */}
+          {/* ═════════════════════════════════════════════════════════════════════ */}
+          <div className="bg-white rounded-3xl border border-[#EAEBF4] shadow-xs overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowDetailedRoadmap(prev => !prev)}
+              className="w-full p-6 flex items-center justify-between hover:bg-slate-50 transition text-left"
+            >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-sm">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-purple-500/20">
                   <Calendar className="w-5 h-5" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-base sm:text-lg font-bold text-slate-900 font-outfit">Your Personalized Plan</h3>
+                    <h3 className="text-base font-bold text-slate-900 font-outfit">Personalized Study Roadmap &amp; AI Intelligence</h3>
                     {studyPlanData?.studyPlan?.targetRole && (
                       <span className="px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-700 text-[11px] font-bold border border-purple-100">
                         {studyPlanData.studyPlan.targetRole}
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-slate-500 font-medium">
                     Week-by-week prioritized tasks calibrated to your verified strengths and skill gaps
                   </p>
                 </div>
               </div>
-
               <div className="flex items-center gap-2">
-                <Link
-                  to="/onboarding?mode=reanalyze"
-                  className="px-3 py-1.5 rounded-xl border border-purple-200 text-purple-700 hover:bg-purple-50 text-xs font-bold flex items-center gap-1.5 transition"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Re-analyze Profile</span>
-                </Link>
+                <span className="text-xs font-bold text-[#7C3AED]">
+                  {showDetailedRoadmap ? 'Hide Roadmap' : 'View Full Roadmap'}
+                </span>
+                <ChevronDown className={`w-4 h-4 text-[#7C3AED] transition-transform ${showDetailedRoadmap ? 'rotate-180' : ''}`} />
               </div>
-            </div>
+            </button>
 
-            {loadingPlan ? (
-              <div className="py-8 text-center space-y-2">
-                <RefreshCw className="w-6 h-6 text-purple-600 animate-spin mx-auto" />
-                <p className="text-xs font-medium text-slate-500">Loading your personalized study plan...</p>
-              </div>
-            ) : studyPlanData?.studyPlan?.weeks && studyPlanData.studyPlan.weeks.length > 0 ? (
-              <div className="space-y-6">
-                {/* Week Selector Tabs */}
-                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-                  {studyPlanData.studyPlan.weeks.map(w => {
-                    const total = Array.isArray(w.tasks) ? w.tasks.length : 0;
-                    const done = Array.isArray(w.tasks) ? w.tasks.filter(t => t.completed).length : 0;
-                    const isSelected = selectedWeek === w.week;
-
-                    return (
-                      <button
-                        key={w.week}
-                        type="button"
-                        onClick={() => setSelectedWeek(w.week)}
-                        className={`px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap ${
-                          isSelected
-                            ? 'bg-purple-600 text-white shadow-md shadow-purple-600/20'
-                            : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
-                        }`}
-                      >
-                        <span>Week {w.week}</span>
-                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${isSelected ? 'bg-purple-700 text-purple-100' : 'bg-slate-200 text-slate-700'}`}>
-                          {done}/{total}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Selected Week Content */}
-                {(() => {
-                  const currentWeekObj = studyPlanData.studyPlan.weeks.find(w => w.week === selectedWeek) || studyPlanData.studyPlan.weeks[0];
-                  if (!currentWeekObj) return null;
-
-                  const tasks = Array.isArray(currentWeekObj.tasks) ? currentWeekObj.tasks : [];
-                  const completedCount = tasks.filter(t => t.completed).length;
-                  const percent = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0;
-
-                  return (
-                    <div className="space-y-4">
-                      {/* Theme banner & progress */}
-                      <div className="p-4 rounded-xl bg-purple-50/60 border border-purple-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                        <div>
-                          <div className="text-[11px] font-bold uppercase tracking-wider text-purple-600">Week {currentWeekObj.week} Focus</div>
-                          <h4 className="text-sm font-bold text-slate-900 mt-0.5">{currentWeekObj.theme || 'Focused Preparation'}</h4>
-                          {Array.isArray(currentWeekObj.focusAreas) && currentWeekObj.focusAreas.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 mt-2">
-                              {currentWeekObj.focusAreas.map((fa, i) => (
-                                <span key={i} className="px-2 py-0.5 rounded-md bg-white border border-purple-200 text-[11px] text-purple-800 font-medium">
-                                  {fa}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex flex-col md:items-end shrink-0 min-w-[140px]">
-                          <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-                            <span>{completedCount} of {tasks.length} Completed</span>
-                            <span className="text-purple-600">({percent}%)</span>
-                          </div>
-                          <div className="w-full md:w-36 h-2 bg-purple-100 rounded-full overflow-hidden mt-1.5">
-                            <div
-                              className="h-full bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full transition-all duration-300"
-                              style={{ width: `${percent}%` }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Tasks List */}
-                      <div className="space-y-2.5">
-                        {tasks.map((task) => {
-                          const isDone = !!task.completed;
-                          const isToggling = togglingTaskId === task.id;
-                          const modulePath = getModuleLink(task.module);
-
-                          return (
-                            <div
-                              key={task.id}
-                              className={`p-3.5 rounded-xl border transition-all flex items-center justify-between gap-3 ${
-                                isDone
-                                  ? 'bg-slate-50 border-slate-200 opacity-80'
-                                  : 'bg-white border-slate-200 hover:border-purple-200 hover:shadow-xs'
-                              }`}
-                            >
-                              <div className="flex items-center gap-3 min-w-0 flex-1">
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleTask(currentWeekObj.week, task.id, isDone)}
-                                  disabled={isToggling}
-                                  className="text-purple-600 hover:text-purple-700 transition shrink-0 p-0.5 focus:outline-none"
-                                >
-                                  {isDone ? (
-                                    <CheckCircle2 className="w-5 h-5 text-emerald-600 fill-emerald-50" />
-                                  ) : (
-                                    <Circle className="w-5 h-5 text-slate-300 hover:text-purple-600" />
-                                  )}
-                                </button>
-
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span
-                                      className={`text-xs font-semibold ${
-                                        isDone ? 'line-through text-slate-400' : 'text-slate-800'
-                                      }`}
-                                    >
-                                      {task.title}
-                                    </span>
-                                    {task.module && (
-                                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-[10px] font-bold text-slate-600">
-                                        {task.module}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-3 shrink-0">
-                                {task.estimatedHours && (
-                                  <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium">
-                                    <Clock className="w-3 h-3" />
-                                    ~{task.estimatedHours}h
-                                  </span>
-                                )}
-                                <Link
-                                  to={modulePath}
-                                  className="px-3 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold transition flex items-center gap-1"
-                                >
-                                  <span>Practice</span>
-                                  <ArrowRight className="w-3 h-3" />
-                                </Link>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            ) : (
-              <div className="p-8 text-center rounded-xl bg-slate-50 border border-dashed border-slate-200 space-y-3">
-                <Sparkles className="w-8 h-8 text-purple-400 mx-auto" />
-                <h4 className="text-sm font-bold text-slate-800">No Personalized Plan Generated Yet</h4>
-                <p className="text-xs text-slate-500 max-w-md mx-auto">
-                  Complete the quick onboarding to analyze your resume, GitHub, and goals into a customized week-by-week placement plan.
-                </p>
-                <div className="pt-2">
+            {showDetailedRoadmap && (
+              <div className="p-6 pt-0 border-t border-slate-100 space-y-6">
+                
+                {/* Actions Bar */}
+                <div className="flex items-center justify-between pt-4">
+                  <span className="text-xs text-slate-500 font-medium">Interactive weekly schedule</span>
                   <Link
-                    to="/onboarding"
-                    className="px-4 py-2 rounded-xl bg-purple-600 text-white font-bold text-xs hover:bg-purple-700 transition inline-flex items-center gap-1.5"
+                    to="/onboarding?mode=reanalyze"
+                    className="px-3 py-1.5 rounded-xl border border-purple-200 text-purple-700 hover:bg-purple-50 text-xs font-bold flex items-center gap-1.5 transition"
                   >
-                    <span>Start Onboarding</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Re-analyze Profile</span>
                   </Link>
                 </div>
+
+                {loadingPlan ? (
+                  <div className="py-8 text-center space-y-2">
+                    <RefreshCw className="w-6 h-6 text-purple-600 animate-spin mx-auto" />
+                    <p className="text-xs font-medium text-slate-500">Loading your personalized study plan...</p>
+                  </div>
+                ) : studyPlanData?.studyPlan?.weeks && studyPlanData.studyPlan.weeks.length > 0 ? (
+                  <div className="space-y-4">
+                    {/* Week Selector Tabs */}
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                      {studyPlanData.studyPlan.weeks.map(w => {
+                        const total = Array.isArray(w.tasks) ? w.tasks.length : 0;
+                        const done = Array.isArray(w.tasks) ? w.tasks.filter(t => t.completed).length : 0;
+                        const isSelected = selectedWeek === w.week;
+
+                        return (
+                          <button
+                            key={w.week}
+                            type="button"
+                            onClick={() => setSelectedWeek(w.week)}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap ${
+                              isSelected
+                                ? 'bg-[#7C3AED] text-white shadow-md shadow-purple-600/20'
+                                : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            }`}
+                          >
+                            <span>Week {w.week}</span>
+                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${isSelected ? 'bg-purple-700 text-purple-100' : 'bg-slate-200 text-slate-700'}`}>
+                              {done}/{total}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Selected Week Tasks */}
+                    {(() => {
+                      const currentWeekObj = studyPlanData.studyPlan.weeks.find(w => w.week === selectedWeek) || studyPlanData.studyPlan.weeks[0];
+                      if (!currentWeekObj) return null;
+
+                      const tasks = Array.isArray(currentWeekObj.tasks) ? currentWeekObj.tasks : [];
+                      const completedCount = tasks.filter(t => t.completed).length;
+                      const percent = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0;
+
+                      return (
+                        <div className="space-y-3">
+                          <div className="p-4 rounded-2xl bg-purple-50/60 border border-purple-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                            <div>
+                              <div className="text-[11px] font-bold uppercase tracking-wider text-[#7C3AED]">Week {currentWeekObj.week} Focus</div>
+                              <h4 className="text-sm font-bold text-slate-900 mt-0.5">{currentWeekObj.theme || 'Focused Preparation'}</h4>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+                              <span>{completedCount} of {tasks.length} Completed</span>
+                              <span className="text-[#7C3AED]">({percent}%)</span>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            {tasks.map((task) => {
+                              const isDone = !!task.completed;
+                              const isToggling = togglingTaskId === task.id;
+                              const modulePath = getModuleLink(task.module);
+
+                              return (
+                                <div
+                                  key={task.id}
+                                  className={`p-3 rounded-xl border transition-all flex items-center justify-between gap-3 ${
+                                    isDone ? 'bg-slate-50 border-slate-200 opacity-80' : 'bg-white border-slate-200 hover:border-purple-200'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleTask(currentWeekObj.week, task.id, isDone)}
+                                      disabled={isToggling}
+                                      className="text-purple-600 hover:text-purple-700 transition shrink-0 p-0.5"
+                                    >
+                                      {isDone ? (
+                                        <CheckCircle2 className="w-5 h-5 text-emerald-600 fill-emerald-50" />
+                                      ) : (
+                                        <Circle className="w-5 h-5 text-slate-300 hover:text-purple-600" />
+                                      )}
+                                    </button>
+                                    <span className={`text-xs font-semibold ${isDone ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                                      {task.title}
+                                    </span>
+                                  </div>
+                                  <Link
+                                    to={modulePath}
+                                    className="px-3 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-[#7C3AED] text-xs font-bold transition flex items-center gap-1"
+                                  >
+                                    <span>Practice</span>
+                                    <ArrowRight className="w-3 h-3" />
+                                  </Link>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                ) : (
+                  <div className="p-6 text-center rounded-2xl bg-slate-50 border border-dashed border-slate-200 space-y-2">
+                    <Sparkles className="w-6 h-6 text-purple-400 mx-auto" />
+                    <h4 className="text-xs font-bold text-slate-800">No Personalized Plan Generated Yet</h4>
+                    <p className="text-[11px] text-slate-500">
+                      Complete onboarding to get a customized week-by-week placement plan.
+                    </p>
+                    <Link
+                      to="/onboarding"
+                      className="px-4 py-1.5 rounded-xl bg-[#7C3AED] text-white font-bold text-xs inline-flex items-center gap-1 mt-2"
+                    >
+                      Start Onboarding
+                    </Link>
+                  </div>
+                )}
+
               </div>
             )}
-          </div>
-
-          {/* CANDIDATE PROFILE SUMMARY, STRENGTHS & SKILL GAPS */}
-          {studyPlanData?.analysis && (
-            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                    <ShieldCheck className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900 font-outfit">Verified Profile Intelligence</h3>
-                    <p className="text-xs text-slate-500">
-                      Synthesized from your verified resume & profile data
-                      {studyPlanData?.createdAt && (
-                        <span> • Last analyzed {new Date(studyPlanData.createdAt).toLocaleDateString()}</span>
-                      )}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {studyPlanData.analysis.profileSummary && (
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-700 leading-relaxed font-medium">
-                  {studyPlanData.analysis.profileSummary}
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Strengths */}
-                {Array.isArray(studyPlanData.analysis.strengths) && studyPlanData.analysis.strengths.length > 0 && (
-                  <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-100 space-y-2">
-                    <div className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      <span>Key Candidate Strengths</span>
-                    </div>
-                    <ul className="space-y-1.5 pt-1">
-                      {studyPlanData.analysis.strengths.map((s, idx) => (
-                        <li key={idx} className="text-xs text-emerald-950 flex items-start gap-2">
-                          <span className="text-emerald-500 font-bold">✓</span>
-                          <span>{s}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Skill Gaps */}
-                {Array.isArray(studyPlanData.analysis.skillGaps) && studyPlanData.analysis.skillGaps.length > 0 && (
-                  <div className="p-4 rounded-xl bg-amber-50/50 border border-amber-100 space-y-2">
-                    <div className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-                      <AlertTriangle className="w-4 h-4 text-amber-600" />
-                      <span>Target Role Skill Gaps ({studyPlanData.analysis.targetRole || 'Target Role'})</span>
-                    </div>
-                    <div className="space-y-2 pt-1">
-                      {studyPlanData.analysis.skillGaps.map((gap, idx) => (
-                        <div key={idx} className="text-xs bg-white/80 p-2.5 rounded-lg border border-amber-200/60 space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-900">{typeof gap === 'string' ? gap : (gap.skill || '')}</span>
-                            {gap.level && (
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                gap.level === 'Critical' ? 'bg-red-100 text-red-700' :
-                                gap.level === 'Moderate' ? 'bg-amber-100 text-amber-800' :
-                                'bg-blue-100 text-blue-700'
-                              }`}>
-                                {gap.level}
-                              </span>
-                            )}
-                          </div>
-                          {gap.action && (
-                            <p className="text-[11px] text-slate-600">{gap.action}</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* PERSONALIZED RECOMMENDATIONS SECTION */}
-          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-                  <Sparkles className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 font-outfit">Personalized AI Insights & Strategy</h3>
-                  <p className="text-xs text-slate-500">Tailored recommendations based on your actual performance</p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => loadRecommendations(true)}
-                disabled={loadingRecs}
-                className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold flex items-center gap-1.5 transition"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${loadingRecs ? 'animate-spin text-purple-600' : ''}`} />
-                <span>{loadingRecs ? 'Analyzing...' : 'Refresh AI Plan'}</span>
-              </button>
-            </div>
-
-            {loadingRecs ? (
-              <div className="py-8 text-center space-y-2">
-                <RefreshCw className="w-6 h-6 text-purple-600 animate-spin mx-auto" />
-                <p className="text-xs font-medium text-slate-500">Analyzing your performance metrics and activity...</p>
-              </div>
-            ) : aiRecommendations ? (
-              <div className="space-y-4 pt-2">
-                {aiRecommendations.placementReadinessAssessment && (
-                  <div className="p-4 rounded-xl bg-purple-50/70 border border-purple-100 text-xs text-purple-900 leading-relaxed font-medium">
-                    {aiRecommendations.placementReadinessAssessment}
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Strengths & Weaknesses */}
-                  {aiRecommendations.criticalWeaknesses?.length > 0 && (
-                    <div className="p-4 rounded-xl bg-amber-50/60 border border-amber-100 space-y-2">
-                      <div className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                        <span>High Priority Focus Areas</span>
-                      </div>
-                      <ul className="space-y-1">
-                        {aiRecommendations.criticalWeaknesses.map((w, idx) => (
-                          <li key={idx} className="text-xs text-amber-800 flex items-start gap-1.5">
-                            <span className="font-bold">•</span>
-                            <span>{w}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Top Recommended Companies */}
-                  {aiRecommendations.topRecommendedCompanies?.length > 0 && (
-                    <div className="p-4 rounded-xl bg-blue-50/60 border border-blue-100 space-y-2">
-                      <div className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
-                        <Target className="w-3.5 h-3.5 text-blue-600" />
-                        <span>Recommended Target Companies</span>
-                      </div>
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        {aiRecommendations.topRecommendedCompanies.map((c, idx) => (
-                          <Link
-                            key={idx}
-                            to={`/company-prep?company=${encodeURIComponent(c)}`}
-                            className="px-3 py-1 rounded-lg bg-white border border-blue-200 text-xs font-bold text-blue-700 hover:bg-blue-600 hover:text-white transition"
-                          >
-                            {c} →
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* AI Action Plan Steps */}
-                {Array.isArray(aiRecommendations.actionPlan) && aiRecommendations.actionPlan.length > 0 && (
-                  <div className="space-y-2 pt-2">
-                    <div className="text-xs font-bold text-slate-700 uppercase tracking-wider">Recommended Next Actions</div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      {aiRecommendations.actionPlan.map((step, idx) => (
-                        <div key={idx} className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
-                              {step.module || 'Action'}
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-mono">Target: {step.targetScore || '80%+'}</span>
-                          </div>
-                          <p className="text-xs text-slate-800 font-medium leading-snug">{step.action}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : null}
-          </div>
-
-          {/* Your Progress Stage Cards */}
-          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-6">
-            <h3 className="text-lg font-bold text-slate-900 font-outfit">Your Progress</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              
-              <Link to="/aptitude" className="p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition border border-slate-100 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-                    <Brain className="w-4 h-4 text-blue-600" /> Aptitude
-                  </div>
-                  <span className="text-xs font-bold text-blue-600">{stats.aptitudeScore || 0}%</span>
-                </div>
-                <div className="text-xs text-slate-500">Stage {aptitudeStage} of 4</div>
-                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-600 rounded-full transition-all" style={{ width: `${stats.aptitudeScore || 0}%` }}></div>
-                </div>
-              </Link>
-
-              <Link to="/technical" className="p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition border border-slate-100 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-                    <Code2 className="w-4 h-4 text-purple-600" /> Technical
-                  </div>
-                  <span className="text-xs font-bold text-purple-600">{stats.technicalScore || 0}%</span>
-                </div>
-                <div className="text-xs text-slate-500">Stage {techStage} of 4</div>
-                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-purple-600 rounded-full transition-all" style={{ width: `${stats.technicalScore || 0}%` }}></div>
-                </div>
-              </Link>
-
-              <Link to="/hr-interview" className="p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition border border-slate-100 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-                    <Mic className="w-4 h-4 text-emerald-600" /> HR Interview
-                  </div>
-                  <span className="text-xs font-bold text-emerald-600">{stats.hrScore || 0}%</span>
-                </div>
-                <div className="text-xs text-slate-500">Round {hrRound} of 4</div>
-                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-600 rounded-full transition-all" style={{ width: `${stats.hrScore || 0}%` }}></div>
-                </div>
-              </Link>
-
-              <Link to="/company-prep" className="p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition border border-slate-100 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-                    <Building2 className="w-4 h-4 text-amber-600" /> Company Prep
-                  </div>
-                  <span className="text-xs font-bold text-amber-600">{companyPrepScore}%</span>
-                </div>
-                <div className="text-xs text-slate-500">Recruitment Ready</div>
-                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-amber-600 rounded-full transition-all" style={{ width: `${companyPrepScore}%` }}></div>
-                </div>
-              </Link>
-
-            </div>
-          </div>
-
-          {/* Bottom Grid: Recent Activity */}
-          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-            <h3 className="text-lg font-bold text-slate-900 font-outfit">Recent Activity</h3>
-            <div className="space-y-3">
-              {recentActivities.length > 0 ? (
-                recentActivities.map((act, idx) => (
-                  <div key={idx} className="p-3.5 rounded-xl bg-slate-50 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-blue-100 text-blue-700">
-                        <Brain className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-slate-900">{act.title}</div>
-                        <div className="text-[11px] text-slate-500">{act.score}</div>
-                      </div>
-                    </div>
-                    <span className="text-[11px] text-slate-400">
-                      {act.time ? new Date(act.time).toLocaleDateString() : 'Recent'}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-6 text-slate-400 text-xs">
-                  No activities recorded yet. Complete an aptitude test or resume to see your history here!
-                </div>
-              )}
-            </div>
           </div>
 
         </div>

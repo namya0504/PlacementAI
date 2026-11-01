@@ -21,6 +21,7 @@ import companyRoutes from './routes/companyRoutes.js';
 import storageRoutes from './routes/storageRoutes.js';
 import onboardingRoutes from './routes/onboardingRoutes.js';
 import githubRoutes from './routes/githubRoutes.js';
+import progressRoutes from './routes/progressRoutes.js';
 
 const app = express();
 
@@ -49,11 +50,6 @@ app.use(cors({
 
     // Development tolerance or explicitly configured origins
     if (baseAllowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
-      return callback(null, true);
-    }
-
-    // Allow all Vercel production and preview deployments (*.vercel.app)
-    if (/^https:\/\/[a-zA-Z0-9_\-.]+\.vercel\.app$/.test(origin)) {
       return callback(null, true);
     }
 
@@ -91,7 +87,8 @@ const routes = [
   ['company', companyRoutes],
   ['storage', storageRoutes],
   ['onboarding', onboardingRoutes],
-  ['github', githubRoutes]
+  ['github', githubRoutes],
+  ['progress', progressRoutes]
 ];
 
 routes.forEach(([path, router]) => {

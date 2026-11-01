@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { config } from '../config/env.js';
-import { auth, isMockFirebase } from '../firebase/firebaseAdmin.js';
+import { auth } from '../firebase/firebaseAdmin.js';
+import { hasValidCsrfToken, isSafeCsrfMethod } from './csrfMiddleware.js';
 
 export const protectRoute = async (req, res, next) => {
   try {
@@ -11,6 +12,12 @@ export const protectRoute = async (req, res, next) => {
       token = authHeader.split(' ')[1];
     } else if (req.cookies && req.cookies.token) {
       token = req.cookies.token;
+      if (!isSafeCsrfMethod(req.method) && !hasValidCsrfToken(req)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Your session could not be verified. Refresh the page and try again.'
+        });
+      }
     }
 
     if (!token) {

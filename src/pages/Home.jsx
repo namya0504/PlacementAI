@@ -166,14 +166,14 @@ export default function Home() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#F8F9FE] flex flex-col font-sans">
       <Navbar />
 
       {/* HERO SECTION */}
-      <section className="relative pt-12 pb-20 lg:pt-16 lg:pb-32 overflow-hidden">
+      <section className="relative pt-10 pb-16 lg:pt-14 lg:pb-24 overflow-hidden bg-gradient-to-b from-[#FBFBFE] via-[#F6F4FE] to-white">
         {/* Glowing Background Gradients */}
-        <div className="absolute top-10 left-10 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute top-20 right-10 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute top-10 left-10 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute top-20 right-10 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
@@ -185,119 +185,74 @@ export default function Home() {
               transition={{ duration: 0.6 }}
               className="lg:col-span-6 space-y-6"
             >
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold tracking-wide">
-                <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-                <span>Next-Gen Placement Preparation</span>
-              </div>
-
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 tracking-tight leading-tight font-outfit">
-                Your AI Companion for <span className="gradient-text">Resume Building</span> & Placement Success
+                Build Your Future <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#7C3AED] via-[#9333EA] to-[#C026D3]">
+                  With AI
+                </span>
               </h1>
 
-              <p className="text-lg text-slate-600 leading-relaxed font-normal">
-                Create ATS-friendly resumes in minutes, practice aptitude, technical & HR interviews, and track your placement readiness—all in one place.
+              <p className="text-base sm:text-lg text-slate-600 leading-relaxed font-normal max-w-xl">
+                Create ATS-friendly resumes, prepare for placements, practice with AI-powered tests and interviews — all in one place.
               </p>
 
-              <div className="flex flex-wrap items-center gap-4 pt-2">
+              <div className="flex flex-wrap items-center gap-4 pt-1">
                 <Link
                   to="/signup"
-                  className="inline-flex items-center gap-2 px-7 py-4 rounded-xl text-base font-bold text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-xl shadow-blue-500/25 hover:shadow-2xl hover:shadow-blue-500/35 transition-all duration-300 transform hover:-translate-y-0.5"
+                  className="inline-flex items-center justify-center px-7 py-3.5 rounded-xl text-sm font-bold text-white bg-[#7C3AED] hover:bg-[#6D28D9] shadow-lg shadow-purple-500/25 hover:shadow-xl hover:shadow-purple-500/35 transition-all duration-300 transform hover:-translate-y-0.5"
                 >
-                  Get Started Free <ArrowRight className="w-5 h-5" />
+                  Get Started
                 </Link>
                 <a
                   href="#features"
-                  className="inline-flex items-center gap-2 px-7 py-4 rounded-xl text-base font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 shadow-sm transition-all duration-200"
+                  className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-xl text-sm font-semibold text-slate-700 bg-white border border-[#EAEBF4] hover:bg-slate-50 transition-all duration-200 shadow-xs group"
                 >
-                  Explore Features
+                  <div className="w-6 h-6 rounded-full bg-purple-100 text-[#7C3AED] flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <span className="text-xs font-bold leading-none ml-0.5">▶</span>
+                  </div>
+                  <span>Watch Demo</span>
                 </a>
               </div>
 
-              {/* Live Statistics Counters */}
-              <div className="grid grid-cols-3 gap-6 pt-8 border-t border-slate-200/80">
-                {stats.map((stat, idx) => (
-                  <div key={idx} className="space-y-1">
-                    <span className="text-2xl sm:text-3xl font-extrabold text-blue-600 font-outfit block">
-                      {stat.value}
-                    </span>
-                    <span className="text-xs sm:text-sm text-slate-500 font-medium">
-                      {stat.label}
-                    </span>
-                  </div>
-                ))}
+              {/* Feature Pills Matching Screenshot */}
+              <div className="flex flex-wrap items-center gap-2.5 pt-4">
+                <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-[#EAEBF4] shadow-xs text-xs font-semibold text-slate-700">
+                  <FileText className="w-3.5 h-3.5 text-[#7C3AED]" />
+                  <span>AI Resume Builder</span>
+                </div>
+                <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-[#EAEBF4] shadow-xs text-xs font-semibold text-slate-700">
+                  <CheckCircle className="w-3.5 h-3.5 text-[#7C3AED]" />
+                  <span>ATS Analysis</span>
+                </div>
+                <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-[#EAEBF4] shadow-xs text-xs font-semibold text-slate-700">
+                  <Brain className="w-3.5 h-3.5 text-[#7C3AED]" />
+                  <span>Aptitude &amp; Technical Tests</span>
+                </div>
+                <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-[#EAEBF4] shadow-xs text-xs font-semibold text-slate-700">
+                  <Mic className="w-3.5 h-3.5 text-[#7C3AED]" />
+                  <span>AI HR Interview</span>
+                </div>
               </div>
             </motion.div>
 
-            {/* Right Hero Column: Illustration matching UI Reference Image */}
+            {/* Right Hero Column: 3D Artwork matching reference screen */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
+              initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.7, delay: 0.2 }}
               className="lg:col-span-6 relative"
             >
               <div className="relative mx-auto max-w-lg lg:max-w-none">
-                {/* Backdrop Soft Glow Card */}
-                <div className="absolute inset-0 bg-gradient-to-tr from-blue-600/20 to-purple-600/20 rounded-3xl blur-2xl transform rotate-2"></div>
+                {/* Backdrop Glow */}
+                <div className="absolute inset-0 bg-gradient-to-tr from-purple-600/20 to-indigo-600/20 rounded-3xl blur-2xl transform rotate-1"></div>
                 
-                {/* Main Illustration Card */}
-                <div className="relative bg-white/90 backdrop-blur-xl rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200/90 overflow-hidden">
-                  
-                  {/* Floating ATS Score Card (Matches Reference Screen) */}
-                  <motion.div
-                    animate={{ y: [0, -8, 0] }}
-                    transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-                    className="absolute top-6 left-6 z-20 bg-white rounded-2xl p-4 shadow-xl border border-slate-100 flex items-center gap-4"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-extrabold text-lg">
-                      85
-                    </div>
-                    <div>
-                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">ATS Score</div>
-                      <div className="text-sm font-bold text-slate-800">85 / 100 (Excellent)</div>
-                    </div>
-                  </motion.div>
-
-                  {/* Floating AI Assistant Badge Top Right */}
-                  <motion.div
-                    animate={{ y: [0, 8, 0] }}
-                    transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
-                    className="absolute top-6 right-6 z-20 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl px-3.5 py-2 shadow-lg flex items-center gap-2 text-xs font-bold"
-                  >
-                    <Sparkles className="w-4 h-4 text-yellow-300 animate-spin" />
-                    <span>AI Assistant Active</span>
-                  </motion.div>
-
-                  {/* Central Student Avatar Graphic */}
-                  <div className="pt-16 pb-8 flex flex-col items-center justify-center">
-                    <div className="relative w-48 h-48 sm:w-56 sm:h-56 rounded-full bg-gradient-to-tr from-blue-100 via-purple-100 to-indigo-100 p-2 flex items-center justify-center shadow-inner">
-                      <img
-                        src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400"
-                        alt="Student with laptop"
-                        className="w-full h-full object-cover rounded-full shadow-lg ring-4 ring-white"
-                      />
-                    </div>
-                    <div className="mt-4 text-center">
-                      <h4 className="text-lg font-bold text-slate-900">Namya Shah</h4>
-                      <p className="text-xs font-medium text-purple-600">Software Developer Candidate</p>
-                    </div>
-                  </div>
-
-                  {/* Bottom Stats Preview Bar */}
-                  <div className="grid grid-cols-3 gap-3 pt-4 border-t border-slate-100 text-center">
-                    <div className="p-3 bg-blue-50/80 rounded-xl">
-                      <div className="text-xs text-slate-500 font-semibold">Aptitude</div>
-                      <div className="text-base font-bold text-blue-700">72%</div>
-                    </div>
-                    <div className="p-3 bg-purple-50/80 rounded-xl">
-                      <div className="text-xs text-slate-500 font-semibold">Technical</div>
-                      <div className="text-base font-bold text-purple-700">80%</div>
-                    </div>
-                    <div className="p-3 bg-emerald-50/80 rounded-xl">
-                      <div className="text-xs text-slate-500 font-semibold">Readiness</div>
-                      <div className="text-base font-bold text-emerald-700">78%</div>
-                    </div>
-                  </div>
-
+                {/* 3D Render Image Container */}
+                <div className="relative bg-white/80 backdrop-blur-xl rounded-3xl p-3 shadow-2xl border border-white/80 overflow-hidden">
+                  <img
+                    src="/hero_ai_laptop_robot.jpg"
+                    alt="PlacementAI 3D Illustration - AI Laptop and Robot Mascot"
+                    className="w-full h-auto rounded-2xl object-cover shadow-sm"
+                  />
                 </div>
               </div>
             </motion.div>
@@ -310,11 +265,11 @@ export default function Home() {
       <section id="features" className="py-20 bg-white relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto space-y-4 mb-16">
-            <span className="text-xs font-extrabold uppercase tracking-widest text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
+            <span className="text-xs font-extrabold uppercase tracking-widest text-[#7C3AED] bg-[#EDE9FE] px-3 py-1 rounded-full border border-[#DDD6FE]">
               Complete Placement Suite
             </span>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 font-outfit">
-              Everything You Need to Get <span className="gradient-text">Hired Fast</span>
+              Everything You Need to Get <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#7C3AED] via-[#9333EA] to-[#C026D3]">Hired Fast</span>
             </h2>
             <p className="text-slate-600 text-base">
               Integrated AI tools designed to build your resume, optimize ATS scores, master aptitude tests, and ace technical interviews.
@@ -329,13 +284,13 @@ export default function Home() {
                   key={idx}
                   whileHover={{ y: -6 }}
                   transition={{ duration: 0.2 }}
-                  className="group p-6 rounded-2xl bg-slate-50 hover:bg-white border border-slate-200/80 hover:border-blue-200 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between"
+                  className="group p-6 rounded-2xl bg-slate-50 hover:bg-white border border-slate-200/80 hover:border-purple-200 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between"
                 >
                   <div className="space-y-4">
                     <div className={`w-12 h-12 rounded-xl bg-gradient-to-r ${item.color} text-white flex items-center justify-center shadow-md`}>
                       <Icon className="w-6 h-6" />
                     </div>
-                    <h3 className="text-xl font-bold text-slate-900 group-hover:text-blue-600 transition font-outfit">
+                    <h3 className="text-xl font-bold text-slate-900 group-hover:text-[#7C3AED] transition font-outfit">
                       {item.title}
                     </h3>
                     <p className="text-sm text-slate-600 leading-relaxed">
@@ -345,7 +300,7 @@ export default function Home() {
                   <div className="pt-6">
                     <Link
                       to={item.link}
-                      className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 group-hover:text-blue-700 hover:underline"
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-[#7C3AED] group-hover:text-[#6D28D9] hover:underline"
                     >
                       Learn More <ArrowRight className="w-3.5 h-3.5" />
                     </Link>
@@ -407,7 +362,7 @@ export default function Home() {
                 <div className="pt-4">
                   <Link
                     to="/resume-builder"
-                    className="w-full py-2.5 rounded-xl bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white font-semibold text-xs transition text-center block"
+                    className="w-full py-2.5 rounded-xl bg-[#EDE9FE] hover:bg-[#7C3AED] text-[#7C3AED] hover:text-white font-semibold text-xs transition text-center block"
                   >
                     Use Template
                   </Link>
@@ -421,24 +376,24 @@ export default function Home() {
       {/* 3. ATS CHECKER PREVIEW WIDGET */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-gradient-to-r from-blue-900 to-indigo-900 rounded-3xl p-8 sm:p-12 text-white relative overflow-hidden shadow-2xl">
+          <div className="bg-gradient-to-r from-[#4C1D95] via-[#5B21B6] to-[#7C3AED] rounded-3xl p-8 sm:p-12 text-white relative overflow-hidden shadow-2xl">
             <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
               <div className="lg:col-span-7 space-y-4">
-                <span className="inline-block px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 text-xs font-bold uppercase tracking-wider">
+                <span className="inline-block px-3 py-1 rounded-full bg-purple-500/20 text-purple-200 text-xs font-bold uppercase tracking-wider">
                   Real-time Scan Engine
                 </span>
                 <h2 className="text-3xl sm:text-4xl font-extrabold font-outfit leading-tight">
                   Check Your Resume ATS Score Before Applying
                 </h2>
-                <p className="text-blue-200 text-base">
+                <p className="text-purple-100 text-base">
                   Upload your resume to receive an instant ATS score out of 100, keyword match breakdown, and AI improvement suggestions.
                 </p>
                 <div className="pt-2">
                   <Link
                     to="/ats-checker"
-                    className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-white text-blue-900 font-bold text-sm hover:bg-blue-50 transition shadow-lg"
+                    className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-white text-[#7C3AED] font-bold text-sm hover:bg-purple-50 transition shadow-lg"
                   >
-                    <CheckCircle className="w-4 h-4 text-blue-600" /> Upload & Analyze Resume
+                    <CheckCircle className="w-4 h-4 text-[#7C3AED]" /> Upload & Analyze Resume
                   </Link>
                 </div>
               </div>
@@ -446,7 +401,7 @@ export default function Home() {
               {/* Demo ATS Metric Card */}
               <div className="lg:col-span-5 bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
                 <div className="flex items-center justify-between mb-4">
-                  <span className="text-xs font-bold uppercase tracking-wider text-blue-200">Sample Scan Result</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-purple-200">Sample Scan Result</span>
                   <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-bold">Good Match</span>
                 </div>
                 <div className="flex items-center gap-6 mb-4">
@@ -455,11 +410,11 @@ export default function Home() {
                   </div>
                   <div className="space-y-1">
                     <div className="text-sm font-semibold text-white">Keyword Match: 88%</div>
-                    <div className="text-xs text-blue-200">Readability: High</div>
-                    <div className="text-xs text-blue-200">Formatting: Clean</div>
+                    <div className="text-xs text-purple-200">Readability: High</div>
+                    <div className="text-xs text-purple-200">Formatting: Clean</div>
                   </div>
                 </div>
-                <div className="text-xs text-blue-100 bg-white/10 rounded-xl p-3">
+                <div className="text-xs text-purple-100 bg-white/10 rounded-xl p-3">
                   💡 <span className="font-semibold text-white">AI Suggestion:</span> Add missing keywords: <code className="bg-black/30 px-1 rounded">REST API</code>, <code className="bg-black/30 px-1 rounded">Git</code>.
                 </div>
               </div>
@@ -517,7 +472,7 @@ export default function Home() {
                   className="w-full p-5 text-left font-bold text-slate-900 flex items-center justify-between bg-slate-50/50 hover:bg-slate-100/50 transition font-outfit"
                 >
                   <span>{faq.q}</span>
-                  <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${activeFaq === idx ? 'rotate-180 text-blue-600' : ''}`} />
+                  <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${activeFaq === idx ? 'rotate-180 text-[#7C3AED]' : ''}`} />
                 </button>
                 {activeFaq === idx && (
                   <div className="p-5 text-sm text-slate-600 bg-white border-t border-slate-100 leading-relaxed">
@@ -531,22 +486,22 @@ export default function Home() {
       </section>
 
       {/* 6. CTA BANNER */}
-      <section className="py-16 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-center">
+      <section className="py-16 bg-gradient-to-r from-[#7C3AED] via-[#9333EA] to-[#C026D3] text-white text-center">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
           <h2 className="text-3xl sm:text-4xl font-extrabold font-outfit">Ready to Start Your Placement Journey?</h2>
-          <p className="text-blue-100 text-base max-w-xl mx-auto">
+          <p className="text-purple-100 text-base max-w-xl mx-auto">
             Join thousands of engineering and IT students preparing for campus placements with AI.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
             <Link
               to="/resume-builder"
-              className="px-8 py-3.5 rounded-xl bg-white text-blue-600 font-bold text-sm hover:bg-blue-50 transition shadow-lg"
+              className="px-8 py-3.5 rounded-xl bg-white text-[#7C3AED] font-bold text-sm hover:bg-purple-50 transition shadow-lg shadow-purple-900/30"
             >
               Create Resume Now
             </Link>
             <Link
               to="/signup"
-              className="px-8 py-3.5 rounded-xl bg-blue-700/60 hover:bg-blue-700 text-white font-bold text-sm border border-white/20 transition"
+              className="px-8 py-3.5 rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-sm border border-white/30 backdrop-blur-sm transition"
             >
               Sign Up Free
             </Link>

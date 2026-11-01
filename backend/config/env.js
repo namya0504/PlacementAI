@@ -5,11 +5,7 @@ dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env') });
 
 const rawJwtSecret = process.env.JWT_SECRET;
 if (!rawJwtSecret || rawJwtSecret.length < 32) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('FATAL: JWT_SECRET environment variable is missing or insecure (< 32 characters). Server halted.');
-  } else {
-    console.warn('⚠️ WARNING: JWT_SECRET is missing or insecure (< 32 chars). Set a strong secret in production.');
-  }
+  throw new Error('FATAL: JWT_SECRET must be configured with at least 32 characters. Server halted.');
 }
 
 function sanitizeEnvString(val, fallback = '') {
@@ -45,7 +41,7 @@ function sanitizePrivateKey(rawKey) {
 export const config = {
   port: process.env.PORT || 5000,
   nodeEnv: sanitizeEnvString(process.env.NODE_ENV, 'development'),
-  jwtSecret: rawJwtSecret || 'dev_fallback_placement_ai_secret_key_minimum_32_chars',
+  jwtSecret: rawJwtSecret,
   firebase: {
     projectId: sanitizeEnvString(process.env.FIREBASE_PROJECT_ID, 'placementai-app'),
     clientEmail: sanitizeEnvString(process.env.FIREBASE_CLIENT_EMAIL),

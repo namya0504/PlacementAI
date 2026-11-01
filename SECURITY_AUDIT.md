@@ -5,6 +5,8 @@
 **Scope**: Full Stack Application (`backend/`, `src/`, Firebase Rules, API Routes, Storage, Middlewares)  
 **Status**: Critical Security Review & Remediation Blueprint  
 
+> **Currentness notice (November 1, 2026):** This document is a historical baseline from September 26, 2026, not a verified description of the current code. Source review now confirms Helmet, protected frontend routes, authentication rate limits, a 1 MB JSON body limit, and upload MIME filtering are present. The current implementation also rejects missing or short JWT secrets, requires a verified Google ID token, checks CSRF tokens on cookie-authenticated writes, removes browser storage of backend JWTs, denies direct client Firestore and Firebase Storage access, and uses an explicit production CORS origin list. Resume PDF generation and Supabase metadata deletion now enforce ownership checks. These are source-level observations, not deployment or penetration-test results. Reassess every item below before using this report as a release gate; prompt-injection controls and Supabase bucket policies still need focused verification.
+
 ---
 
 ## Executive Summary

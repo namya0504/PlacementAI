@@ -333,7 +333,7 @@ export const generatePDF = async (req, res, next) => {
     // IDOR Defense: If an existing resumeId is supplied, verify ownership
     if (resumeData.resumeId) {
       const existing = await FirestoreHelper.getDoc('resumes', resumeData.resumeId);
-      if (existing && existing.userId && existing.userId !== userId) {
+      if (existing && existing.userId !== userId) {
         return sendError(res, 'Access denied: You do not have permission to modify this resume', 403);
       }
     }

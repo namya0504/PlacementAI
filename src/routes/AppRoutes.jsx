@@ -2,6 +2,7 @@ import React, { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import ProtectedRoute from '../components/ProtectedRoute';
 import { useAuth } from '../context/AuthContext';
+import { ROUTES } from './paths';
 
 // Dynamic code-splitting: routes are fetched on demand instead of all at once
 const Home = lazy(() => import('../pages/Home'));
@@ -50,12 +51,12 @@ function PublicOnlyRoute({ children }) {
   if (currentUser) {
     // 1. Unverified email gate — must verify before onboarding
     if (currentUser.emailVerified === false) {
-      return <Navigate to="/verify-email-pending" replace />;
+      return <Navigate to={ROUTES.verifyEmail} replace />;
     }
 
     // 2. Incomplete onboarding always takes priority for new / in-progress students
     if (currentUser.onboarding?.status === 'not_started' || currentUser.onboarding?.status === 'in_progress') {
-      return <Navigate to="/onboarding" replace />;
+      return <Navigate to={ROUTES.onboarding} replace />;
     }
 
     // 2. Resolve safe 'from' target (NEVER redirect an authenticated user to auth routes)
@@ -63,12 +64,12 @@ function PublicOnlyRoute({ children }) {
       ? `${location.state.from.pathname}${location.state.from.search || ''}`
       : null;
 
-    const isAuthRoute = from && (from.startsWith('/login') || from.startsWith('/signup'));
+    const isAuthRoute = from && (from.startsWith(ROUTES.login) || from.startsWith(ROUTES.signup));
     if (from && !isAuthRoute) {
       return <Navigate to={from} replace />;
     }
 
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={ROUTES.dashboard} replace />;
   }
 
   return children;
@@ -78,14 +79,14 @@ function CatchAllRoute() {
   const { currentUser } = useAuth();
   if (currentUser) {
     if (currentUser.emailVerified === false) {
-      return <Navigate to="/verify-email-pending" replace />;
+      return <Navigate to={ROUTES.verifyEmail} replace />;
     }
     if (currentUser.onboarding?.status === 'not_started' || currentUser.onboarding?.status === 'in_progress') {
-      return <Navigate to="/onboarding" replace />;
+      return <Navigate to={ROUTES.onboarding} replace />;
     }
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={ROUTES.dashboard} replace />;
   }
-  return <Navigate to="/" replace />;
+  return <Navigate to={ROUTES.home} replace />;
 }
 
 export default function AppRoutes() {
@@ -93,28 +94,28 @@ export default function AppRoutes() {
     <Suspense fallback={<PageLoader />}>
       <Routes>
         {/* Public Pages */}
-        <Route path="/" element={<PublicOnlyRoute><Home /></PublicOnlyRoute>} />
-        <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
-        <Route path="/signup" element={<PublicOnlyRoute><Signup /></PublicOnlyRoute>} />
-        <Route path="/about" element={<About />} />
-        <Route path="/contact" element={<Contact />} />
+        <Route path={ROUTES.home} element={<PublicOnlyRoute><Home /></PublicOnlyRoute>} />
+        <Route path={ROUTES.login} element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
+        <Route path={ROUTES.signup} element={<PublicOnlyRoute><Signup /></PublicOnlyRoute>} />
+        <Route path={ROUTES.about} element={<About />} />
+        <Route path={ROUTES.contact} element={<Contact />} />
         {/* Email verification gate — accessible when logged-in but not yet verified */}
-        <Route path="/verify-email-pending" element={<ProtectedRoute><VerifyEmailPending /></ProtectedRoute>} />
+        <Route path={ROUTES.verifyEmail} element={<ProtectedRoute><VerifyEmailPending /></ProtectedRoute>} />
 
         {/* Authenticated Pages */}
-        <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
-        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path="/resume-builder" element={<ProtectedRoute><ResumeBuilder /></ProtectedRoute>} />
-        <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
-        <Route path="/ats-checker" element={<ProtectedRoute><ATSChecker /></ProtectedRoute>} />
-        <Route path="/placement-prep" element={<ProtectedRoute><Aptitude /></ProtectedRoute>} />
-        <Route path="/placement-prep/aptitude" element={<ProtectedRoute><Aptitude /></ProtectedRoute>} />
-        <Route path="/placement-prep/technical" element={<ProtectedRoute><Technical /></ProtectedRoute>} />
-        <Route path="/placement-prep/hr-interview" element={<ProtectedRoute><HRInterview /></ProtectedRoute>} />
-        <Route path="/placement-prep/company" element={<ProtectedRoute><CompanyPrep /></ProtectedRoute>} />
-        <Route path="/my-progress" element={<ProtectedRoute><MyProgress /></ProtectedRoute>} />
-        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-        <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+        <Route path={ROUTES.onboarding} element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
+        <Route path={ROUTES.dashboard} element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path={ROUTES.resumeBuilder} element={<ProtectedRoute><ResumeBuilder /></ProtectedRoute>} />
+        <Route path={ROUTES.templates} element={<ProtectedRoute><Templates /></ProtectedRoute>} />
+        <Route path={ROUTES.atsChecker} element={<ProtectedRoute><ATSChecker /></ProtectedRoute>} />
+        <Route path={ROUTES.placementPrep} element={<ProtectedRoute><Aptitude /></ProtectedRoute>} />
+        <Route path={ROUTES.aptitude} element={<ProtectedRoute><Aptitude /></ProtectedRoute>} />
+        <Route path={ROUTES.technical} element={<ProtectedRoute><Technical /></ProtectedRoute>} />
+        <Route path={ROUTES.hrInterview} element={<ProtectedRoute><HRInterview /></ProtectedRoute>} />
+        <Route path={ROUTES.companyPrep} element={<ProtectedRoute><CompanyPrep /></ProtectedRoute>} />
+        <Route path={ROUTES.progress} element={<ProtectedRoute><MyProgress /></ProtectedRoute>} />
+        <Route path={ROUTES.profile} element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path={ROUTES.settings} element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
         {/* Catch-all */}
         <Route path="*" element={<CatchAllRoute />} />

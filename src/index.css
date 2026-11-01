@@ -4,7 +4,7 @@
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900 font-sans;
+    @apply bg-[#F8F9FE] text-slate-900 font-sans;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
@@ -33,25 +33,25 @@
 .glass-card {
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(226, 232, 240, 0.8);
+  border: 1px solid rgba(234, 235, 244, 0.8);
 }
 
 .glass-nav {
   background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+  border-bottom: 1px solid rgba(234, 235, 244, 0.8);
 }
 
 .gradient-text {
-  @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600;
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-[#7C3AED] via-[#9333EA] to-[#C026D3];
 }
 
 .gradient-bg {
-  @apply bg-gradient-to-r from-blue-600 to-purple-600;
+  @apply bg-gradient-to-r from-[#7C3AED] to-[#9333EA];
 }
 
 .gradient-border {
-  border-image: linear-gradient(to right, #2563EB, #7C3AED) 1;
+  border-image: linear-gradient(to right, #7C3AED, #C026D3) 1;
 }
 
 /* Precise A4 Vector Print & PDF Styles */
