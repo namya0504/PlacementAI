@@ -219,6 +219,25 @@ export async function deleteFile(bucket, filePath) {
 }
 
 /**
+ * Downloads a file from Supabase Storage as a Buffer.
+ * @param {string} bucket - Bucket name
+ * @param {string} filePath - Path within the bucket (without bucket prefix)
+ * @returns {Promise<Buffer|null>} File buffer or null
+ */
+export async function downloadFileBuffer(bucket, filePath) {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase.storage.from(bucket).download(filePath);
+    if (error || !data) return null;
+    const arrayBuffer = await data.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch (err) {
+    console.warn(`[StorageService] downloadFileBuffer error (${bucket}/${filePath}):`, err.message);
+    return null;
+  }
+}
+
+/**
  * Resolves the correct download URL for a Firestore record.
  * Handles backward compatibility:
  * - Old records without `storageProvider` → return existing URL field as-is

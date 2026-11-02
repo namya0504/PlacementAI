@@ -59,23 +59,30 @@ export const getHRQuestions = async (req, res, next) => {
       score: iv.score
     }));
 
+    const profile = await FirestoreHelper.getDoc('profiles', 'prof_' + userId) || {};
+    const userDoc = await FirestoreHelper.getDoc('users', userId) || {};
+    const resumes = await FirestoreHelper.queryCollection('resumes', 'userId', userId);
+    const latestResume = resumes[resumes.length - 1] || {};
+
+    const effectiveRole = req.query.role || profile.targetRole || profile.role || userDoc.targetRole || userDoc.role || studentContext.targetRole || latestResume.role || '';
+
     let questions = [];
 
-    if (!forceGenerate && round === 1 && previousContext.length === 0) {
-      // Only serve cached on first-ever visit to round 1
-      const allQuestions = await FirestoreHelper.queryCollection('hr_questions');
-      if (allQuestions && allQuestions.length > 0) {
-        questions = allQuestions.sort(() => 0.5 - Math.random()).slice(0, 4);
+    if (!forceGenerate) {
+      // Query questions specifically belonging to this user
+      const userQuestions = await FirestoreHelper.queryCollection('hr_questions', 'userId', userId);
+      const matching = userQuestions.filter(q => 
+        q.round === round &&
+        (!effectiveRole || !q.targetRole || q.targetRole.toLowerCase() === effectiveRole.toLowerCase())
+      );
+      if (matching.length >= 2) {
+        questions = matching.slice(0, 4);
       }
     }
 
     if (questions.length === 0 || forceGenerate) {
-      const profile = await FirestoreHelper.getDoc('profiles', 'prof_' + userId) || {};
-      const resumes = await FirestoreHelper.queryCollection('resumes', 'userId', userId);
-      const latestResume = resumes[resumes.length - 1] || {};
-
       const userContext = {
-        role: req.query.role || profile.role || profile.targetRole || latestResume.role || studentContext.targetRole || '',
+        role: effectiveRole,
         skills: profile.skills || latestResume.skills || studentContext.skills || ['Problem Solving'],
         projects: profile.projects || latestResume.projects || [{ title: 'Academic Project' }],
         interests: profile.interests || ['Technology']
@@ -84,7 +91,14 @@ export const getHRQuestions = async (req, res, next) => {
       questions = await GrokService.generateHRQuestions(userContext, studentContext, round, previousContext);
 
       for (const q of questions) {
-        await FirestoreHelper.setDoc('hr_questions', q.id, q);
+        const questionDoc = {
+          ...q,
+          userId,
+          targetRole: effectiveRole,
+          round,
+          createdAt: new Date().toISOString()
+        };
+        await FirestoreHelper.setDoc('hr_questions', q.id, questionDoc);
       }
     }
 

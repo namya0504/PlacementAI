@@ -10,17 +10,22 @@ export async function getStudentContext(userId) {
     return {
       userId: 'anonymous',
       skills: [],
-      branch: 'Computer Science',
-      targetRole: 'Software Engineer',
+      branch: '',
+      targetRole: '',
       scores: {},
       weakAreas: [],
-      promptSnippet: 'Candidate is an aspiring Software Engineer.'
+      strongAreas: [],
+      technicalTopicsPracticed: [],
+      promptSnippet: 'Candidate is an entry-level student / fresher preparing for campus placement.'
     };
   }
 
   try {
-    // 1. Fetch Profile
-    const profile = await FirestoreHelper.getDoc('profiles', `prof_${userId}`) || {};
+    // 1. Fetch Profile and User
+    const [profile, userDoc] = await Promise.all([
+      FirestoreHelper.getDoc('profiles', `prof_${userId}`).then(p => p || {}),
+      FirestoreHelper.getDoc('users', userId).then(u => u || {})
+    ]);
 
     // 2. Fetch Placement Readiness
     const readiness = await FirestoreHelper.getDoc('placement_readiness', `readiness_${userId}`) || {};
@@ -97,9 +102,9 @@ export async function getStudentContext(userId) {
       console.warn('[StudentContext] Analysis lookup notice:', anErr.message);
     }
 
-    const targetRole = latestResume?.role || profile.role || profile.targetRole || '';
-    const college = profile.college?.trim() || '';
-    const branch = profile.branch?.trim() || '';
+    const targetRole = profile.targetRole || profile.role || userDoc.targetRole || userDoc.role || latestResume?.role || latestResume?.targetRole || '';
+    const college = (profile.college || userDoc.college || '').trim();
+    const branch = (profile.branch || userDoc.branch || '').trim();
     const educationSummary = (college && branch)
       ? `${branch} student at ${college}`
       : (branch || college || 'Student / Recent Graduate');

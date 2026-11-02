@@ -6,9 +6,13 @@ import {
   generateStoragePath,
   getSignedDownloadUrl,
   deleteFile,
+  downloadFileBuffer,
   parseStoragePath,
   isOwnedByUser
 } from '../services/storageService.js';
+import { TextExtractorService } from '../services/textExtractorService.js';
+import { GrokService } from '../services/grokService.js';
+import { SocialProfileService } from '../services/socialProfileService.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 
 export const getProfile = async (req, res, next) => {
@@ -56,20 +60,26 @@ export const getProfile = async (req, res, next) => {
     }
 
     const combined = {
+      ...profileDoc,
       uid: userId,
+      userId,
       name: userDoc.name || '',
       email: userDoc.email || '',
       role: profileDoc.role || userDoc.role || '',
-      targetRole: profileDoc.targetRole || profileDoc.role || userDoc.role || '',
+      targetRole: profileDoc.targetRole || profileDoc.role || userDoc.targetRole || userDoc.role || '',
       phone: profileDoc.phone || userDoc.phone || '',
       location: profileDoc.location || userDoc.location || '',
       college: profileDoc.college || userDoc.college || '',
       branch: profileDoc.branch || userDoc.branch || '',
       passingYear: profileDoc.passingYear || userDoc.passingYear || '',
+      bio: profileDoc.bio || '',
+      linkedIn: profileDoc.linkedIn || '',
+      github: profileDoc.github || '',
+      interests: Array.isArray(profileDoc.interests) ? profileDoc.interests : [],
+      skills: Array.isArray(profileDoc.skills) ? profileDoc.skills : [],
       photoURL,
       storageProvider: userDoc.storageProvider || null,
-      storagePath: userDoc.storagePath || null,
-      ...profileDoc
+      storagePath: userDoc.storagePath || null
     };
 
     return sendSuccess(res, combined, 'Profile retrieved successfully');
@@ -350,17 +360,176 @@ export const uploadProfileResume = async (req, res, next) => {
       resumeDownloadUrl: signedUrl
     }, true);
 
+    // Extract combined skills & About Me across Resume, GitHub, and LinkedIn
+    let extracted = null;
+    let combinedSources = null;
+    try {
+      const combined = await resolveCombinedCandidateEvidence({
+        userId,
+        uploadedBuffer: req.file.buffer,
+        uploadedMime: req.file.mimetype
+      });
+      extracted = combined.extracted;
+      combinedSources = combined;
+    } catch (extractErr) {
+      console.warn('[Profile] Resume combined extraction notice:', extractErr.message);
+    }
+
     return sendSuccess(res, {
       resumeDownloadUrl: signedUrl,
       resumeFileName: req.file.originalname,
       resumeFileType: req.file.mimetype,
       resumeFileSize: req.file.size,
-      resumeUploadedAt: new Date().toISOString()
-    }, 'Resume uploaded successfully');
+      resumeUploadedAt: new Date().toISOString(),
+      extracted,
+      sources: combinedSources
+    }, 'Resume uploaded and profile insights extracted successfully');
   } catch (err) {
     next(err);
   }
 };
+
+/**
+ * Resolves combined evidence across Resume, GitHub, and LinkedIn for a candidate.
+ * If all provided, combines all three. If partial, extracts from whatever is provided.
+ */
+async function resolveCombinedCandidateEvidence({
+  userId,
+  uploadedBuffer = null,
+  uploadedMime = null,
+  githubOverride = null,
+  linkedinOverride = null
+}) {
+  const [profileDoc, userDoc] = await Promise.all([
+    FirestoreHelper.getDoc('profiles', 'prof_' + userId).then(p => p || {}),
+    FirestoreHelper.getDoc('users', userId).then(u => u || {})
+  ]);
+
+  const targetRole = profileDoc.targetRole || profileDoc.role || userDoc?.targetRole || userDoc?.role || '';
+
+  // 1. Resolve Resume Text
+  let resumeText = '';
+  if (uploadedBuffer && uploadedMime) {
+    try {
+      resumeText = await TextExtractorService.extractTextFromFile(uploadedBuffer, uploadedMime);
+    } catch (e) {
+      console.warn('[Profile] Uploaded resume extraction error:', e.message);
+    }
+  }
+
+  // If no uploaded buffer provided in this call, check existing profile resume file in Supabase
+  if (!resumeText && userDoc?.resumeStoragePath && userDoc?.resumeFileType) {
+    try {
+      const { bucket, filePath } = parseStoragePath(userDoc.resumeStoragePath);
+      const buf = await downloadFileBuffer(bucket, filePath);
+      if (buf) {
+        resumeText = await TextExtractorService.extractTextFromFile(buf, userDoc.resumeFileType);
+      }
+    } catch (storageErr) {
+      console.warn('[Profile] Existing resume file download notice:', storageErr.message);
+    }
+  }
+
+  // If still no resume text, check saved resume builder resumes
+  if (!resumeText) {
+    try {
+      const resumes = await FirestoreHelper.queryCollection('resumes', 'userId', userId);
+      if (Array.isArray(resumes) && resumes.length > 0) {
+        resumes.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
+        const r = resumes[0];
+        const parts = [];
+        if (r.role) parts.push(`Target Role: ${r.role}`);
+        if (r.summary) parts.push(`Professional Summary: ${r.summary}`);
+        if (Array.isArray(r.skills) && r.skills.length > 0) parts.push(`Skills: ${r.skills.join(', ')}`);
+        if (Array.isArray(r.projects) && r.projects.length > 0) {
+          parts.push(`Projects:\n${r.projects.map(p => `- ${p.title || p.name}: ${p.description || ''} (${p.technologies || p.tech || ''})`).join('\n')}`);
+        }
+        if (Array.isArray(r.experience) && r.experience.length > 0) {
+          parts.push(`Experience:\n${r.experience.map(exp => `- ${exp.title || exp.role} at ${exp.company || ''}: ${exp.description || ''}`).join('\n')}`);
+        }
+        resumeText = parts.join('\n\n');
+      }
+    } catch (resumeErr) {
+      console.warn('[Profile] Resume builder lookup notice:', resumeErr.message);
+    }
+  }
+
+  // 2. Resolve GitHub Data
+  let githubData = null;
+  const ghTarget = (githubOverride !== null && githubOverride !== undefined ? githubOverride : (profileDoc.github || userDoc?.github || '')).trim();
+  if (ghTarget) {
+    try {
+      githubData = await SocialProfileService.fetchGitHubData(ghTarget);
+    } catch (ghErr) {
+      console.warn('[Profile] GitHub fetch notice:', ghErr.message);
+    }
+  }
+
+  // 3. Resolve LinkedIn Data
+  let linkedinData = null;
+  const liTarget = (linkedinOverride !== null && linkedinOverride !== undefined ? linkedinOverride : (profileDoc.linkedIn || userDoc?.linkedIn || '')).trim();
+  if (liTarget) {
+    const handle = SocialProfileService.extractLinkedInHandle(liTarget);
+    linkedinData = {
+      url: liTarget,
+      handle: handle || null,
+      context: handle ? `Candidate LinkedIn profile: ${handle}` : `Candidate LinkedIn URL: ${liTarget}`
+    };
+  }
+
+  // 4. Run Grok Multi-Source Extraction
+  const extracted = await GrokService.extractProfileSkillsAndBio({
+    resumeText,
+    githubData,
+    linkedinData,
+    targetRole,
+    existingSkills: Array.isArray(profileDoc.skills) ? profileDoc.skills : [],
+    existingBio: profileDoc.bio || ''
+  });
+
+  return {
+    extracted,
+    githubData,
+    linkedinData,
+    hasResume: !!(resumeText && resumeText.trim().length > 30),
+    hasGitHub: !!githubData,
+    hasLinkedIn: !!linkedinData,
+    targetRole
+  };
+}
+
+/**
+ * POST /api/profile/scan-github
+ * POST /api/profile/sync-sources
+ * Synthesizes skills & bio across all provided sources: Resume, GitHub, and LinkedIn.
+ */
+export const scanGitHubProfile = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const { github, linkedin } = req.body;
+
+    const result = await resolveCombinedCandidateEvidence({
+      userId,
+      githubOverride: github,
+      linkedinOverride: linkedin
+    });
+
+    return sendSuccess(res, {
+      githubData: result.githubData,
+      linkedinData: result.linkedinData,
+      sources: {
+        hasResume: result.hasResume,
+        hasGitHub: result.hasGitHub,
+        hasLinkedIn: result.hasLinkedIn
+      },
+      extracted: result.extracted
+    }, 'Profile insights synthesized across combined sources');
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const syncCombinedProfileSources = scanGitHubProfile;
 
 /**
  * DELETE /api/profile/resume

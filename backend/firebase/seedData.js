@@ -167,21 +167,21 @@ export const seedInitialData = async () => {
         title: 'Tell me about yourself and your background.',
         category: 'Introduction',
         difficulty: 'Easy',
-        tip: 'Keep it concise (60-90 seconds). Highlight education, key skills, and passion for software.'
+        tip: 'Keep it concise (60-90 seconds). Highlight education, key skills, and passion for your chosen domain.'
       },
       {
         id: 'hr_c2',
         title: 'What are your greatest professional strengths and technical weaknesses?',
         category: 'Self Assessment',
         difficulty: 'Easy',
-        tip: 'Frame weaknesses as areas you are actively improving (e.g. learning Docker).'
+        tip: 'Frame weaknesses as areas you are actively improving with hands-on practice.'
       },
       {
         id: 'hr_c3',
-        title: 'Why do you want to join our organization as a Software Developer?',
+        title: 'Why do you want to join our organization in your chosen role?',
         category: 'Motivation',
         difficulty: 'Easy',
-        tip: 'Show knowledge of company products, engineering culture, and long-term career alignment.'
+        tip: 'Show knowledge of company products, culture, and your long-term career alignment.'
       }
     ];
 

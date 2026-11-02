@@ -46,8 +46,31 @@ export const getResumes = async (req, res, next) => {
             // fallback
           }
         }
+
+        // Backward compatibility: If skills/projects/certificates are missing on the doc, fetch from collections
+        let skills = r.skills;
+        if (!Array.isArray(skills) || skills.length === 0) {
+          const sDocs = await FirestoreHelper.queryCollection('skills', 'resumeId', r.resumeId);
+          if (sDocs.length > 0) skills = sDocs.map(s => s.name).filter(Boolean);
+        }
+
+        let projects = r.projects;
+        if (!Array.isArray(projects) || projects.length === 0) {
+          const pDocs = await FirestoreHelper.queryCollection('projects', 'resumeId', r.resumeId);
+          if (pDocs.length > 0) projects = pDocs;
+        }
+
+        let certificates = r.certificates;
+        if (!Array.isArray(certificates) || certificates.length === 0) {
+          const cDocs = await FirestoreHelper.queryCollection('certificates', 'resumeId', r.resumeId);
+          if (cDocs.length > 0) certificates = cDocs;
+        }
+
         return {
           ...r,
+          skills: skills || [],
+          projects: projects || [],
+          certificates: certificates || [],
           downloadUrl: downloadUrl || r.pdfUrl || ''
         };
       })
@@ -141,6 +164,9 @@ export const createResume = async (req, res, next) => {
       studentRole = userDoc?.targetRole || userDoc?.role || '';
     }
 
+    const existingResumes = await FirestoreHelper.queryCollection('resumes', 'userId', userId);
+    const isPrimary = existingResumes.length === 0;
+
     const resumeData = {
       resumeId,
       userId,
@@ -153,6 +179,10 @@ export const createResume = async (req, res, next) => {
       summary,
       experience,
       education,
+      skills: Array.isArray(skills) ? skills : [],
+      projects: Array.isArray(projects) ? projects : [],
+      certificates: Array.isArray(certificates) ? certificates : [],
+      isPrimary,
       pdfUrl: '',
       createdAt: new Date().toISOString()
     };

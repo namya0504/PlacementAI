@@ -147,6 +147,8 @@ export const API = {
   getProfileResume: () => apiCall('/profile/resume', 'GET'),
   uploadProfileResume: (formData) => apiCall('/profile/upload-resume', 'POST', formData, true),
   deleteProfileResume: () => apiCall('/profile/resume', 'DELETE'),
+  scanGitHubProfile: (payload) => apiCall('/profile/scan-github', 'POST', payload),
+  syncProfileSources: (payload = {}) => apiCall('/profile/sync-sources', 'POST', payload),
   getResumeVersionHistory: () => apiCall('/profile/resume/history', 'GET'),
   saveWebResumeVersion: (payload) => apiCall('/profile/resume/save-version', 'POST', payload),
   deleteResumeVersion: (versionId) => apiCall(`/profile/resume/version/${versionId}`, 'DELETE'),

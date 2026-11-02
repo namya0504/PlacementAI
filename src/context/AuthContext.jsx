@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { API } from '../services/api';
+import { API, clearApiCache } from '../services/api';
 
 const AuthContext = createContext();
 const LEGACY_AUTH_CACHE_KEY = 'placement_ai_user';
@@ -28,6 +28,7 @@ export const AuthProvider = ({ children }) => {
           : null;
 
         if (redirectResult?.success) {
+          clearApiCache();
           await API.googleLogin({
             idToken: redirectResult.idToken,
             providerName: 'google',
@@ -53,6 +54,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (email, password) => {
+    clearApiCache();
     // Keep the global loading state limited to initial session restoration so
     // ProtectedRoute does not unmount the login form while it is submitting.
     const user = await API.login({ email, password });
@@ -61,6 +63,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const signup = async (nameOrData, emailArg, passwordArg, extraData = {}) => {
+    clearApiCache();
     const payload = (typeof nameOrData === 'object' && nameOrData !== null)
       ? nameOrData
       : { name: nameOrData, email: emailArg, password: passwordArg, ...extraData };
@@ -104,6 +107,7 @@ export const AuthProvider = ({ children }) => {
       throw new Error(googleResult.message || 'Google sign-in could not complete. Check your browser popup settings.');
     }
 
+    clearApiCache();
     const user = await API.googleLogin({
       idToken: googleResult.idToken,
       providerName,
@@ -115,6 +119,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    clearApiCache();
     setCurrentUser(null);
     return API.logout().catch(() => {});
   };
@@ -124,7 +129,6 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateProfileData = (updatedFields) => {
-    API.updateProfile(updatedFields).catch(() => {});
     setCurrentUser((previous) => previous ? { ...previous, ...updatedFields } : previous);
   };
 

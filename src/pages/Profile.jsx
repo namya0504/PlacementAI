@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   User, Mail, Phone, MapPin, Award, Edit3, CheckCircle, Menu, Upload, X, Save,
-  Loader2, FileText, Download, Trash2, Eye, AlertTriangle, RefreshCw, FileUp
+  Loader2, FileText, Download, Trash2, Eye, AlertTriangle, RefreshCw, FileUp,
+  Code, Globe, ExternalLink, Sparkles, Check, CheckSquare, Square, Plus
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
@@ -52,6 +53,18 @@ export default function Profile() {
   const [deactivateInput, setDeactivateInput] = useState('');
   const [deactivating, setDeactivating] = useState(false);
   const [deactivateError, setDeactivateError] = useState('');
+
+  // ── AI Insights State (Resume / GitHub / LinkedIn sync) ─────────
+  const [insightModalOpen, setInsightModalOpen] = useState(false);
+  const [insightSource, setInsightSource] = useState('resume'); // 'resume' | 'github' | 'combined'
+  const [insightSourcesUsed, setInsightSourcesUsed] = useState([]);
+  const [suggestedBio, setSuggestedBio] = useState('');
+  const [suggestedSkills, setSuggestedSkills] = useState([]);
+  const [selectedSkills, setSelectedSkills] = useState(new Set());
+  const [customSkillInput, setCustomSkillInput] = useState('');
+  const [scanningGitHub, setScanningGitHub] = useState(false);
+  const [applyingInsights, setApplyingInsights] = useState(false);
+  const [successNotice, setSuccessNotice] = useState('');
 
   useEffect(() => {
     API.getProfile()
@@ -126,12 +139,112 @@ export default function Profile() {
       formData.append('resume', file);
       const res = await API.uploadProfileResume(formData);
       setResume({ hasResume: true, ...res });
+
+      // If AI extracted skills or suggested summary, prompt user to update profile
+      if (res?.extracted && (res.extracted.skills?.length || res.extracted.aboutMe)) {
+        setInsightSource('resume');
+        setSuggestedBio(res.extracted.aboutMe || profileData.bio || '');
+        // Fresh replacement list from combined sources — NOT appending to old saved skills
+        const freshSkills = Array.isArray(res.extracted.skills) ? res.extracted.skills : [];
+        setSuggestedSkills(freshSkills);
+        setSelectedSkills(new Set(freshSkills));
+        setInsightSourcesUsed(res.extracted.sourcesUsed || ['Resume']);
+        setInsightModalOpen(true);
+      }
     } catch (err) {
       setResumeError(err.message || 'Upload failed. Please try again.');
     } finally {
       setResumeUploading(false);
       if (resumeInputRef.current) resumeInputRef.current.value = '';
     }
+  };
+
+  const handleScanCombinedSources = async (overrides = {}) => {
+    setScanningGitHub(true);
+    try {
+      const payload = {
+        github: overrides.github !== undefined ? overrides.github : (profileData.github || ''),
+        linkedin: overrides.linkedin !== undefined ? overrides.linkedin : (profileData.linkedIn || '')
+      };
+      const res = await API.syncProfileSources(payload);
+      if (res?.extracted && (res.extracted.skills?.length || res.extracted.aboutMe)) {
+        setInsightSource('combined');
+        setSuggestedBio(res.extracted.aboutMe || profileData.bio || '');
+        // Fresh replacement list from combined sources — NOT appending to old saved skills
+        const freshSkills = Array.isArray(res.extracted.skills) ? res.extracted.skills : [];
+        setSuggestedSkills(freshSkills);
+        setSelectedSkills(new Set(freshSkills));
+        setInsightSourcesUsed(res.extracted.sourcesUsed || ['Combined Evidence']);
+        setInsightModalOpen(true);
+      } else {
+        alert('Profile sources scanned, but no new skills or bio could be extracted.');
+      }
+    } catch (err) {
+      alert(err.message || 'Could not synthesize profile sources. Please check your links.');
+    } finally {
+      setScanningGitHub(false);
+    }
+  };
+
+  const handleScanGitHub = (url) => handleScanCombinedSources({ github: url });
+
+  const handleApplyInsights = async () => {
+    setApplyingInsights(true);
+    try {
+      const finalSkills = Array.from(selectedSkills);
+      const updatedFields = {
+        ...profileData,
+        targetRole: profileData.role,
+        bio: suggestedBio.trim(),
+        skills: finalSkills // Sets/replaces the saved skills with verified selection
+      };
+      const saved = await API.updateProfile(updatedFields);
+      setProfileData(prev => ({
+        ...prev,
+        ...saved,
+        bio: suggestedBio.trim(),
+        skills: finalSkills
+      }));
+      updateProfileData(saved);
+      setInsightModalOpen(false);
+      setSuccessNotice(`✓ Saved skills updated to ${finalSkills.length} verified competencies and personalized About Me!`);
+      setTimeout(() => setSuccessNotice(''), 6000);
+    } catch (err) {
+      alert(err.message || 'Failed to update profile.');
+    } finally {
+      setApplyingInsights(false);
+    }
+  };
+
+  const handleToggleSkill = (skill) => {
+    setSelectedSkills(prev => {
+      const next = new Set(prev);
+      if (next.has(skill)) {
+        next.delete(skill);
+      } else {
+        next.add(skill);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllSkills = () => {
+    setSelectedSkills(new Set(suggestedSkills));
+  };
+
+  const handleClearAllSkills = () => {
+    setSelectedSkills(new Set());
+  };
+
+  const handleAddCustomSkill = (e) => {
+    e?.preventDefault();
+    const trimmed = customSkillInput.trim();
+    if (!trimmed) return;
+    if (!suggestedSkills.includes(trimmed)) {
+      setSuggestedSkills(prev => [...prev, trimmed]);
+    }
+    setSelectedSkills(prev => new Set(prev).add(trimmed));
+    setCustomSkillInput('');
   };
 
   const handleResumeDelete = async () => {
@@ -160,9 +273,24 @@ export default function Profile() {
     if (!profileData.role?.trim()) { setEditError('Target role is required.'); return; }
     try {
       setLoading(true);
-      const updated = await API.updateProfile(profileData);
+      const prevGithub = (currentUser?.github || '').trim().toLowerCase();
+      const newGithub = (profileData.github || '').trim();
+      const prevLinkedIn = (currentUser?.linkedIn || '').trim().toLowerCase();
+      const newLinkedIn = (profileData.linkedIn || '').trim();
+      const payload = {
+        ...profileData,
+        targetRole: profileData.role
+      };
+      const updated = await API.updateProfile(payload);
       updateProfileData(updated);
       setIsEditing(false);
+
+      // If user added or changed their GitHub or LinkedIn handle, offer to scan and update skills & bio
+      const githubChanged = newGithub && newGithub.toLowerCase() !== prevGithub;
+      const linkedinChanged = newLinkedIn && newLinkedIn.toLowerCase() !== prevLinkedIn;
+      if (githubChanged || linkedinChanged) {
+        handleScanCombinedSources({ github: newGithub, linkedin: newLinkedIn });
+      }
     } catch (err) {
       setEditError(err.message || 'Update failed.');
     } finally {
@@ -205,6 +333,19 @@ export default function Profile() {
         </header>
 
         <div className="p-4 sm:p-8 space-y-8 max-w-5xl mx-auto w-full">
+
+          {/* Success Notice Banner */}
+          {successNotice && (
+            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center justify-between shadow-xs">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{successNotice}</span>
+              </div>
+              <button onClick={() => setSuccessNotice('')} className="text-emerald-600 hover:text-emerald-800">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
 
           {/* Profile Card Header */}
           <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#EAEBF4] shadow-xs flex flex-col sm:flex-row items-center justify-between gap-6">
@@ -271,6 +412,121 @@ export default function Profile() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* About Me / Bio */}
+          {profileData.bio && (
+            <div className="bg-white rounded-3xl p-6 border border-[#EAEBF4] shadow-xs space-y-2">
+              <h3 className="text-lg font-bold text-slate-900 font-outfit">About Me</h3>
+              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed whitespace-pre-line">
+                {profileData.bio}
+              </p>
+            </div>
+          )}
+
+          {/* Skills & Competencies */}
+          <div className="bg-white rounded-3xl p-6 border border-[#EAEBF4] shadow-xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-bold text-slate-900 font-outfit">Skills & Competencies</h3>
+                {Array.isArray(profileData.skills) && profileData.skills.length > 0 && (
+                  <span className="text-xs font-semibold px-2.5 py-1 bg-purple-50 text-[#7C3AED] rounded-full border border-purple-100">
+                    {profileData.skills.length} Skills
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => handleScanCombinedSources()}
+                disabled={scanningGitHub}
+                className="self-start sm:self-auto px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-[#7C3AED] text-xs font-bold flex items-center gap-1.5 transition disabled:opacity-50"
+              >
+                {scanningGitHub ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-purple-600" />}
+                Refresh Skills from All Sources
+              </button>
+            </div>
+
+            {Array.isArray(profileData.skills) && profileData.skills.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {profileData.skills.map((skill, idx) => (
+                  <span
+                    key={idx}
+                    className="px-3 py-1.5 rounded-xl bg-[#F8F9FE] border border-[#EAEBF4] text-slate-800 text-xs font-semibold hover:border-purple-300 transition"
+                  >
+                    {typeof skill === 'string' ? skill : skill.name}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400 italic">No skills saved yet. Upload a resume or sync from GitHub & LinkedIn to auto-detect skills.</p>
+            )}
+          </div>
+
+          {/* Online Profiles & Links */}
+          <div className="bg-white rounded-3xl p-6 border border-[#EAEBF4] shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 font-outfit">Online Profiles</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Connect your developer and professional links (GitHub, LinkedIn)</p>
+              </div>
+              {(profileData.github || profileData.linkedIn) && (
+                <button
+                  onClick={() => handleScanCombinedSources()}
+                  disabled={scanningGitHub}
+                  className="px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-[#7C3AED] text-xs font-bold flex items-center gap-2 transition shadow-2xs disabled:opacity-60"
+                >
+                  {scanningGitHub ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-purple-600" />}
+                  Sync Skills & Bio from All Sources
+                </button>
+              )}
+            </div>
+
+            {(profileData.github || profileData.linkedIn) ? (
+              <div className="flex flex-wrap gap-3">
+                {profileData.github && (
+                  <a
+                    href={profileData.github.startsWith('http') ? profileData.github : `https://github.com/${profileData.github}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition shadow-xs"
+                  >
+                    <Code className="w-4 h-4 text-purple-300" />
+                    GitHub: {profileData.github.replace(/^https?:\/\/github\.com\//, '')}
+                    <ExternalLink className="w-3 h-3 text-slate-400" />
+                  </a>
+                )}
+                {profileData.linkedIn && (
+                  <a
+                    href={profileData.linkedIn.startsWith('http') ? profileData.linkedIn : `https://linkedin.com/in/${profileData.linkedIn}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0A66C2] text-white text-xs font-bold hover:bg-[#084e96] transition shadow-xs"
+                  >
+                    <Globe className="w-4 h-4 text-blue-200" />
+                    LinkedIn: {profileData.linkedIn.replace(/^https?:\/\/(?:www\.)?linkedin\.com\/in\//, '')}
+                    <ExternalLink className="w-3 h-3 text-blue-200" />
+                  </a>
+                )}
+              </div>
+            ) : (
+              <div className="p-4 rounded-2xl bg-[#F8F9FE] border border-[#EAEBF4] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center shrink-0">
+                    <Code className="w-5 h-5 text-[#7C3AED]" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-800">Add GitHub & LinkedIn profiles</p>
+                    <p className="text-[11px] text-slate-500">PlacementAI will combine your public code repositories and professional profile to synthesize skills and bio.</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="px-3.5 py-1.5 rounded-xl bg-[#7C3AED] text-white text-xs font-bold hover:bg-[#6D28D9] transition shadow-xs shrink-0"
+                >
+                  + Add Profiles
+                </button>
+              </div>
+            )}
           </div>
 
           {/* ── Resume Section ─────────────────────────────────── */}
@@ -427,9 +683,64 @@ export default function Profile() {
                   <input type="text" value={profileData.location} onChange={e => setProfileData({ ...profileData, location: e.target.value })} placeholder="Bangalore, India" className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]" />
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-slate-700">GitHub Profile / URL</label>
+                  </div>
+                  <input
+                    type="text"
+                    value={profileData.github || ''}
+                    onChange={e => setProfileData({ ...profileData, github: e.target.value })}
+                    placeholder="e.g. octocat or https://github.com/octocat"
+                    className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-slate-700">LinkedIn Profile URL</label>
+                  </div>
+                  <input
+                    type="text"
+                    value={profileData.linkedIn || ''}
+                    onChange={e => setProfileData({ ...profileData, linkedIn: e.target.value })}
+                    placeholder="e.g. https://linkedin.com/in/username"
+                    className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]"
+                  />
+                </div>
+              </div>
+              {(profileData.github?.trim() || profileData.linkedIn?.trim()) && (
+                <div className="flex items-center justify-between p-3 rounded-xl bg-purple-50/70 border border-purple-200">
+                  <div className="flex items-center gap-2 text-xs text-purple-900 font-medium">
+                    <Sparkles className="w-4 h-4 text-purple-600 shrink-0" />
+                    <span>Auto-detect skills & bio from combined Resume, GitHub, & LinkedIn</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleScanCombinedSources({ github: profileData.github, linkedin: profileData.linkedIn })}
+                    disabled={scanningGitHub}
+                    className="px-3 py-1 rounded-lg bg-[#7C3AED] text-white text-[11px] font-bold hover:bg-[#6D28D9] transition shadow-xs disabled:opacity-50 shrink-0"
+                  >
+                    {scanningGitHub ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Scan Sources'}
+                  </button>
+                </div>
+              )}
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Skills (comma-separated)</label>
+                <input
+                  type="text"
+                  value={Array.isArray(profileData.skills) ? profileData.skills.join(', ') : (profileData.skills || '')}
+                  onChange={e => setProfileData({
+                    ...profileData,
+                    skills: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                  })}
+                  placeholder="e.g. Python, SQL, Cybersecurity, Network Defense"
+                  className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]"
+                />
+              </div>
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Bio</label>
-                <textarea rows="3" value={profileData.bio} onChange={e => setProfileData({ ...profileData, bio: e.target.value })} className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]" />
+                <textarea rows="3" value={profileData.bio || ''} onChange={e => setProfileData({ ...profileData, bio: e.target.value })} className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]" />
               </div>
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button type="button" onClick={() => setIsEditing(false)} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition">Cancel</button>
@@ -438,6 +749,153 @@ export default function Profile() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── AI Insights Review Modal (Combined Resume / GitHub / LinkedIn) ── */}
+      {insightModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-7 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto border border-[#EAEBF4]">
+            {/* Header */}
+            <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-purple-500/20 shrink-0">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-lg font-extrabold text-slate-900 font-outfit">Update Skills & About Me</h3>
+                    {insightSourcesUsed.map(src => (
+                      <span key={src} className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-[#7C3AED] border border-purple-200">
+                        {src}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Synthesized from your {insightSourcesUsed.length > 0 ? insightSourcesUsed.join(' + ') : 'provided evidence'}.
+                    Applying will <strong>update and replace</strong> your saved skills with this verified selection.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setInsightModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* About Me Section */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-[#7C3AED]" /> Suggested About Me / Bio
+                </label>
+                <span className="text-[11px] text-slate-400 font-medium">Editable</span>
+              </div>
+              <textarea
+                rows="4"
+                value={suggestedBio}
+                onChange={e => setSuggestedBio(e.target.value)}
+                placeholder="Personalized bio summary highlighting your background, expertise, and career focus..."
+                className="w-full p-3.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-2xl text-xs sm:text-sm text-slate-800 leading-relaxed focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:bg-white transition"
+              />
+            </div>
+
+            {/* Skills Section */}
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <label className="text-xs font-bold text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
+                    <Award className="w-3.5 h-3.5 text-[#7C3AED]" /> Skills Detected ({selectedSkills.size} Selected)
+                  </label>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Selected skills will update and replace your current saved skills list.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSelectAllSkills}
+                    className="text-[11px] font-bold text-[#7C3AED] hover:underline"
+                  >
+                    Select All
+                  </button>
+                  <span className="text-slate-300">|</span>
+                  <button
+                    type="button"
+                    onClick={handleClearAllSkills}
+                    className="text-[11px] font-bold text-slate-500 hover:underline"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              </div>
+
+              {/* Skill chips */}
+              <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-1">
+                {suggestedSkills.map(skill => {
+                  const isSelected = selectedSkills.has(skill);
+                  return (
+                    <button
+                      type="button"
+                      key={skill}
+                      onClick={() => handleToggleSkill(skill)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition ${
+                        isSelected
+                          ? 'bg-[#7C3AED] text-white shadow-xs'
+                          : 'bg-[#F8F9FE] text-slate-600 hover:bg-slate-200/80 border border-[#EAEBF4]'
+                      }`}
+                    >
+                      {isSelected ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5 text-slate-400" />}
+                      <span>{skill}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Add custom skill input */}
+              <form onSubmit={handleAddCustomSkill} className="flex items-center gap-2 pt-1">
+                <input
+                  type="text"
+                  value={customSkillInput}
+                  onChange={e => setCustomSkillInput(e.target.value)}
+                  placeholder="Add another skill (e.g. Docker, Redux, Kali Linux)..."
+                  className="flex-1 p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]"
+                />
+                <button
+                  type="submit"
+                  disabled={!customSkillInput.trim()}
+                  className="px-4 py-2.5 rounded-xl bg-purple-50 text-[#7C3AED] hover:bg-purple-100 border border-purple-200 text-xs font-bold transition disabled:opacity-50"
+                >
+                  + Add
+                </button>
+              </form>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3 pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setInsightModalOpen(false)}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200 transition"
+              >
+                Keep Current Profile
+              </button>
+              <button
+                type="button"
+                onClick={handleApplyInsights}
+                disabled={applyingInsights}
+                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-purple-500/20 transition disabled:opacity-50"
+              >
+                {applyingInsights ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Updating Profile…</>
+                ) : (
+                  <><CheckCircle className="w-4 h-4" /> Update Profile Skills & About Me</>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

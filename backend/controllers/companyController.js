@@ -64,19 +64,24 @@ export const getCompanyPrepGuide = async (req, res, next) => {
       return sendError(res, 'Company name is required', 400);
     }
 
-    const docId = `prep_${companyName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+    const studentContext = await getStudentContext(userId);
+    const targetRole = (req.query.role || studentContext?.targetRole || '').trim();
+    const roleSlug = targetRole ? targetRole.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'general';
+    const compSlug = companyName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const docId = `prep_${compSlug}_${roleSlug}`;
+
     const cached = await FirestoreHelper.getDoc('company_preps', docId);
 
     if (cached && !forceRefresh) {
       return sendSuccess(res, cached.guide, 'Company prep guide retrieved (cached)');
     }
 
-    const studentContext = await getStudentContext(userId);
-    const guide = await GrokService.generateCompanyPrep(companyName, studentContext);
+    const guide = await GrokService.generateCompanyPrep(companyName, studentContext, targetRole);
 
     await FirestoreHelper.setDoc('company_preps', docId, {
       docId,
       companyName,
+      targetRole,
       guide,
       generatedAt: new Date().toISOString()
     });

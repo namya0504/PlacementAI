@@ -1,4 +1,5 @@
 import { config } from '../config/env.js';
+import { recordAiUsage } from './admin/adminAiLoggingService.js';
 
 // ─────────────────────────────────────────────────────────────
 // Grok / Groq AI Service — The Single AI Engine for PlacementAI
@@ -22,6 +23,7 @@ const FEATURE_CONFIG = {
   recommendations:    { temperature: 0.6, maxTokens: 900 },
   companyPrep:        { temperature: 0.6, maxTokens: 1800 },
   onboardingAnalysis: { temperature: 0.3, maxTokens: 3500 },
+  profileExtraction:  { temperature: 0.4, maxTokens: 1500 },
   default:            { temperature: 0.7, maxTokens: 1000 }
 };
 
@@ -110,6 +112,18 @@ async function callAI(messages, options = {}) {
         console.log(`[AI:${providerCfg.provider}] Feature=${featureType} Model=${targetModel} Tokens: ${data.usage.total_tokens}`);
       }
 
+      recordAiUsage({
+        feature: featureType,
+        model: targetModel,
+        provider: providerCfg.provider,
+        tokens: data.usage ? {
+          prompt: data.usage.prompt_tokens,
+          completion: data.usage.completion_tokens,
+          total: data.usage.total_tokens
+        } : null,
+        status: 'success'
+      }).catch(() => {});
+
       const content = data.choices?.[0]?.message?.content;
       if (!content) {
         throw new Error('AI returned an empty response');
@@ -132,6 +146,12 @@ async function callAI(messages, options = {}) {
       break;
     }
   }
+
+  recordAiUsage({
+    feature: featureType,
+    status: 'failed',
+    error: lastError?.message
+  }).catch(() => {});
 
   console.error(`[AI] Error for ${featureType}:`, lastError?.message);
   throw new Error(lastError?.message || 'AI service is temporarily unavailable. Please try again.');
@@ -412,33 +432,38 @@ Evaluate ATS compliance and industry match accurately. Return a JSON object with
    * 5. Personalized HR Interview Questions
    */
   async generateHRQuestions(userProfile = {}, studentContext = null, round = 1, previousContext = []) {
-    const role = userProfile.role || userProfile.targetRole || studentContext?.targetRole || '';
+    const role = userProfile.role || userProfile.targetRole || studentContext?.targetRole || 'Fresher / Campus Hire';
     const skills = userProfile.skills || studentContext?.skills || [];
     const projects = userProfile.projects || [];
     const interests = userProfile.interests || [];
 
     const roundFocus = {
-      1: 'Behavioral & Core Introduction — focus on self-introduction, strengths, weaknesses, motivation',
-      2: 'Technical & Project Deep-Dive — focus on project details, technical decisions, problem-solving approach',
-      3: 'Situational & Team Dynamics — focus on conflict resolution, teamwork, handling pressure',
-      4: 'Leadership & Culture Fit — focus on leadership style, long-term goals, company alignment'
+      1: 'Behavioral & Core Introduction — focus on self-introduction, career motivations, strengths, weaknesses aligned with the target role',
+      2: 'Technical & Domain Deep-Dive — focus on project details, technical domain knowledge for this role, problem-solving approach',
+      3: 'Situational & Team Dynamics — focus on conflict resolution, teamwork, handling pressure in a professional setting',
+      4: 'Leadership & Culture Fit — focus on leadership potential, long-term career goals in this field, company alignment'
     };
 
     const prevSection = previousContext.length > 0
       ? `\nPrevious answers in this round (use these to generate FOLLOW-UP or DEEPER questions — do NOT repeat these):\n${previousContext.map((p, i) => `Q${i+1}: "${p.question}"\nAnswer: "${p.answer?.slice(0, 120)}..." (Score: ${p.score}/100)`).join('\n')}\n`
       : '';
 
-    const prompt = `Generate 4 realistic, personalized HR interview questions for a candidate.
-Target Role: ${role}
-Candidate Skills: ${skills.slice(0, 6).join(', ')}
-Candidate Projects: ${projects.map(p => p.title || p).slice(0, 3).join(', ')}
-Interests: ${interests.slice(0, 4).join(', ')}
-Round ${round} Focus: ${roundFocus[round] || roundFocus[1]}
+    const prompt = `You are an expert HR Interviewer and Talent Acquisition Director conducting a campus placement interview.
+Generate 4 realistic, personalized interview questions for this specific candidate.
+
+CANDIDATE TARGET ROLE: ${role}
+CANDIDATE SKILLS: ${skills.length > 0 ? skills.slice(0, 8).join(', ') : 'Foundational skills in ' + role}
+CANDIDATE PROJECTS: ${projects.length > 0 ? projects.map(p => p.title || p).slice(0, 3).join(', ') : 'Academic projects related to ' + role}
+INTERESTS: ${interests.slice(0, 4).join(', ')}
+ROUND ${round} FOCUS: ${roundFocus[round] || roundFocus[1]}
 ${prevSection}
-RULES:
-- Questions must be specific to the candidate's role and skills above
-- Each question must be unique and not repeat any previous question listed above
-- If previous answers exist, ask deeper follow-up questions that probe further into those topics
+
+CRITICAL RULES FOR ROLE ACCURACY:
+- You MUST tailor EVERY question directly to the stated Target Role: "${role}".
+- For example, if the role is "Cybersecurity Analyst", questions MUST address security concepts, threat mindset, incident handling, network defense, ethical hacking ethics, or security-focused behavioral situations.
+- NEVER ask questions about unrelated domains, languages, or frameworks not listed in Candidate Skills (for example, do NOT mention Flutter, Dart, Android/iOS mobile development, or unrelated web stacks unless the candidate explicitly listed them).
+- Each question must be unique and not repeat any previous question listed above.
+- If previous answers exist, ask deeper follow-up questions probing those responses.
 
 Return a JSON array of 4 objects with this exact structure:
 [
@@ -939,9 +964,19 @@ Return a JSON object with this EXACT structure:
   /**
    * 10. Dynamic Company Prep Guide & Questions
    */
-  async generateCompanyPrep(companyName, studentContext = null) {
+  async generateCompanyPrep(companyName, studentContext = null, explicitTargetRole = '') {
+    const targetRole = explicitTargetRole || studentContext?.targetRole || '';
+    const roleInstruction = targetRole
+      ? `TARGET ROLE: "${targetRole}"
+CRITICAL INSTRUCTION: The candidate is preparing specifically for the role of "${targetRole}" at "${companyName}".
+- ALL selection rounds, technical assessment topics, key topics, and sample technical questions MUST be strictly customized for the "${targetRole}" position at ${companyName}.
+- For example, if target role is "Cybersecurity Analyst", the technical rounds, topics, and questions MUST focus on network security, threat analysis, incident response, vulnerability assessment, SIEM, cryptography, or OWASP — NOT generic software developer coding or generic DSA.
+- Do NOT output generic software developer / coding assessment templates unless the target role is explicitly Software Developer.`
+      : '';
+
     const prompt = `You are a campus placement recruitment expert.
 Generate an in-depth, accurate recruitment preparation guide for "${companyName}".
+${roleInstruction}
 ${studentContext?.promptSnippet ? `Tailor insights for this candidate:\n${studentContext.promptSnippet}` : ''}
 
 Return a JSON object with this exact structure:
@@ -949,8 +984,8 @@ Return a JSON object with this exact structure:
   "companyName": "${companyName}",
   "overview": "2-3 sentences overview of the company's recruitment style, scale, and expected hiring bar",
   "selectionProcess": [
-    { "round": 1, "name": "Online Assessment (Aptitude & Coding)", "duration": "90 mins", "focus": "Topics to prepare" },
-    { "round": 2, "name": "Technical Interview 1", "duration": "45 mins", "focus": "Topics to prepare" },
+    { "round": 1, "name": "Round name tailored to role", "duration": "90 mins", "focus": "Topics to prepare tailored to role" },
+    { "round": 2, "name": "Technical Interview 1 tailored to role", "duration": "45 mins", "focus": "Topics to prepare tailored to role" },
     { "round": 3, "name": "Managerial & HR Interview", "duration": "30 mins", "focus": "Topics to prepare" }
   ],
   "cutoffCriteria": {
@@ -958,11 +993,11 @@ Return a JSON object with this exact structure:
     "eligibleBranches": ["CSE", "IT", "ECE", "Related"],
     "allowedBacklogs": "0 active backlogs"
   },
-  "keyTopics": ["Topic 1", "Topic 2", "Topic 3", "Topic 4", "Topic 5"],
+  "keyTopics": ["Topic 1 tailored to role", "Topic 2", "Topic 3", "Topic 4", "Topic 5"],
   "frequentlyAskedQuestions": [
     {
       "type": "Technical",
-      "question": "Realistic question commonly asked at ${companyName}",
+      "question": "Realistic question commonly asked for this role at ${companyName}",
       "keyInsight": "What interviewers look for in the answer"
     },
     {
@@ -1131,6 +1166,74 @@ Return a STRICT, valid JSON object matching this EXACT schema:
       return parsed;
     }
     throw new Error('Onboarding analysis generated invalid response format.');
+  },
+
+  /**
+   * Extract skills and craft an authentic About Me / Bio from combined Resume, GitHub, and LinkedIn evidence.
+   * Updates/replaces saved skills with a fresh, verified skillset rather than blindly appending.
+   */
+  async extractProfileSkillsAndBio({
+    resumeText = '',
+    githubData = null,
+    linkedinData = null,
+    targetRole = '',
+    existingSkills = [],
+    existingBio = ''
+  }) {
+    const role = targetRole || 'Software Professional';
+    const sanitizedResume = sanitizeUserInput(resumeText || '', 6000);
+    const sanitizedGH = githubData ? sanitizeUserInput(JSON.stringify(githubData), 3000) : '';
+    const sanitizedLI = linkedinData ? sanitizeUserInput(
+      typeof linkedinData === 'string' ? linkedinData : JSON.stringify(linkedinData),
+      2000
+    ) : '';
+
+    const providedSources = [];
+    if (sanitizedResume) providedSources.push('Resume');
+    if (githubData && (githubData.languages?.length || githubData.featuredProjects?.length || githubData.username)) providedSources.push('GitHub');
+    if (linkedinData && (linkedinData.handle || linkedinData.url || linkedinData.text)) providedSources.push('LinkedIn');
+
+    const prompt = `You are a career development expert and AI Placement Coach.
+Analyze the candidate's real profile evidence from ALL provided sources (${providedSources.length > 0 ? providedSources.join(', ') : 'Resume / GitHub / LinkedIn'}) and craft an updated, verified skills list and a compelling, authentic "About Me" summary tailored for their target role: "${role}".
+
+<target_role>${role}</target_role>
+
+${sanitizedResume ? `<resume_evidence>\n${sanitizedResume}\n</resume_evidence>` : ''}
+${sanitizedGH ? `<github_evidence>\n${sanitizedGH}\n</github_evidence>` : ''}
+${sanitizedLI ? `<linkedin_evidence>\n${sanitizedLI}\n</linkedin_evidence>` : ''}
+${existingBio ? `<current_bio>${existingBio}</current_bio>` : ''}
+
+CRITICAL RULES:
+1. COMBINED EVIDENCE SYNTHESIS:
+   - If multiple sources (Resume, GitHub, LinkedIn) are provided, cross-reference and combine insights from ALL of them.
+   - If only some or one source is provided, extract fully from whatever is provided.
+2. ACCURATE SKILLS UPDATE (REPLACE, DO NOT BLINDLY APPEND):
+   - Extract verified technical, programming languages, frameworks, developer tools, and core domain competencies evidenced across the provided data.
+   - Produce a coherent, refreshed, up-to-date skillset that will UPDATE and REPLACE obsolete saved skills (do NOT retain outdated or unevidenced skills).
+   - Normalize to industry-standard naming (e.g. 'React.js', 'Python', 'Docker', 'PostgreSQL', 'Network Security').
+   - Keep the list focused, high-impact, and relevant to "${role}" (12 to 25 skills).
+3. TAILORED "ABOUT ME" BIO:
+   - Write a professional, punchy 3-4 sentence "About Me" bio tailored to the candidate's target role ("${role}").
+   - Highlight their strongest evidenced technical tools, project highlights, and practical readiness evidenced in the combined sources.
+   - Tone must be confident, professional, and authentic (avoid generic fluff).
+4. Return a STRICT, valid JSON object with this exact structure:
+{
+  "skills": ["Skill1", "Skill2", "Skill3"],
+  "aboutMe": "3-4 sentence professional summary tailored to ${role}.",
+  "highlights": ["1-2 key highlights detected from their resume, GitHub, or LinkedIn"],
+  "sourcesUsed": ["Resume", "GitHub", "LinkedIn"]
+}`;
+
+    const parsed = await generateJSON(prompt, { featureType: 'profileExtraction' });
+    if (parsed && Array.isArray(parsed.skills) && typeof parsed.aboutMe === 'string') {
+      return {
+        skills: parsed.skills.filter(s => typeof s === 'string' && s.trim().length > 0),
+        aboutMe: parsed.aboutMe.trim(),
+        highlights: Array.isArray(parsed.highlights) ? parsed.highlights : [],
+        sourcesUsed: Array.isArray(parsed.sourcesUsed) && parsed.sourcesUsed.length > 0 ? parsed.sourcesUsed : (providedSources.length > 0 ? providedSources : ['Profile Evidence'])
+      };
+    }
+    throw new Error('Failed to extract profile skills and summary');
   }
 };
 
