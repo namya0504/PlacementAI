@@ -72,7 +72,7 @@ app.get(['/health', '/api/health'], (req, res) => {
   });
 });
 
-// API Routes Mounting (with and without /api prefix for cloud hosting tolerance)
+// API Routes Mounting — all routes served under /api prefix only
 const routes = [
   ['auth', authRoutes],
   ['profile', profileRoutes],
@@ -93,7 +93,6 @@ const routes = [
 
 routes.forEach(([path, router]) => {
   app.use(`/api/${path}`, router);
-  app.use(`/${path}`, router);
 });
 
 // Centralized Error Handling Middleware

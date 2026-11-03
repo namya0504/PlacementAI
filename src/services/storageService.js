@@ -19,7 +19,9 @@ export async function getFileUrl(record, urlField = 'photoURL') {
     return record[urlField] || null;
   }
 
-  // Check cache for non-expired signed URL (cached for 4 minutes, signed for 5+)
+  // Check cache for non-expired signed URL.
+  // Fix B: Cache for (expiresIn - 60s) to stay well clear of expiry.
+  // Backend always issues 3600s TTL URLs, so cache is valid for ~59 minutes.
   const cached = signedUrlCache.get(record.storagePath);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.url;
@@ -29,9 +31,12 @@ export async function getFileUrl(record, urlField = 'photoURL') {
   try {
     const res = await API.getStorageDownloadUrl(record.storagePath);
     if (res?.url) {
+      // Use the backend-reported TTL; default to 3600s if not provided.
+      // Expire the cache entry 60s early to avoid serving a near-expiry URL.
+      const ttlSeconds = res.expiresIn || 3600;
       signedUrlCache.set(record.storagePath, {
         url: res.url,
-        expiresAt: Date.now() + ((res.expiresIn || 300) - 30) * 1000 // Expire 30s before actual expiry
+        expiresAt: Date.now() + (ttlSeconds - 60) * 1000
       });
       return res.url;
     }

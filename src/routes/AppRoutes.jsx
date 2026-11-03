@@ -1,6 +1,7 @@
 import React, { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import ProtectedRoute from '../components/ProtectedRoute';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { useAuth } from '../context/AuthContext';
 import { ROUTES } from './paths';
 
@@ -102,20 +103,20 @@ export default function AppRoutes() {
         {/* Email verification gate — accessible when logged-in but not yet verified */}
         <Route path={ROUTES.verifyEmail} element={<ProtectedRoute><VerifyEmailPending /></ProtectedRoute>} />
 
-        {/* Authenticated Pages */}
-        <Route path={ROUTES.onboarding} element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
-        <Route path={ROUTES.dashboard} element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path={ROUTES.resumeBuilder} element={<ProtectedRoute><ResumeBuilder /></ProtectedRoute>} />
-        <Route path={ROUTES.templates} element={<ProtectedRoute><Templates /></ProtectedRoute>} />
-        <Route path={ROUTES.atsChecker} element={<ProtectedRoute><ATSChecker /></ProtectedRoute>} />
-        <Route path={ROUTES.placementPrep} element={<ProtectedRoute><Aptitude /></ProtectedRoute>} />
-        <Route path={ROUTES.aptitude} element={<ProtectedRoute><Aptitude /></ProtectedRoute>} />
-        <Route path={ROUTES.technical} element={<ProtectedRoute><Technical /></ProtectedRoute>} />
-        <Route path={ROUTES.hrInterview} element={<ProtectedRoute><HRInterview /></ProtectedRoute>} />
-        <Route path={ROUTES.companyPrep} element={<ProtectedRoute><CompanyPrep /></ProtectedRoute>} />
-        <Route path={ROUTES.progress} element={<ProtectedRoute><MyProgress /></ProtectedRoute>} />
-        <Route path={ROUTES.profile} element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-        <Route path={ROUTES.settings} element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+        {/* Authenticated Pages — each wrapped in ErrorBoundary so one broken page can't crash the app */}
+        <Route path={ROUTES.onboarding}    element={<ProtectedRoute><ErrorBoundary><Onboarding /></ErrorBoundary></ProtectedRoute>} />
+        <Route path={ROUTES.dashboard}     element={<ProtectedRoute><ErrorBoundary><Dashboard /></ErrorBoundary></ProtectedRoute>} />
+        <Route path={ROUTES.resumeBuilder} element={<ProtectedRoute><ErrorBoundary><ResumeBuilder /></ErrorBoundary></ProtectedRoute>} />
+        <Route path={ROUTES.templates}     element={<ProtectedRoute><ErrorBoundary><Templates /></ErrorBoundary></ProtectedRoute>} />
+        <Route path={ROUTES.atsChecker}    element={<ProtectedRoute><ErrorBoundary><ATSChecker /></ErrorBoundary></ProtectedRoute>} />
+        <Route path={ROUTES.placementPrep} element={<ProtectedRoute><ErrorBoundary><Aptitude /></ErrorBoundary></ProtectedRoute>} />
+        <Route path={ROUTES.aptitude}      element={<ProtectedRoute><ErrorBoundary><Aptitude /></ErrorBoundary></ProtectedRoute>} />
+        <Route path={ROUTES.technical}     element={<ProtectedRoute><ErrorBoundary><Technical /></ErrorBoundary></ProtectedRoute>} />
+        <Route path={ROUTES.hrInterview}   element={<ProtectedRoute><ErrorBoundary><HRInterview /></ErrorBoundary></ProtectedRoute>} />
+        <Route path={ROUTES.companyPrep}   element={<ProtectedRoute><ErrorBoundary><CompanyPrep /></ErrorBoundary></ProtectedRoute>} />
+        <Route path={ROUTES.progress}      element={<ProtectedRoute><ErrorBoundary><MyProgress /></ErrorBoundary></ProtectedRoute>} />
+        <Route path={ROUTES.profile}       element={<ProtectedRoute><ErrorBoundary><Profile /></ErrorBoundary></ProtectedRoute>} />
+        <Route path={ROUTES.settings}      element={<ProtectedRoute><ErrorBoundary><Settings /></ErrorBoundary></ProtectedRoute>} />
 
         {/* Catch-all */}
         <Route path="*" element={<CatchAllRoute />} />

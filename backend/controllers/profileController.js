@@ -190,14 +190,15 @@ export const updateProfile = async (req, res, next) => {
       }
     }
 
-    const assignedRole = (role !== undefined ? role : targetRole);
+    // targetRole is the user's career goal (user-editable).
+    // The system 'role' field (e.g. 'admin', 'recruiter') must NEVER be overwritten by user input.
+    const assignedTargetRole = (targetRole !== undefined ? targetRole : role);
 
-    // Update user info
+    // Update user info — only targetRole is written, not the system role
     const userUpdates = {};
     if (typeof name === 'string' && name.trim()) userUpdates.name = name.trim().slice(0, 80);
-    if (typeof assignedRole === 'string' && assignedRole.trim()) {
-      userUpdates.role = assignedRole.trim().slice(0, 80);
-      userUpdates.targetRole = assignedRole.trim().slice(0, 80);
+    if (typeof assignedTargetRole === 'string' && assignedTargetRole.trim()) {
+      userUpdates.targetRole = assignedTargetRole.trim().slice(0, 80);
     }
     if (typeof phone === 'string' && phone.trim()) userUpdates.phone = phone.trim().slice(0, 25);
     if (typeof location === 'string') userUpdates.location = location.trim().slice(0, 100);
@@ -214,7 +215,7 @@ export const updateProfile = async (req, res, next) => {
     const profileUpdates = {
       profileId,
       userId,
-      ...(assignedRole !== undefined && assignedRole.trim() && { role: String(assignedRole).trim().slice(0, 80), targetRole: String(assignedRole).trim().slice(0, 80) }),
+      ...(assignedTargetRole !== undefined && assignedTargetRole.trim() && { targetRole: String(assignedTargetRole).trim().slice(0, 80) }),
       ...(phone !== undefined && phone.trim() && { phone: String(phone).trim().slice(0, 25) }),
       ...(location !== undefined && { location: String(location).trim().slice(0, 100) }),
       ...(college !== undefined && college.trim() && { college: String(college).trim().slice(0, 150) }),
@@ -246,8 +247,8 @@ export const updateProfile = async (req, res, next) => {
       uid: userId,
       name: userDoc?.name || name,
       email: userDoc?.email,
-      role: updatedProfile.role || userDoc?.role || '',
-      targetRole: updatedProfile.targetRole || updatedProfile.role || userDoc?.role || '',
+      role: userDoc?.role || '',
+      targetRole: updatedProfile.targetRole || userDoc?.targetRole || userDoc?.role || '',
       phone: updatedProfile.phone || userDoc?.phone || '',
       location: updatedProfile.location || userDoc?.location || '',
       college: updatedProfile.college || userDoc?.college || '',
@@ -297,12 +298,19 @@ export const uploadAvatar = async (req, res, next) => {
     // Upload to Supabase Storage
     const result = await uploadFile('profile-images', storagePath, req.file.buffer, req.file.mimetype);
 
-    // Get a signed URL to return to the frontend
+    // SEC-19 fix: verify the generated path is owned by this user before issuing any URL
+    const { filePath: newFilePath } = parseStoragePath(result.storagePath);
+    if (!isOwnedByUser(newFilePath, userId)) {
+      return sendError(res, 'Storage path ownership validation failed', 403);
+    }
+
+    // Get a signed URL to return to the frontend (1-hour TTL for immediate display).
+    // NOTE: We do NOT persist this URL — it expires. The storagePath is stored and
+    // a fresh URL is regenerated via getProfile whenever needed.
     const signedUrl = await getSignedDownloadUrl('profile-images', storagePath, 3600);
 
-    // Update Firestore with both legacy and new fields
+    // Store storage metadata only — no cached signed URL as photoURL
     await FirestoreHelper.setDoc('users', userId, {
-      photoURL: signedUrl,
       storageProvider: 'supabase',
       storagePath: result.storagePath,
       avatarFileName: storagePath.split('/').pop(),
@@ -348,6 +356,9 @@ export const uploadProfileResume = async (req, res, next) => {
     }
 
     const result = await uploadFile('resumes', storagePath, req.file.buffer, req.file.mimetype);
+    // Generate a fresh signed URL to return to the client immediately (1-hour TTL).
+    // NOTE: We do NOT persist this URL — signed URLs expire.
+    // getProfileResume always regenerates from resumeStoragePath at read time.
     const signedUrl = await getSignedDownloadUrl('resumes', storagePath, 3600);
 
     await FirestoreHelper.setDoc('users', userId, {
@@ -356,8 +367,8 @@ export const uploadProfileResume = async (req, res, next) => {
       resumeFileName: req.file.originalname || storagePath.split('/').pop(),
       resumeFileType: req.file.mimetype,
       resumeFileSize: req.file.size,
-      resumeUploadedAt: new Date().toISOString(),
-      resumeDownloadUrl: signedUrl
+      resumeUploadedAt: new Date().toISOString()
+      // resumeDownloadUrl intentionally not stored — always regenerated on read
     }, true);
 
     // Extract combined skills & About Me across Resume, GitHub, and LinkedIn
@@ -580,13 +591,12 @@ export const getProfileResume = async (req, res, next) => {
       return sendSuccess(res, { hasResume: false }, 'No uploaded resume on file');
     }
 
-    let downloadUrl = userDoc.resumeDownloadUrl || '';
+    // Always generate a fresh signed URL from storagePath — never use a cached value.
+    let downloadUrl = '';
     if (userDoc.resumeStorageProvider === 'supabase' && userDoc.resumeStoragePath) {
       try {
         const { bucket, filePath } = parseStoragePath(userDoc.resumeStoragePath);
         downloadUrl = await getSignedDownloadUrl(bucket, filePath, 3600);
-        // Refresh cached URL in Firestore
-        await FirestoreHelper.setDoc('users', userId, { resumeDownloadUrl: downloadUrl }, true);
       } catch (urlErr) {
         console.warn('[Profile] Resume signed URL notice:', urlErr.message);
       }
@@ -623,12 +633,11 @@ export const saveWebResumeVersion = async (req, res, next) => {
     const existingVersions = await FirestoreHelper.queryCollection('resume_versions', 'userId', userId);
     existingVersions.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
-    // Enforce max 10 — remove oldest if needed
+    // Enforce max 10 — remove all excess oldest versions before inserting the new one
     if (existingVersions.length >= MAX_RESUME_VERSIONS) {
-      const toRemove = existingVersions.slice(0, existingVersions.length - MAX_RESUME_VERSIONS + 1);
-      for (const old of toRemove) {
-        await FirestoreHelper.deleteDoc('resume_versions', old.versionId);
-      }
+      const excessCount = existingVersions.length - MAX_RESUME_VERSIONS + 1;
+      const toRemove = existingVersions.slice(0, excessCount);
+      await Promise.all(toRemove.map(old => FirestoreHelper.deleteDoc('resume_versions', old.versionId)));
     }
 
     const versionId = `rv_${userId}_${Date.now()}`;

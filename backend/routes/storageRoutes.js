@@ -41,8 +41,10 @@ router.get('/download-url', protectRoute, storageRateLimiter, async (req, res, n
       return sendError(res, 'Access denied.', 403);
     }
 
-    const signedUrl = await getSignedDownloadUrl(bucket, filePath, 300);
-    return sendSuccess(res, { url: signedUrl, expiresIn: 300 }, 'Download URL generated');
+    // Fix B: issue 1-hour URLs so the frontend cache stays valid across a full session.
+    const SIGNED_URL_TTL = 3600;
+    const signedUrl = await getSignedDownloadUrl(bucket, filePath, SIGNED_URL_TTL);
+    return sendSuccess(res, { url: signedUrl, expiresIn: SIGNED_URL_TTL }, 'Download URL generated');
   } catch (err) {
     if (err.message.includes('Invalid') || err.message.includes('Unknown')) {
       return sendError(res, err.message, 400);

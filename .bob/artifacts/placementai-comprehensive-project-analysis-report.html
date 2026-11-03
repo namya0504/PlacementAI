@@ -1,0 +1,979 @@
+
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PlacementAI — Comprehensive Project Analysis Report</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #1f2328;
+    background: #ffffff;
+    padding: 32px 16px;
+  }
+  .page { max-width: 760px; margin: 0 auto; }
+
+  /* Header */
+  .report-header { border-bottom: 2px solid #e5e7eb; padding-bottom: 20px; margin-bottom: 28px; }
+  .report-header h1 { font-size: 22px; font-weight: 700; color: #1f2328; }
+  .report-header .subtitle { color: #57606a; margin-top: 4px; font-size: 13px; }
+  .meta-row { display: flex; gap: 24px; margin-top: 12px; flex-wrap: wrap; }
+  .meta-item { font-size: 12px; color: #57606a; }
+  .meta-item strong { color: #1f2328; }
+
+  /* TOC */
+  .toc { background: #f7f8fa; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px 20px; margin-bottom: 32px; }
+  .toc h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #57606a; margin-bottom: 10px; }
+  .toc ol { padding-left: 18px; }
+  .toc li { margin: 4px 0; font-size: 13px; }
+  .toc a { color: #3b82d4; text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+
+  /* Sections */
+  .section { margin-bottom: 40px; }
+  .section-title {
+    font-size: 17px; font-weight: 700; color: #1f2328;
+    border-left: 4px solid #3b82d4; padding-left: 12px;
+    margin-bottom: 16px; margin-top: 0;
+  }
+  .section-title.purple { border-left-color: #7c5cd8; }
+  .section-title.red { border-left-color: #dc2626; }
+  .section-title.amber { border-left-color: #d97706; }
+  .section-title.green { border-left-color: #16a34a; }
+  .section-title.teal { border-left-color: #0891b2; }
+
+  h3 { font-size: 14px; font-weight: 700; color: #1f2328; margin: 16px 0 6px; }
+  p { margin-bottom: 10px; color: #374151; }
+
+  /* Badges */
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 12px;
+    font-size: 11px; font-weight: 600; letter-spacing: .03em;
+  }
+  .badge-critical { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; }
+  .badge-high     { background: #fff7ed; color: #c2410c; border: 1px solid #fdba74; }
+  .badge-medium   { background: #fefce8; color: #b45309; border: 1px solid #fcd34d; }
+  .badge-low      { background: #f0fdf4; color: #16a34a; border: 1px solid #86efac; }
+  .badge-done     { background: #f0fdf4; color: #16a34a; border: 1px solid #86efac; }
+  .badge-partial  { background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; }
+  .badge-missing  { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; }
+  .badge-info     { background: #f7f8fa; color: #57606a; border: 1px solid #e5e7eb; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 12px 0 20px; }
+  th { background: #f7f8fa; color: #57606a; font-weight: 600; text-transform: uppercase;
+       font-size: 11px; letter-spacing: .04em; padding: 8px 10px; text-align: left;
+       border-bottom: 1px solid #e5e7eb; }
+  td { padding: 8px 10px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f9fafb; }
+
+  /* Code */
+  code {
+    font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+    font-size: 12px; background: #f7f8fa; border: 1px solid #e5e7eb;
+    border-radius: 4px; padding: 1px 5px; color: #7c5cd8;
+  }
+  pre {
+    background: #f7f8fa; border: 1px solid #e5e7eb; border-radius: 6px;
+    padding: 12px 14px; font-size: 12px; overflow-x: auto;
+    font-family: "Cascadia Code","Fira Code","Consolas",monospace;
+    margin: 10px 0 16px; color: #374151;
+  }
+
+  /* Cards */
+  .card {
+    border: 1px solid #e5e7eb; border-radius: 8px;
+    padding: 14px 16px; margin-bottom: 14px; background: #fff;
+  }
+  .card-header { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+  .card-id { font-size: 11px; font-weight: 700; color: #57606a; font-family: monospace; }
+  .card-title { font-weight: 600; font-size: 13.5px; color: #1f2328; }
+  .card-body { font-size: 13px; color: #374151; }
+  .card-body p { margin: 4px 0; }
+
+  /* Flow diagram (ASCII-style) */
+  .flow { background: #f7f8fa; border: 1px solid #e5e7eb; border-radius: 6px;
+          padding: 14px 16px; font-size: 12px; font-family: monospace;
+          white-space: pre-wrap; line-height: 1.7; margin: 12px 0 16px; }
+
+  /* Priority plan */
+  .priority-block { border-radius: 8px; padding: 14px 16px; margin-bottom: 14px; }
+  .priority-critical { background: #fef2f2; border: 1px solid #fca5a5; }
+  .priority-high     { background: #fff7ed; border: 1px solid #fdba74; }
+  .priority-medium   { background: #fefce8; border: 1px solid #fcd34d; }
+  .priority-low      { background: #f0fdf4; border: 1px solid #86efac; }
+  .priority-label { font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+  .priority-critical .priority-label { color: #dc2626; }
+  .priority-high .priority-label     { color: #c2410c; }
+  .priority-medium .priority-label   { color: #b45309; }
+  .priority-low .priority-label      { color: #16a34a; }
+  .priority-block ul { padding-left: 16px; }
+  .priority-block li { margin: 4px 0; font-size: 13px; }
+
+  /* Divider */
+  hr { border: none; border-top: 1px solid #e5e7eb; margin: 32px 0; }
+
+  /* Summary boxes */
+  .info-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px 16px; margin: 12px 0 16px; font-size: 13px; color: #1e40af; }
+  .warn-box  { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 12px 16px; margin: 12px 0 16px; font-size: 13px; color: #9a3412; }
+  .ok-box    { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 16px; margin: 12px 0 16px; font-size: 13px; color: #166534; }
+
+  /* Footer */
+  .footer { border-top: 1px solid #e5e7eb; margin-top: 48px; padding-top: 14px;
+            text-align: center; color: #57606a; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  
+  <div class="report-header">
+    <h1>PlacementAI — Comprehensive Project Analysis Report</h1>
+    <p class="subtitle">Full-stack audit covering security, bugs, feature coverage, resume persistence, performance &amp; UI/UX</p>
+    <div class="meta-row">
+      <div class="meta-item"><strong>Date:</strong> November 3, 2026</div>
+      <div class="meta-item"><strong>Stack:</strong> React 19 / Express / Firebase Firestore / Supabase Storage / xAI Grok</div>
+      <div class="meta-item"><strong>Scope:</strong> Full codebase — frontend, backend, rules, middleware</div>
+    </div>
+  </div>
+
+  
+  <div class="toc">
+    <h2>Table of Contents</h2>
+    <ol>
+      <li><a href="#sec1">Security Analysis</a></li>
+      <li><a href="#sec2">Bug Report</a></li>
+      <li><a href="#sec3">Feature Analysis</a></li>
+      <li><a href="#sec4">Resume Upload — Deep Dive</a></li>
+      <li><a href="#sec5">Logic &amp; Performance Improvements</a></li>
+      <li><a href="#sec6">UI/UX Improvements</a></li>
+      <li><a href="#sec7">Implementation Plan</a></li>
+    </ol>
+  </div>
+
+  
+  
+  
+  <div class="section" id="sec1">
+    <h2 class="section-title red">1. Security Analysis</h2>
+    <p>The audit cross-referenced the existing <code>SECURITY_AUDIT.md</code> (September 2026 baseline) against the <em>current</em> source code to determine which items are <strong>Resolved</strong>, <strong>Partially Fixed</strong>, or <strong>Still Open</strong>.</p>
+
+    <table>
+      <thead>
+        <tr><th>ID</th><th>Vulnerability</th><th>Severity</th><th>Current Status</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>SEC-01</strong></td>
+          <td>Google social login — email body injection without token verification</td>
+          <td><span class="badge badge-critical">Critical</span></td>
+          <td><span class="badge badge-done">✓ Fixed</span> — <code>auth.verifyIdToken(idToken)</code> via Admin SDK with REST fallback; rejects if no verified email.</td>
+        </tr>
+        <tr>
+          <td><strong>SEC-02</strong></td>
+          <td>Broken Firestore security rules — all docs read/write by any logged-in user</td>
+          <td><span class="badge badge-critical">Critical</span></td>
+          <td><span class="badge badge-done">✓ Fixed</span> — Rules now block all direct client access: <code>allow read, write: if false;</code></td>
+        </tr>
+        <tr>
+          <td><strong>SEC-03</strong></td>
+          <td>Hardcoded fallback JWT secret</td>
+          <td><span class="badge badge-critical">Critical</span></td>
+          <td><span class="badge badge-done">✓ Fixed</span> — Server halts at startup if <code>JWT_SECRET</code> is missing or shorter than 32 chars.</td>
+        </tr>
+        <tr>
+          <td><strong>SEC-04</strong></td>
+          <td>Firebase Storage rules — cross-user read/write</td>
+          <td><span class="badge badge-high">High</span></td>
+          <td><span class="badge badge-done">✓ Fixed</span> — <code>storage.rules</code> now denies all direct browser access (<code>if false</code>); all uploads route through authenticated Express API → Supabase.</td>
+        </tr>
+        <tr>
+          <td><strong>SEC-05</strong></td>
+          <td>IDOR in PDF generation — overwrite another user's <code>pdfUrl</code></td>
+          <td><span class="badge badge-high">High</span></td>
+          <td><span class="badge badge-done">✓ Fixed</span> — Ownership check added in <code>generatePDF</code>.</td>
+        </tr>
+        <tr>
+          <td><strong>SEC-06</strong></td>
+          <td>Privilege escalation via <code>role</code> in profile update (mass assignment)</td>
+          <td><span class="badge badge-high">High</span></td>
+          <td><span class="badge badge-partial">⚠ Partial</span> — <code>updateProfile</code> still accepts <code>role</code> / <code>targetRole</code> directly from <code>req.body</code> and writes to the <code>users</code> auth document. No role whitelist (e.g. only "Student") is enforced. A user can set <code>role: "admin"</code>.</td>
+        </tr>
+        <tr>
+          <td><strong>SEC-07</strong></td>
+          <td>No rate-limiting on auth endpoints</td>
+          <td><span class="badge badge-high">High</span></td>
+          <td><span class="badge badge-done">✓ Fixed</span> — <code>authLimiter</code> (20 req / 15 min) applied to all auth routes.</td>
+        </tr>
+        <tr>
+          <td><strong>SEC-08</strong></td>
+          <td>JWT stored in <code>localStorage</code> — XSS exposure</td>
+          <td><span class="badge badge-high">High</span></td>
+          <td><span class="badge badge-done">✓ Fixed</span> — Token moved to <code>HttpOnly</code> cookie; legacy localStorage key is explicitly cleared on startup.</td>
+        </tr>
+        <tr>
+          <td><strong>SEC-09</strong></td>
+          <td>No password complexity enforcement at registration</td>
+          <td><span class="badge badge-high">High</span></td>
+          <td><span class="badge badge-done">✓ Fixed</span> — <code>PASSWORD_REGEX</code> requires uppercase, lowercase, digit, special char, ≥ 8 chars.</td>
+        </tr>
+        <tr>
+          <td><strong>SEC-10</strong></td>
+          <td>Unrestricted file upload / Stored XSS via avatar SVG</td>
+          <td><span class="badge badge-medium">Medium</span></td>
+          <td><span class="badge badge-done">✓ Fixed</span> — Multer fileFilter + magic-byte validation (PDF, JPEG, PNG, WEBP, DOCX). SVG blocked.</td>
+        </tr>
+        <tr>
+          <td><strong>SEC-11</strong></td>
+          <td>Prompt injection via resume / free-form AI input</td>
+          <td><span class="badge badge-medium">Medium</span></td>
+          <td><span class="badge badge-partial">⚠ Partial</span> — <code>sanitizeUserInput()</code> truncates and strips some patterns, but system vs user message boundaries are not always cleanly separated. Score boundary clamping is absent in several AI response handlers.</td>
+        </tr>
+        <tr>
+          <td><strong>SEC-12</strong></td>
+          <td>Missing frontend <code>ProtectedRoute</code> guards</td>
+          <td><span class="badge badge-medium">Medium</span></td>
+          <td><span class="badge badge-done">✓ Fixed</span> — All private routes wrapped in <code>&lt;ProtectedRoute&gt;</code>.</td>
+        </tr>
+        <tr>
+          <td><strong>SEC-13</strong></td>
+          <td>Password reset is a non-functional stub</td>
+          <td><span class="badge badge-medium">Medium</span></td>
+          <td><span class="badge badge-partial">⚠ Open</span> — <code>forgotPassword</code> calls an email service but the implementation must be verified in deployment to confirm real delivery works end-to-end.</td>
+        </tr>
+        <tr>
+          <td><strong>SEC-14</strong></td>
+          <td>Excessive 15 MB JSON body limit (DoS vector)</td>
+          <td><span class="badge badge-medium">Medium</span></td>
+          <td><span class="badge badge-done">✓ Fixed</span> — Reduced to <code>1mb</code>.</td>
+        </tr>
+        <tr>
+          <td><strong>SEC-15</strong></td>
+          <td>Missing HTTP security headers &amp; permissive CORS</td>
+          <td><span class="badge badge-medium">Medium</span></td>
+          <td><span class="badge badge-done">✓ Fixed</span> — <code>helmet</code> added; CORS allows only configured origins in production; reflects all origins only in non-production environments.</td>
+        </tr>
+        <tr>
+          <td><strong>SEC-16 ⬆ New</strong></td>
+          <td>Firebase API key hardcoded in <code>src/services/firebase/config.js</code> with production values as fallback</td>
+          <td><span class="badge badge-high">High</span></td>
+          <td><span class="badge badge-missing">✗ Open</span> — Line 5: <code>apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBd2Z..."</code>. If the env var is not set at build time, the real production API key ships in the bundle.</td>
+        </tr>
+        <tr>
+          <td><strong>SEC-17 ⬆ New</strong></td>
+          <td>In-memory rate limiter reset on server restart (no persistence)</td>
+          <td><span class="badge badge-medium">Medium</span></td>
+          <td><span class="badge badge-missing">✗ Open</span> — Serverless/multi-process deployments (Render, Railway) restart frequently. The in-memory <code>requestHistory</code> map is wiped on every restart, completely bypassing rate limits.</td>
+        </tr>
+        <tr>
+          <td><strong>SEC-18 ⬆ New</strong></td>
+          <td>CSRF token issued unconditionally from <code>req.cookies?.csrfToken</code></td>
+          <td><span class="badge badge-medium">Medium</span></td>
+          <td><span class="badge badge-missing">✗ Open</span> — The <code>GET /api/auth/csrf</code> endpoint reuses an existing cookie token if present, rather than always generating a fresh one. An attacker who captures an old CSRF token retains it indefinitely.</td>
+        </tr>
+        <tr>
+          <td><strong>SEC-19 ⬆ New</strong></td>
+          <td>Supabase storage path ownership check skipped for profile avatar upload</td>
+          <td><span class="badge badge-medium">Medium</span></td>
+          <td><span class="badge badge-missing">✗ Open</span> — <code>uploadAvatar</code> calls <code>generateStoragePath</code> using the authenticated <code>userId</code>, which is safe, but the download URL response does not re-validate ownership before granting signed access.</td>
+        </tr>
+        <tr>
+          <td><strong>SEC-20 ⬆ New</strong></td>
+          <td>Admin Firebase service account JSON committed to repository</td>
+          <td><span class="badge badge-critical">Critical</span></td>
+          <td><span class="badge badge-missing">✗ Open</span> — File <code>placementai-11ba6-firebase-adminsdk-fbsvc-13957c3337.json</code> is present in the workspace root and was likely checked into git at some point. This grants full Firebase Admin access to anyone with the repo.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Summary</h3>
+    <table>
+      <thead><tr><th>Status</th><th>Count</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge badge-done">Resolved</span></td><td>13 of 15 original findings</td></tr>
+        <tr><td><span class="badge badge-partial">Partially Fixed</span></td><td>2 (SEC-06, SEC-11)</td></tr>
+        <tr><td><span class="badge badge-missing">New / Open</span></td><td>5 newly identified (SEC-16 through SEC-20)</td></tr>
+      </tbody>
+    </table>
+
+    <div class="warn-box">
+      <strong>Immediate Action Required — SEC-20:</strong> The Firebase Admin service account JSON file <code>placementai-11ba6-firebase-adminsdk-fbsvc-13957c3337.json</code> must be removed from the repository, added to <code>.gitignore</code>, and <strong>the key must be rotated immediately</strong> in the Firebase console. Anyone with repository access (including GitHub CI runners) currently possesses full administrative access to the Firebase project.
+    </div>
+  </div>
+
+  <hr />
+
+  
+  
+  
+  <div class="section" id="sec2">
+    <h2 class="section-title red">2. Bug Report</h2>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="badge badge-critical">Critical</span>
+        <div>
+          <div class="card-id">BUG-01</div>
+          <div class="card-title">Resume PDF URL becomes inaccessible after ~5 minutes</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p><strong>Root Cause:</strong> When <code>generatePDF</code> is called, a Supabase signed URL is created with <code>expiresIn: 300</code> seconds (5 minutes) and stored in the Firestore <code>resumes</code> document as <code>pdfUrl</code>. On the next page load or login, <code>getResumes</code> reads this now-expired URL from Firestore and returns it to the frontend without refreshing it for records that have a <code>storageProvider === 'supabase'</code> but no <code>storagePath</code>.</p>
+        <p><strong>Impact:</strong> Users see broken PDF links and cannot download or view resumes they generated earlier.</p>
+        <p><strong>Fix:</strong> In <code>getResumes</code>, always re-generate the signed URL from <code>storagePath</code> (not from the cached <code>pdfUrl</code>) for all Supabase-backed records. See Section 4 for full analysis.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="badge badge-critical">Critical</span>
+        <div>
+          <div class="card-id">BUG-02</div>
+          <div class="card-title">Uploaded profile resume disappears after ~1 hour</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p><strong>Root Cause:</strong> <code>uploadProfileResume</code> generates a signed URL with <code>expiresIn: 3600</code> (1 hour) and stores it in the <code>users</code> document as <code>resumeDownloadUrl</code>. <code>getProfileResume</code> does refresh the URL on every call — <em>but</em> it only works if the caller hits that endpoint. If the frontend loads the profile data from the <code>/me</code> session endpoint instead of <code>GET /api/profile/resume</code>, it reads the stale stored URL.</p>
+        <p><strong>Impact:</strong> After ~1 hour (or next login session), the "View Resume" link on the Profile page returns a 403/400 from Supabase.</p>
+        <p><strong>Fix:</strong> Never persist the signed URL in Firestore. Store only <code>storagePath</code> and always generate fresh signed URLs on-the-fly at read time. Detailed fix in Section 4.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="badge badge-high">High</span>
+        <div>
+          <div class="card-id">BUG-03</div>
+          <div class="card-title">Dashboard shows hardcoded placeholder stats instead of real data</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p><strong>Location:</strong> <code>src/pages/Dashboard.jsx</code> lines 42–53.</p>
+        <p><strong>Root Cause:</strong> The initial state for <code>dashboardData</code> contains hardcoded values (<code>resumeScore: 87, atsScore: 87, ...</code>). If the <code>API.getDashboardStats()</code> call fails silently (e.g. network error), users see fabricated scores rather than an error state.</p>
+        <p><strong>Fix:</strong> Initialise stats to all-zero values or <code>null</code>; show a loading skeleton or error message if the fetch fails.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="badge badge-high">High</span>
+        <div>
+          <div class="card-id">BUG-04</div>
+          <div class="card-title">Resume Builder "Save as Profile Resume" fails silently when html2pdf is used</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p><strong>Location:</strong> <code>src/pages/ResumeBuilder.jsx</code> — <code>handleDirectDownloadHtml2Pdf</code>.</p>
+        <p><strong>Root Cause:</strong> The catch block around <code>html2pdf().from(element).set(opt).outputPdf('blob')</code> falls through to a plain <code>.save()</code> without setting <code>lastPdfBlobRef.current</code>. The subsequent "Save as Profile Resume" banner still appears but clicking it shows: <em>"No PDF available. Please use Direct PDF first."</em></p>
+        <p><strong>Fix:</strong> Hide the banner if <code>lastPdfBlobRef.current</code> is null; or handle the error distinctly from the blob path.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="badge badge-high">High</span>
+        <div>
+          <div class="card-id">BUG-05</div>
+          <div class="card-title">Duplicate resume creation on every "Download" action</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p><strong>Location:</strong> <code>src/pages/ResumeBuilder.jsx</code> — <code>handleDownloadPdf</code> and <code>handleDirectDownloadHtml2Pdf</code>.</p>
+        <p><strong>Root Cause:</strong> Both download handlers call <code>API.saveResume(resumePayload)</code> unconditionally when <code>activeResumeId</code> is <em>not</em> set (i.e. the first download). Clicking "Download PDF" and then "Direct PDF" creates two separate resume documents in Firestore for the same work session.</p>
+        <p><strong>Fix:</strong> Track a single <code>activeResumeId</code> in state and always do an <code>updateResume</code> once the ID is set, regardless of which download method is called.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="badge badge-high">High</span>
+        <div>
+          <div class="card-id">BUG-06</div>
+          <div class="card-title">Role field in profile update allows privilege escalation</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p><strong>Location:</strong> <code>backend/controllers/profileController.js</code> — <code>updateProfile</code>.</p>
+        <p><strong>Root Cause:</strong> The field <code>role</code> from <code>req.body</code> is written directly to the <code>users</code> collection (the authentication document). There is no whitelist of permitted role strings (only "student" or similar should be user-settable). A student can set <code>role: "admin"</code> and have it persist in Firestore.</p>
+        <p><strong>Fix:</strong> For user-initiated updates, write <code>targetRole</code> (career goal) only and never allow overwriting the system <code>role</code> field.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="badge badge-medium">Medium</span>
+        <div>
+          <div class="card-id">BUG-07</div>
+          <div class="card-title">Skills ID collision in <code>createResume</code> when multiple skills added quickly</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p><strong>Location:</strong> <code>backend/controllers/resumeController.js</code> lines 195–197.</p>
+        <p><strong>Root Cause:</strong> Skill IDs use <code>Date.now()</code> inside a synchronous loop. If multiple skills are created in the same millisecond, the ID fragment is identical and only one Firestore document is written (upsert). Skills are silently dropped.</p>
+        <p><strong>Fix:</strong> Append the loop index or use <code>crypto.randomUUID()</code> instead of <code>Date.now()</code>.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="badge badge-medium">Medium</span>
+        <div>
+          <div class="card-id">BUG-08</div>
+          <div class="card-title">ATS Checker "saved" mode triggers analysis before resumes load</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p><strong>Location:</strong> <code>src/pages/ATSChecker.jsx</code> — <code>useEffect</code> for <code>searchParams</code> (lines 96–104).</p>
+        <p><strong>Root Cause:</strong> When a <code>?resumeId=...</code> URL is present, <code>handleAnalyzeSavedResume(resumeId)</code> is called immediately. The saved resumes list is still loading, so <code>savedResumes.find()</code> returns undefined and the analysis is run with incomplete or missing context.</p>
+        <p><strong>Fix:</strong> Gate the URL-driven analysis behind <code>savedResumes</code> being fully loaded, or add a loading guard.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="badge badge-medium">Medium</span>
+        <div>
+          <div class="card-id">BUG-09</div>
+          <div class="card-title">Error stack trace exposed to clients in production</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p><strong>Location:</strong> <code>backend/middlewares/errorHandler.js</code>.</p>
+        <p><strong>Root Cause:</strong> The guard is <code>process.env.NODE_ENV === 'development'</code>, which is correct. However, if <code>NODE_ENV</code> is unset in the deployment environment, it defaults to <code>'development'</code> and stack traces are returned to clients.</p>
+        <p><strong>Fix:</strong> Default to production-safe behaviour: expose stack only when explicitly <code>=== 'development'</code>, never when the value is missing.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="badge badge-low">Low</span>
+        <div>
+          <div class="card-id">BUG-10</div>
+          <div class="card-title">Resume version history: <code>saveWebResumeVersion</code> off-by-one purge</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p><strong>Location:</strong> <code>backend/controllers/profileController.js</code> line 628.</p>
+        <p><strong>Root Cause:</strong> The condition <code>existingVersions.length &gt;= MAX_RESUME_VERSIONS</code> triggers when there are exactly 10 versions. It deletes the oldest to make room, but the slice math <code>existingVersions.length - MAX_RESUME_VERSIONS + 1</code> evaluates to <code>1</code> when at exactly 10 — correct only for the first overflow. If called multiple times in rapid succession (e.g. multiple downloads at once), the counter is based on a snapshot, potentially leaving 11+ versions.</p>
+        <p><strong>Fix:</strong> Enforce the limit after insertion by querying again, or use a Firestore transaction.</p>
+      </div>
+    </div>
+  </div>
+
+  <hr />
+
+  
+  
+  
+  <div class="section" id="sec3">
+    <h2 class="section-title purple">3. Feature Analysis</h2>
+    <p>Evaluated against typical placement-preparation platform requirements and observable routes/controllers.</p>
+
+    <table>
+      <thead>
+        <tr><th>Feature Area</th><th>Status</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>User Registration &amp; Login</strong></td>
+          <td><span class="badge badge-done">✓ Complete</span></td>
+          <td>Email/password + Google OAuth; email verification; onboarding wizard; deactivation cooldown.</td>
+        </tr>
+        <tr>
+          <td><strong>Resume Builder</strong></td>
+          <td><span class="badge badge-done">✓ Complete</span></td>
+          <td>Multi-step form; 10+ templates; AI summary + project bullets + skill suggestions; GitHub repo import; PDF export (print + html2pdf); save/version history.</td>
+        </tr>
+        <tr>
+          <td><strong>ATS Checker</strong></td>
+          <td><span class="badge badge-done">✓ Complete</span></td>
+          <td>Upload, saved resume, or profile resume; AI analysis with score, keyword gaps, improvements; printable report.</td>
+        </tr>
+        <tr>
+          <td><strong>Aptitude / Mock Tests</strong></td>
+          <td><span class="badge badge-done">✓ Complete</span></td>
+          <td>AI-generated MCQ sessions; timed tests; attempt history; score tracking; placement readiness update.</td>
+        </tr>
+        <tr>
+          <td><strong>Technical Practice</strong></td>
+          <td><span class="badge badge-done">✓ Complete</span></td>
+          <td>DSA / system design questions; in-browser code execution via Judge0; AI code evaluation; difficulty settings.</td>
+        </tr>
+        <tr>
+          <td><strong>HR Interview Simulation</strong></td>
+          <td><span class="badge badge-done">✓ Complete</span></td>
+          <td>AI-generated situational questions; answer evaluation with feedback; round-based context.</td>
+        </tr>
+        <tr>
+          <td><strong>Company Preparation</strong></td>
+          <td><span class="badge badge-done">✓ Complete</span></td>
+          <td>Per-company prep plans generated by AI with student context.</td>
+        </tr>
+        <tr>
+          <td><strong>Dashboard &amp; Progress</strong></td>
+          <td><span class="badge badge-partial">⚠ Partial</span></td>
+          <td>Stats displayed but initialised with <em>hardcoded demo values</em> (BUG-03). Study plan and AI recommendations work. Activity feed present but sparse.</td>
+        </tr>
+        <tr>
+          <td><strong>Profile Management</strong></td>
+          <td><span class="badge badge-done">✓ Complete</span></td>
+          <td>Edit all fields; avatar upload (Supabase); resume upload with AI insight extraction; GitHub + LinkedIn sync.</td>
+        </tr>
+        <tr>
+          <td><strong>Resume Upload (Profile)</strong></td>
+          <td><span class="badge badge-partial">⚠ Partial</span></td>
+          <td>Upload works; AI extraction works; <strong>download URL expires and is not refreshed on profile load</strong> (BUG-02). See Section 4.</td>
+        </tr>
+        <tr>
+          <td><strong>Placement Readiness Score</strong></td>
+          <td><span class="badge badge-done">✓ Complete</span></td>
+          <td>Composite score from resume, ATS, aptitude, technical, HR sub-scores; updated after every activity.</td>
+        </tr>
+        <tr>
+          <td><strong>Email Verification</strong></td>
+          <td><span class="badge badge-partial">⚠ Partial</span></td>
+          <td>Verification link sent via Firebase client SDK post-signup. Backend endpoint confirms; but the password reset email delivery requires deployment verification (BUG-09 / SEC-13).</td>
+        </tr>
+        <tr>
+          <td><strong>Password Reset</strong></td>
+          <td><span class="badge badge-partial">⚠ Partial</span></td>
+          <td>Backend has <code>sendPasswordResetEmail</code> call but real delivery not confirmed in current build.</td>
+        </tr>
+        <tr>
+          <td><strong>Multi-template Resume Preview</strong></td>
+          <td><span class="badge badge-done">✓ Complete</span></td>
+          <td>10+ distinct templates (modern, classic, dark sidebar, banner accent, specialized); live preview with customizer.</td>
+        </tr>
+        <tr>
+          <td><strong>PWA / Install Banner</strong></td>
+          <td><span class="badge badge-done">✓ Present</span></td>
+          <td><code>PwaInstallBanner</code> component present; requires <code>manifest.json</code> and service worker to function fully.</td>
+        </tr>
+        <tr>
+          <td><strong>Admin / Recruiter Portal</strong></td>
+          <td><span class="badge badge-missing">✗ Not implemented</span></td>
+          <td>Admin controller directory exists in backend (<code>backend/controllers/admin/</code>) but no routes or UI are wired up.</td>
+        </tr>
+        <tr>
+          <td><strong>Job Listing / Application Tracking</strong></td>
+          <td><span class="badge badge-missing">✗ Not implemented</span></td>
+          <td>Not present in codebase.</td>
+        </tr>
+        <tr>
+          <td><strong>Peer / Community Features</strong></td>
+          <td><span class="badge badge-missing">✗ Not implemented</span></td>
+          <td>Not present.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <hr />
+
+  
+  
+  
+  <div class="section" id="sec4">
+    <h2 class="section-title amber">4. Resume Upload — Deep Dive &amp; Persistence Fix</h2>
+
+    <h3>4.1 Current Implementation Workflow</h3>
+
+    <div class="flow">
+PROFILE RESUME UPLOAD (src/pages/Profile.jsx → API → backend)
+───────────────────────────────────────────────────────────────
+User selects file → handleResumeUpload()
+  → POST /api/profile/resume  (multipart/form-data)
+    → uploadMiddleware (Multer memoryStorage, 5 MB, MIME filter)
+    → uploadProfileResume()
+        ├─ validateFile() — size + MIME check
+        ├─ validateFileSignature() — magic byte check
+        ├─ generateStoragePath() — safe uid/subId/filename.ext
+        ├─ deleteFile() — remove old file from Supabase if present
+        ├─ uploadFile() — POST to Supabase Storage bucket "resumes"
+        ├─ getSignedDownloadUrl(..., 3600)  ← ⚠ URL expires in 1 hr
+        └─ FirestoreHelper.setDoc('users', userId, {
+               resumeStoragePath: "resumes/uid/subId/file.pdf",
+               resumeDownloadUrl: signedUrl,   ← ⚠ cached expired URL
+               resumeUploadedAt: ...
+             }, true)
+  ← Returns { resumeDownloadUrl, resumeFileName, ... }
+
+PROFILE RESUME READ (getProfileResume)
+───────────────────────────────────────
+GET /api/profile/resume
+  → reads users/{userId}
+  → if resumeStorageProvider === 'supabase':
+      regenerates signed URL → updates Firestore cache ✓
+  ← Returns fresh URL  ✓  (only if this endpoint is called)
+
+RESUME BUILDER PDF STORAGE
+───────────────────────────
+generatePDF()
+  → PDFService.generateResumePDF() → Buffer
+  → uploadFile('resumes', storagePath, buffer)
+  → getSignedDownloadUrl('resumes', storagePath, 300)  ← ⚠ 5 MIN ONLY
+  → FirestoreHelper.setDoc('resumes', resumeId, {
+        pdfUrl: signedUrl,           ← ⚠ cached; expires in 5 min
+        storagePath: "resumes/...",
+        storageProvider: 'supabase'
+      }, true)
+
+RESUME LIST READ (getResumes)
+──────────────────────────────
+GET /api/resume
+  → queries resumes where userId === uid
+  → for each: if storageProvider === 'supabase' &amp;&amp; storagePath:
+        getSignedDownloadUrl(bucket, storagePath, 3600) ✓
+    else: returns stored pdfUrl ← ⚠ May be stale for legacy records
+    </div>
+
+    <h3>4.2 Root Cause of Visibility Issues</h3>
+
+    <table>
+      <thead><tr><th>Scenario</th><th>Root Cause</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Profile resume after ~1 hr</td>
+          <td><code>resumeDownloadUrl</code> is a 3600-second signed URL stored in Firestore. If the user navigates to Profile without hitting <code>GET /api/profile/resume</code> first (e.g. navigated directly, cached data), the stale URL is used.</td>
+          <td>403 / expired URL error when clicking "View Resume".</td>
+        </tr>
+        <tr>
+          <td>Generated PDF after ~5 min</td>
+          <td><code>generatePDF</code> stores a 300-second URL as <code>pdfUrl</code>. <code>getResumes</code> <em>does</em> regenerate for Supabase-backed records, but only if <code>storagePath</code> is set. Any older record missing <code>storagePath</code> uses the stale <code>pdfUrl</code>.</td>
+          <td>PDF link shows as broken in "My Resumes" panel.</td>
+        </tr>
+        <tr>
+          <td>After next login / ~2 days</td>
+          <td>Session restore calls <code>GET /api/auth/me</code>, not <code>GET /api/profile/resume</code>. The signed URL in the returned user object has expired.</td>
+          <td>User sees no download link or a broken one in the Profile page until they explicitly call the resume endpoint.</td>
+        </tr>
+        <tr>
+          <td>Frontend cache (15s TTL)</td>
+          <td><code>api.js</code> caches GET responses for 15 seconds. If <code>getProfileResume</code> is called twice in rapid succession, the second call returns a cached signed URL that may be close to expiry.</td>
+          <td>Minor race condition; usually not user-visible.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>4.3 Required Fixes</h3>
+
+    <div class="card">
+      <div class="card-header"><span class="badge badge-critical">Fix A — Critical</span><div class="card-title">Never store signed URLs in Firestore; always regenerate on read</div></div>
+      <div class="card-body">
+        <p>In <code>uploadProfileResume</code>, remove <code>resumeDownloadUrl</code> from the Firestore write. Store only <code>resumeStoragePath</code>.</p>
+        <p>In <code>getProfileResume</code>, always call <code>getSignedDownloadUrl</code> with a generous TTL (e.g. 3600s) and return it without writing it back to Firestore.</p>
+        <p>In <code>generatePDF</code>, do the same — store <code>storagePath</code> only; never store <code>pdfUrl</code> as the primary retrieval key.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="badge badge-high">Fix B — High</span><div class="card-title">Extend frontend signed-URL cache TTL to match backend TTL</div></div>
+      <div class="card-body">
+        <p>In <code>src/services/storageService.js</code>, the in-memory <code>signedUrlCache</code> already caches for <code>expiresIn - 30</code> seconds. Ensure the backend's <code>expiresIn</code> argument is always ≥ 3600 so cached URLs remain valid across a full user session.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="badge badge-high">Fix C — High</span><div class="card-title">Load profile resume on every Profile page mount</div></div>
+      <div class="card-body">
+        <p>In <code>src/pages/Profile.jsx</code>, the <code>useEffect</code> correctly calls <code>API.getProfileResume()</code>. Ensure the <code>api.js</code> cache TTL for this endpoint is either bypassed (add it to the skip-cache list like <code>check-email</code>) or kept very short (≤ 60 s). Add a "Refresh" button to the resume card for users who re-upload.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="badge badge-medium">Fix D — Medium</span><div class="card-title">Increase default signed URL TTL in <code>generatePDF</code> to 1 hour</div></div>
+      <div class="card-body">
+        <p>Change <code>getSignedDownloadUrl('resumes', storagePath, 300)</code> → <code>getSignedDownloadUrl('resumes', storagePath, 3600)</code>. This prevents immediate expiry for users who generate and then immediately try to open the PDF in a new tab.</p>
+      </div>
+    </div>
+  </div>
+
+  <hr />
+
+  
+  
+  
+  <div class="section" id="sec5">
+    <h2 class="section-title teal">5. Logic &amp; Performance Improvements</h2>
+
+    <h3>5.1 Backend</h3>
+
+    <table>
+      <thead><tr><th>Issue</th><th>Location</th><th>Recommendation</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>N+1 Firestore reads in <code>getResumes</code></strong></td>
+          <td><code>resumeController.js</code> lines 51–66</td>
+          <td>For each resume, up to 3 sub-collection queries are made (<code>skills</code>, <code>projects</code>, <code>certificates</code>) only when arrays are empty. This is an N×3 read pattern. Denormalise data at write time (already done for new records) and add a migration to backfill old documents, eliminating the sub-queries entirely.</td>
+        </tr>
+        <tr>
+          <td><strong>Sequential <code>await</code> inside skill/project/cert creation loops</strong></td>
+          <td><code>resumeController.js</code> lines 192–215</td>
+          <td>Firestore writes are sequential; switch to <code>Promise.all()</code>. Also replace <code>Date.now()</code>-based ID generation with index suffix or <code>crypto.randomUUID()</code> (BUG-07).</td>
+        </tr>
+        <tr>
+          <td><strong>In-memory rate limiter not shared across processes</strong></td>
+          <td><code>rateLimiter.js</code></td>
+          <td>On auto-scaling or serverless deployments, each instance has its own map. Replace with a Redis-backed limiter (e.g. <code>rate-limiter-flexible</code>) for production correctness.</td>
+        </tr>
+        <tr>
+          <td><strong>Duplicate route registration</strong></td>
+          <td><code>server.js</code> lines 94–97</td>
+          <td>Routes are mounted at both <code>/api/:path</code> and <code>/:path</code>. The bare-path fallback should be removed or protected to prevent unintended route shadowing in production.</td>
+        </tr>
+        <tr>
+          <td><strong>Missing Firestore indexes</strong></td>
+          <td><code>firestoreHelper.js</code></td>
+          <td>Composite queries like <code>queryCollection('resumes', 'userId', uid)</code> require a Firestore index. Without it, reads fall back to full-collection scans in production. Add <code>firestore.indexes.json</code> with the required composite indexes.</td>
+        </tr>
+        <tr>
+          <td><strong>PDF generation triggered per download — no caching</strong></td>
+          <td><code>resumeController.js — generatePDF</code></td>
+          <td>Each <code>generatePDF</code> call re-renders the HTML template and generates a new PDF even if the resume data hasn't changed. Cache by resumeId + content hash, or generate only when the resume document's <code>updatedAt</code> is newer than the last PDF timestamp.</td>
+        </tr>
+        <tr>
+          <td><strong>AI prompt input not sanitised against delimiter injection</strong></td>
+          <td><code>grokService.js</code></td>
+          <td>While <code>sanitizeUserInput()</code> truncates text, it does not escape <code>"""</code> (triple-quote delimiters) or XML-like tags. Implement a structured message format that fully separates the system context from user-provided content.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>5.2 Frontend</h3>
+
+    <table>
+      <thead><tr><th>Issue</th><th>Location</th><th>Recommendation</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>GET cache TTL (15 s) is too short for stable data</strong></td>
+          <td><code>api.js</code></td>
+          <td>Profile and resume list data changes infrequently. A 15-second cache causes excessive re-fetching on every navigation. Use a per-endpoint configurable TTL: 15 s for scores/live data, 60 s for profile, 300 s for template lists.</td>
+        </tr>
+        <tr>
+          <td><strong>Cache cleared on every mutation regardless of endpoint scope</strong></td>
+          <td><code>api.js</code> line 51</td>
+          <td><code>getCache.clear()</code> on any mutation drops all cached data. Scope invalidation: a resume save should only invalidate <code>/resume</code> cache entries, not profile or dashboard entries.</td>
+        </tr>
+        <tr>
+          <td><strong>ResumeBuilder state not persisted between page navigations</strong></td>
+          <td><code>ResumeBuilder.jsx</code></td>
+          <td>All form state is held in component-local <code>useState</code>. Navigating away and back resets the form. Add auto-save to <code>sessionStorage</code> or draft the resume to the backend every 30 seconds.</td>
+        </tr>
+        <tr>
+          <td><strong>html2pdf generates a raster PDF (JPEG quality ~0.98)</strong></td>
+          <td><code>ResumeBuilder.jsx — handleDirectDownloadHtml2Pdf</code></td>
+          <td>html2pdf rasterises the DOM to JPEG before embedding in PDF, resulting in blurry output at high zoom and large file sizes. Prefer the native print path (<code>window.print()</code>) or a server-side PDF generator (<code>pdfService.js</code>) for production-quality output.</td>
+        </tr>
+        <tr>
+          <td><strong>Missing loading states on several async operations</strong></td>
+          <td>Multiple pages</td>
+          <td>Profile avatar upload, GitHub scan, and ATS analysis do not always disable the triggering button during processing, allowing duplicate submissions.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <hr />
+
+  
+  
+  
+  <div class="section" id="sec6">
+    <h2 class="section-title green">6. UI/UX Improvements</h2>
+    <p>All recommendations maintain the existing purple/slate/white colour scheme and Tailwind-based design system.</p>
+
+    <h3>6.1 Global / Cross-page</h3>
+    <table>
+      <thead><tr><th>Issue</th><th>Recommendation</th><th>Priority</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>No global toast/notification system</td>
+          <td>Replace scattered <code>alert()</code> calls (≥ 8 occurrences) and local success/error message strings with a centralised toast component (e.g. a lightweight custom hook). <code>alert()</code> is synchronous and blocks the UI thread.</td>
+          <td><span class="badge badge-high">High</span></td>
+        </tr>
+        <tr>
+          <td>Loading skeletons absent for data-heavy sections</td>
+          <td>Add shimmer/skeleton placeholders for Dashboard stats cards, Resume list, and ATS scan result while data loads — prevents layout shift and improves perceived performance.</td>
+          <td><span class="badge badge-high">High</span></td>
+        </tr>
+        <tr>
+          <td>Error boundaries not present</td>
+          <td>Wrap page-level components in React <code>ErrorBoundary</code> so a failed render in one widget (e.g. broken resume template) doesn't crash the entire app.</td>
+          <td><span class="badge badge-medium">Medium</span></td>
+        </tr>
+        <tr>
+          <td>No keyboard navigation / accessibility audit</td>
+          <td>Tab order, ARIA labels, and focus management are inconsistent. Add <code>aria-label</code> to icon-only buttons, ensure modals trap focus, and add <code>role="alert"</code> to dynamic error messages.</td>
+          <td><span class="badge badge-medium">Medium</span></td>
+        </tr>
+        <tr>
+          <td>Mobile sidebar z-index conflicts</td>
+          <td>On small screens, the mobile sidebar occasionally renders behind modals. Standardise z-index scale: sidebar 40, modal overlay 50, modal 60, toast 70.</td>
+          <td><span class="badge badge-low">Low</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>6.2 Dashboard</h3>
+    <table>
+      <thead><tr><th>Issue</th><th>Recommendation</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Hardcoded placeholder stats (BUG-03)</td>
+          <td>Replace with zero-state designs: empty bar charts, "Not attempted yet" copy, and CTAs pointing to the relevant module.</td>
+        </tr>
+        <tr>
+          <td>Progress rings are static SVG; no animation</td>
+          <td>Animate ring stroke-dashoffset from 0 to the value on mount. This adds visual polish without additional dependencies.</td>
+        </tr>
+        <tr>
+          <td>Study plan tasks have no visual due-date indicator</td>
+          <td>Add a small date chip or "Due today" label to high-priority tasks.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>6.3 Resume Builder</h3>
+    <table>
+      <thead><tr><th>Issue</th><th>Recommendation</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>No auto-save indicator</td>
+          <td>Add a subtle "Saved ✓" / "Unsaved changes" indicator in the header. Users frequently lose work due to accidental navigation.</td>
+        </tr>
+        <tr>
+          <td>Template preview is hidden behind a button</td>
+          <td>Show a thumbnail grid of templates on Step 1 so users can select their template before filling in data, reducing mid-flow context switching.</td>
+        </tr>
+        <tr>
+          <td>Validation errors appear only at Step 3</td>
+          <td>Show inline per-field validation as users type and highlight the incomplete tab in the navigation bar with a red dot, giving earlier feedback.</td>
+        </tr>
+        <tr>
+          <td>Download methods (Print / Direct PDF) are confusing to users</td>
+          <td>Merge into a single "Download PDF" button. Use the server-side PDF endpoint as primary; fall back to html2pdf if unavailable. Remove the dual-button confusion.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>6.4 Profile Page</h3>
+    <table>
+      <thead><tr><th>Issue</th><th>Recommendation</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Resume section shows no feedback while loading signed URL</td>
+          <td>Add a loading spinner and "Refreshing link…" text while <code>getProfileResume</code> is in flight.</td>
+        </tr>
+        <tr>
+          <td>AI Insights modal opens automatically on resume upload</td>
+          <td>This is jarring. Instead, show a non-blocking banner: "We extracted skills from your resume — review them?" with a single CTA to open the modal.</td>
+        </tr>
+        <tr>
+          <td>Skills section in edit mode has no drag-to-reorder</td>
+          <td>Allow reordering by drag-and-drop or up/down arrows so users can prioritise top skills.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>6.5 ATS Checker</h3>
+    <table>
+      <thead><tr><th>Issue</th><th>Recommendation</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Scan mode tabs ("Upload / Saved / Profile") are not visually distinct when disabled</td>
+          <td>Grey out "Profile Resume" mode with a tooltip "No resume uploaded yet — go to Profile to upload" when <code>profileResume.hasResume</code> is false.</td>
+        </tr>
+        <tr>
+          <td>Score radial is rendered as plain text percentage</td>
+          <td>Render as an animated SVG arc gauge (matching Dashboard style) for visual consistency.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <hr />
+
+  
+  
+  
+  <div class="section" id="sec7">
+    <h2 class="section-title">7. Prioritised Implementation Plan</h2>
+
+    <div class="priority-block priority-critical">
+      <div class="priority-label">🔴 Critical — Do Immediately (Day 1)</div>
+      <ul>
+        <li><strong>SEC-20:</strong> Remove <code>placementai-11ba6-firebase-adminsdk-fbsvc-13957c3337.json</code> from the repo, add to <code>.gitignore</code>, rotate the service account key in Firebase console.</li>
+        <li><strong>SEC-16:</strong> Remove hardcoded Firebase API key fallback from <code>src/services/firebase/config.js</code>. Throw an error if the env var is missing at build time.</li>
+        <li><strong>BUG-01 + BUG-02 (Fix A):</strong> Stop persisting signed URLs in Firestore for both <code>pdfUrl</code> and <code>resumeDownloadUrl</code>. Always regenerate signed URLs from <code>storagePath</code> at read time.</li>
+        <li><strong>BUG-06 / SEC-06:</strong> Add a role whitelist to <code>updateProfile</code> — never overwrite the system <code>role</code> field from user input. Separate <code>targetRole</code> (career goal, user-editable) from <code>role</code> (system role, admin-only).</li>
+      </ul>
+    </div>
+
+    <div class="priority-block priority-high">
+      <div class="priority-label">🟠 High — Sprint 1 (Days 2–5)</div>
+      <ul>
+        <li><strong>BUG-02 (Fix C):</strong> Bypass the 15 s API cache for <code>/profile/resume</code> so every Profile page load fetches a fresh signed URL.</li>
+        <li><strong>BUG-04 (Fix D):</strong> Increase <code>generatePDF</code> signed URL TTL from 300 s → 3600 s to prevent immediate expiry.</li>
+        <li><strong>BUG-03:</strong> Replace hardcoded dashboard stats initial state with zeros and a proper empty state / skeleton UI.</li>
+        <li><strong>BUG-05:</strong> Fix duplicate resume creation — share a single <code>activeResumeId</code> across both download handlers.</li>
+        <li><strong>BUG-07:</strong> Fix skill ID collision in <code>createResume</code> by using <code>crypto.randomUUID()</code> or index-based IDs. Switch sequential Firestore writes to <code>Promise.all()</code>.</li>
+        <li><strong>SEC-11:</strong> Clamp all AI-returned numerical scores to [0, 100] server-side. Add explicit <code>role: "system"</code> / <code>role: "user"</code> separation in all AI prompt calls.</li>
+        <li><strong>SEC-17:</strong> Replace in-memory rate limiter with a Redis-backed solution (or use a managed rate-limit service) for multi-process deployments.</li>
+        <li><strong>UI:</strong> Replace all <code>alert()</code> calls with a global toast notification system.</li>
+        <li><strong>UI:</strong> Add loading skeleton for Dashboard stats and Resume list.</li>
+      </ul>
+    </div>
+
+    <div class="priority-block priority-medium">
+      <div class="priority-label">🟡 Medium — Sprint 2 (Days 6–12)</div>
+      <ul>
+        <li><strong>SEC-18:</strong> Always generate a fresh CSRF token on <code>GET /api/auth/csrf</code>; do not reuse the cookie value.</li>
+        <li><strong>SEC-13:</strong> Verify and integration-test the password reset email flow end-to-end in the production deployment environment.</li>
+        <li><strong>BUG-08:</strong> Guard URL-driven ATS analysis behind <code>savedResumes</code> being fully loaded.</li>
+        <li><strong>BUG-09:</strong> Default <code>NODE_ENV</code> to <code>'production'</code> when not set; never expose stack traces unless explicitly in development mode.</li>
+        <li><strong>Perf — Backend:</strong> Replace N×3 Firestore sub-collection reads in <code>getResumes</code> with denormalised reads. Add <code>firestore.indexes.json</code>.</li>
+        <li><strong>Perf — Frontend:</strong> Implement per-endpoint API cache TTLs; scope cache invalidation to affected endpoint groups.</li>
+        <li><strong>UI:</strong> Add auto-save (30 s) with "Saved ✓" indicator in Resume Builder.</li>
+        <li><strong>UI:</strong> Add React ErrorBoundary wrappers for page-level components.</li>
+        <li><strong>UI:</strong> Merge dual PDF download buttons into a single action.</li>
+        <li><strong>UI:</strong> Change AI Insights modal trigger on upload from auto-open to non-blocking banner.</li>
+      </ul>
+    </div>
+
+    <div class="priority-block priority-low">
+      <div class="priority-label">🔵 Low — Sprint 3 (Days 13–20)</div>
+      <ul>
+        <li><strong>SEC-19:</strong> Add server-side ownership re-validation before issuing avatar download signed URLs.</li>
+        <li><strong>BUG-10:</strong> Fix resume version history off-by-one purge with a Firestore transaction or post-insert cleanup.</li>
+        <li><strong>Perf:</strong> Cache PDF generation by content hash; avoid redundant PDF re-generation for unchanged resumes.</li>
+        <li><strong>UI:</strong> Add drag-to-reorder for profile skills.</li>
+        <li><strong>UI:</strong> Add inline per-field validation and tab-level completion indicators in Resume Builder.</li>
+        <li><strong>UI:</strong> Accessibility pass — ARIA labels, focus trapping in modals, keyboard navigation.</li>
+        <li><strong>UI:</strong> Standardise z-index scale across sidebar, modals, and toasts.</li>
+        <li><strong>Feature:</strong> Wire up <code>backend/controllers/admin/</code> for an admin dashboard.</li>
+        <li><strong>Infra:</strong> Generate and commit <code>public/manifest.json</code> + service worker for full PWA support.</li>
+      </ul>
+    </div>
+
+    <h3>Summary Metrics</h3>
+    <table>
+      <thead><tr><th>Priority</th><th>Issues</th><th>Effort</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge badge-critical">Critical</span></td><td>4</td><td>~1 day</td></tr>
+        <tr><td><span class="badge badge-high">High</span></td><td>9</td><td>~4 days</td></tr>
+        <tr><td><span class="badge badge-medium">Medium</span></td><td>10</td><td>~7 days</td></tr>
+        <tr><td><span class="badge badge-low">Low</span></td><td>9</td><td>~8 days</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  
+  <div class="footer">Made with IBM Bob</div>
+
+</div>
+</body>
+</html>

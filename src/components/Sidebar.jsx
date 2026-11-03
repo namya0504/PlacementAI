@@ -49,14 +49,14 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 lg:hidden"
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[40] lg:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
       <aside
         aria-label="Application sidebar"
-        className={`fixed top-0 bottom-0 left-0 z-50 w-64 bg-white border-r border-[#EAEBF4] flex flex-col transition-transform duration-300 font-sans ${
+        className={`fixed top-0 bottom-0 left-0 z-[45] w-64 bg-white border-r border-[#EAEBF4] flex flex-col transition-transform duration-300 font-sans ${
           mobileOpen ? 'visible translate-x-0' : 'invisible -translate-x-full lg:visible lg:translate-x-0'
         }`}
       >

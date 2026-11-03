@@ -43,34 +43,15 @@ export const getResumes = async (req, res, next) => {
           try {
             downloadUrl = await getSignedDownloadUrl(r.bucketName || 'resumes', r.storagePath, 3600);
           } catch (e) {
-            // fallback
+            // fallback to stored url
           }
-        }
-
-        // Backward compatibility: If skills/projects/certificates are missing on the doc, fetch from collections
-        let skills = r.skills;
-        if (!Array.isArray(skills) || skills.length === 0) {
-          const sDocs = await FirestoreHelper.queryCollection('skills', 'resumeId', r.resumeId);
-          if (sDocs.length > 0) skills = sDocs.map(s => s.name).filter(Boolean);
-        }
-
-        let projects = r.projects;
-        if (!Array.isArray(projects) || projects.length === 0) {
-          const pDocs = await FirestoreHelper.queryCollection('projects', 'resumeId', r.resumeId);
-          if (pDocs.length > 0) projects = pDocs;
-        }
-
-        let certificates = r.certificates;
-        if (!Array.isArray(certificates) || certificates.length === 0) {
-          const cDocs = await FirestoreHelper.queryCollection('certificates', 'resumeId', r.resumeId);
-          if (cDocs.length > 0) certificates = cDocs;
         }
 
         return {
           ...r,
-          skills: skills || [],
-          projects: projects || [],
-          certificates: certificates || [],
+          skills: Array.isArray(r.skills) ? r.skills : [],
+          projects: Array.isArray(r.projects) ? r.projects : [],
+          certificates: Array.isArray(r.certificates) ? r.certificates : [],
           downloadUrl: downloadUrl || r.pdfUrl || ''
         };
       })
@@ -189,30 +170,33 @@ export const createResume = async (req, res, next) => {
 
     await FirestoreHelper.setDoc('resumes', resumeId, resumeData);
 
-    // Store skills references
-    if (Array.isArray(skills)) {
-      for (const s of skills) {
-        const skillId = 'sk_' + userId + '_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
-        const name = typeof s === 'string' ? s : s.name;
-        await FirestoreHelper.setDoc('skills', skillId, { skillId, resumeId, name, category: 'Technical' });
-      }
-    }
+    // Store skills, projects, and certificates — parallel writes with UUID-based IDs
+    // to prevent ID collisions when multiple items are saved in the same millisecond.
+    const { randomUUID } = await import('node:crypto');
 
-    // Store projects references
-    if (Array.isArray(projects)) {
-      for (const p of projects) {
-        const projectId = 'proj_' + userId + '_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
-        await FirestoreHelper.setDoc('projects', projectId, { projectId, resumeId, ...p });
-      }
-    }
+    const skillWrites = Array.isArray(skills)
+      ? skills.map(s => {
+          const skillId = 'sk_' + randomUUID();
+          const name = typeof s === 'string' ? s : s.name;
+          return FirestoreHelper.setDoc('skills', skillId, { skillId, resumeId, name, category: 'Technical' });
+        })
+      : [];
 
-    // Store certificates references
-    if (Array.isArray(certificates)) {
-      for (const c of certificates) {
-        const certificateId = 'cert_' + userId + '_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
-        await FirestoreHelper.setDoc('certificates', certificateId, { certificateId, resumeId, ...c });
-      }
-    }
+    const projectWrites = Array.isArray(projects)
+      ? projects.map(p => {
+          const projectId = 'proj_' + randomUUID();
+          return FirestoreHelper.setDoc('projects', projectId, { projectId, resumeId, ...p });
+        })
+      : [];
+
+    const certificateWrites = Array.isArray(certificates)
+      ? certificates.map(c => {
+          const certificateId = 'cert_' + randomUUID();
+          return FirestoreHelper.setDoc('certificates', certificateId, { certificateId, resumeId, ...c });
+        })
+      : [];
+
+    await Promise.all([...skillWrites, ...projectWrites, ...certificateWrites]);
 
     // Calculate dynamic completeness score
     const dynamicResumeScore = evaluateResumeScore({ personalInfo, summary, education, skills, projects, experience });
@@ -380,12 +364,13 @@ export const generatePDF = async (req, res, next) => {
     const storagePath = generateStoragePath('resumes', userId, 'application/pdf', resumeId);
     const result = await uploadFile('resumes', storagePath, pdfBuffer, 'application/pdf');
 
-    // Get a signed URL to return to the frontend
-    const signedUrl = await getSignedDownloadUrl('resumes', storagePath, 300);
+    // Get a signed URL to return to the frontend (1-hour TTL for immediate use).
+    // NOTE: We do NOT persist this URL in Firestore — signed URLs expire.
+    // The storagePath is stored and a fresh URL is generated on every read in getResumes.
+    const signedUrl = await getSignedDownloadUrl('resumes', storagePath, 3600);
 
-    // Update Firestore with both legacy and new fields
+    // Update Firestore with storage metadata only — no cached signed URL
     await FirestoreHelper.setDoc('resumes', resumeId, {
-      pdfUrl: signedUrl,
       userId,
       storageProvider: 'supabase',
       storagePath: result.storagePath,

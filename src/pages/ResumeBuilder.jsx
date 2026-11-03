@@ -36,6 +36,7 @@ import {
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../services/api';
+import { useToast } from '../context/ToastContext';
 import { generateProfessionalSummary, generateProjectBulletPoints } from '../services/aiService';
 import { TemplatePicker } from '../features/resume/components/TemplatePicker';
 import { CustomizerPanel } from '../features/resume/components/CustomizerPanel';
@@ -55,6 +56,7 @@ export default function ResumeBuilder() {
   const navigate = useNavigate();
   const { currentUser, user: authUser } = useAuth();
   const user = currentUser || authUser;
+  const toast = useToast();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [activeTab, setActiveTab] = useState('personal');
@@ -399,6 +401,77 @@ export default function ResumeBuilder() {
     return () => { isMounted = false; };
   }, [user]);
 
+  // ── sessionStorage draft auto-save ─────────────────────────────────────────
+  // Only active for new-resume flow (no ?resumeId param). Saves every 30s.
+  const DRAFT_KEY = user?.uid ? `resume_draft_${user.uid}` : null;
+  const isNewResume = !searchParams.get('resumeId');
+
+  // Track when the draft was last auto-saved for the "Saved ✓ / Unsaved changes" indicator
+  const [draftSavedAt, setDraftSavedAt] = useState(null); // Date | null
+
+  // Restore draft on mount — runs once after loadResumeData populates state
+  const draftRestoredRef = useRef(false);
+  useEffect(() => {
+    if (!DRAFT_KEY || !isNewResume || draftRestoredRef.current) return;
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      if (!draft || typeof draft !== 'object') return;
+      // Only restore if draft was saved within the last 2 hours
+      if (!draft._savedAt || Date.now() - draft._savedAt > 2 * 60 * 60 * 1000) return;
+      draftRestoredRef.current = true;
+      if (draft.personal && typeof draft.personal === 'object') setPersonal(draft.personal);
+      if (draft.role !== undefined) setRole(draft.role);
+      if (Array.isArray(draft.education) && draft.education.length > 0) setEducation(draft.education);
+      if (Array.isArray(draft.skills)) setSkills(draft.skills);
+      if (Array.isArray(draft.projects) && draft.projects.length > 0) setProjects(draft.projects);
+      if (Array.isArray(draft.certifications)) setCertifications(draft.certifications);
+      if (Array.isArray(draft.experience) && draft.experience.length > 0) setExperience(draft.experience);
+      if (draft.template) setTemplate(draft.template);
+      if (draft.templateOptions && typeof draft.templateOptions === 'object') setTemplateOptions(draft.templateOptions);
+      setDraftSavedAt(new Date(draft._savedAt));
+    } catch {
+      // Corrupt draft — silently ignore
+    }
+  }, [DRAFT_KEY, isNewResume]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-save draft every 30s
+  useEffect(() => {
+    if (!DRAFT_KEY || !isNewResume) return;
+    const id = setInterval(() => {
+      try {
+        const now = Date.now();
+        const draft = {
+          personal,
+          role,
+          education,
+          skills,
+          projects,
+          certifications,
+          experience,
+          template,
+          templateOptions,
+          _savedAt: now
+        };
+        sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+        setDraftSavedAt(new Date(now));
+      } catch {
+        // sessionStorage full or unavailable — silently ignore
+      }
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [DRAFT_KEY, isNewResume, personal, role, education, skills, projects, certifications, experience, template, templateOptions]);
+
+  // Clear draft after a successful explicit save (when activeResumeId is set)
+  useEffect(() => {
+    if (DRAFT_KEY && activeResumeId) {
+      sessionStorage.removeItem(DRAFT_KEY);
+      setDraftSavedAt(null);
+    }
+  }, [DRAFT_KEY, activeResumeId]);
+  // ─────────────────────────────────────────────────────────────────────────────
+
   const refreshResumesList = async () => {
     try {
       const list = await API.getResumes();
@@ -716,8 +789,9 @@ export default function ResumeBuilder() {
         certificates: certifications
       };
 
+      // BUG-05 fix: use activeResumeId for updates whenever it is set
       let saved;
-      if (activeResumeId && searchParams.get('resumeId')) {
+      if (activeResumeId) {
         saved = await API.updateResume(activeResumeId, resumePayload);
       } else {
         saved = await API.saveResume(resumePayload);
@@ -766,19 +840,21 @@ export default function ResumeBuilder() {
     const html2pdfModule = await import('html2pdf.js');
     const html2pdf = html2pdfModule.default || html2pdfModule;
 
-    // Generate blob so we can offer "save as profile resume"
+    // Generate blob so we can offer "save as profile resume".
+    // If blob generation fails, fall back to a plain save and keep the banner hidden.
     try {
       const pdfBlob = await html2pdf().from(element).set(opt).outputPdf('blob');
       lastPdfBlobRef.current = { blob: pdfBlob, fileName };
       // Also trigger the download
       html2pdf().from(element).set(opt).save();
-      // Show the "save as profile resume" banner after a short delay
+      // Only show the banner when we successfully captured a blob
       setTimeout(() => {
         setShowSaveProfileBanner(true);
         setSavedProfileResumeMsg('');
       }, 800);
     } catch (_) {
-      // Fallback: just save without blob capture
+      // Fallback: plain save; do NOT show the banner — no blob was captured
+      lastPdfBlobRef.current = null;
       html2pdf().from(element).set(opt).save();
     }
 
@@ -799,8 +875,11 @@ export default function ResumeBuilder() {
         certificates: certifications
       };
 
+      // BUG-05 fix: use activeResumeId for updates whenever it is set
+      // (not just when the URL has a resumeId param), preventing duplicate records
+      // when both download methods are used in the same session.
       let saved;
-      if (activeResumeId && searchParams.get('resumeId')) {
+      if (activeResumeId) {
         saved = await API.updateResume(activeResumeId, resumePayload);
       } else {
         saved = await API.saveResume(resumePayload);
@@ -894,7 +973,7 @@ export default function ResumeBuilder() {
       setTimeout(() => setSaveSuccessMsg(''), 7000);
     } catch (err) {
       console.error('Failed to save resume:', err);
-      alert('Failed to save resume: ' + (err.message || 'Please check all required fields.'));
+      toast.error('Failed to save resume: ' + (err.message || 'Please check all required fields.'));
     } finally {
       setIsSavingResume(false);
     }
@@ -934,7 +1013,16 @@ export default function ResumeBuilder() {
             </button>
             <div>
               <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 font-outfit">Resume Builder</h1>
-              <p className="text-xs text-slate-500">Create a professional resume with AI assistance.</p>
+              {isNewResume && draftSavedAt ? (
+                <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1 mt-0.5">
+                  <CheckCircle2 className="w-3 h-3" />
+                  Draft saved at {draftSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              ) : isNewResume && currentStep >= 2 ? (
+                <p className="text-[10px] text-amber-500 font-semibold mt-0.5">Unsaved changes — auto-saves every 30s</p>
+              ) : (
+                <p className="text-xs text-slate-500">Create a professional resume with AI assistance.</p>
+              )}
             </div>
           </div>
 
@@ -1165,20 +1253,24 @@ export default function ResumeBuilder() {
               {/* Left Sub-Navigation Tabs */}
               <div className="lg:col-span-3 bg-white rounded-3xl p-4 border border-[#EAEBF4] shadow-xs space-y-1 h-fit">
                 {SECTION_TABS.map(t => {
-                  const Icon = t.icon;
-                  return (
-                    <button
-                      key={t.key}
-                      onClick={() => setActiveTab(t.key)}
-                      className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition text-left ${
-                        activeTab === t.key ? 'bg-[#7C3AED] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4" />
-                      <span>{t.label}</span>
-                    </button>
-                  );
-                })}
+                    const Icon = t.icon;
+                    const hasError = validationErrors.some(e => e.tab === t.key);
+                    return (
+                      <button
+                        key={t.key}
+                        onClick={() => setActiveTab(t.key)}
+                        className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition text-left ${
+                          activeTab === t.key ? 'bg-[#7C3AED] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4 shrink-0" />
+                        <span className="flex-1">{t.label}</span>
+                        {hasError && (
+                          <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" aria-label="This section has errors" />
+                        )}
+                      </button>
+                    );
+                  })}
               </div>
 
               {/* Form Input Area */}
@@ -2213,7 +2305,7 @@ export default function ResumeBuilder() {
 
       {/* My Resumes Drawer / Modal */}
       {showMyResumesModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
             <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
@@ -2409,7 +2501,7 @@ export default function ResumeBuilder() {
 
       {/* Cancel Resume Creation Confirmation Modal */}
       {showCancelConfirmModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-[#EAEBF4] animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center gap-3 text-amber-600">
               <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center shrink-0">

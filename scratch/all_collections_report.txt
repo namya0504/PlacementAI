@@ -1,0 +1,253 @@
+
+[COLLECTION] activities
+  setDoc           backend\controllers\activityController.js:15 | arg2: activityId | arg3: doc
+  queryCollection  backend\controllers\activityController.js:26 | arg2: 'userId' | arg3: userId
+  setDoc           backend\controllers\aptitudeSessionController.js:477 | arg2: activityId | arg3: {
+  queryCollection  backend\controllers\dashboardController.js:31 | arg2: 'userId' | arg3: userId
+
+[COLLECTION] aptitude_questions
+  queryCollection  backend\controllers\aptitudeController.js:12 | arg2:  | arg3: 
+  setDoc           backend\controllers\aptitudeController.js:37 | arg2: q.questionId | arg3: q
+  queryCollection  backend\controllers\aptitudeController.js:56 | arg2:  | arg3: 
+  setDoc           backend\firebase\seedData.js:66 | arg2: q.questionId | arg3: q
+
+[COLLECTION] aptitude_attempts
+  setDoc           backend\controllers\aptitudeController.js:83 | arg2: testId | arg3: testResult
+  setDoc           backend\controllers\aptitudeSessionController.js:428 | arg2: testId | arg3: {
+  queryCollection  backend\services\studentContext.js:43 | arg2: 'userId' | arg3: userId
+
+[COLLECTION] placement_readiness
+  getDoc           backend\controllers\aptitudeController.js:86 | arg2: 'readiness_' + userId | arg3: 
+  setDoc           backend\controllers\aptitudeController.js:102 | arg2: 'readiness_' + userId | arg3: updatedStats
+  getDoc           backend\controllers\aptitudeSessionController.js:442 | arg2: 'readiness_' + userId | arg3: 
+  setDoc           backend\controllers\aptitudeSessionController.js:473 | arg2: 'readiness_' + userId | arg3: updatedStats
+  getDoc           backend\controllers\aptitudeSessionController.js:567 | arg2: 'readiness_' + userId | arg3: 
+  getDoc           backend\controllers\atsController.js:165 | arg2: 'readiness_' + userId | arg3: 
+  setDoc           backend\controllers\atsController.js:172 | arg2: 'readiness_' + userId | arg3: updatedStats
+  setDoc           backend\controllers\authController.js:246 | arg2: 'readiness_' + userId | arg3: {
+  getDoc           backend\controllers\authController.js:324 | arg2: 'readiness_' + user.userId | arg3: 
+  setDoc           backend\controllers\authController.js:497 | arg2: 'readiness_' + userId | arg3: {
+  getDoc           backend\controllers\authController.js:520 | arg2: 'readiness_' + user.userId | arg3: 
+  getDoc           backend\controllers\authController.js:662 | arg2: 'readiness_' + userId | arg3: 
+  getDoc           backend\controllers\dashboardController.js:11 | arg2: 'readiness_' + userId | arg3: 
+  setDoc           backend\controllers\dashboardController.js:26 | arg2: 'readiness_' + userId | arg3: readiness
+  getDoc           backend\controllers\hrController.js:144 | arg2: 'readiness_' + userId | arg3: 
+  setDoc           backend\controllers\hrController.js:153 | arg2: 'readiness_' + userId | arg3: updatedStats
+  getDoc           backend\controllers\onboardingController.js:122 | arg2: 'readiness_' + userId | arg3: 
+  setDoc           backend\controllers\onboardingController.js:129 | arg2: 'readiness_' + userId | arg3: updatedReadiness
+  getDoc           backend\controllers\resumeController.js:221 | arg2: 'readiness_' + userId | arg3: 
+  setDoc           backend\controllers\resumeController.js:229 | arg2: 'readiness_' + userId | arg3: updatedReadiness
+  getDoc           backend\controllers\resumeController.js:253 | arg2: 'readiness_' + req.user.userId | arg3: 
+  setDoc           backend\controllers\resumeController.js:259 | arg2: 'readiness_' + req.user.userId | arg3: updatedReadiness
+  getDoc           backend\controllers\technicalController.js:157 | arg2: 'readiness_' + userId | arg3: 
+  setDoc           backend\controllers\technicalController.js:166 | arg2: 'readiness_' + userId | arg3: updatedStats
+  getDoc           backend\controllers\technicalController.js:230 | arg2: 'readiness_' + userId | arg3: 
+  setDoc           backend\controllers\technicalController.js:240 | arg2: 'readiness_' + userId | arg3: updatedStats
+  getDoc           backend\services\studentContext.js:31 | arg2: `readiness_${userId}` | arg3: 
+
+[COLLECTION] aptitude_tests
+  queryCollection  backend\controllers\aptitudeSessionController.js:51 | arg2: 'userId' | arg3: userId
+  setDoc           backend\controllers\aptitudeSessionController.js:151 | arg2: testId | arg3: testDoc
+  queryCollection  backend\controllers\aptitudeSessionController.js:198 | arg2: 'userId' | arg3: userId
+  setDoc           backend\controllers\aptitudeSessionController.js:212 | arg2: active.testId | arg3: { status: 'expired' }
+  getDoc           backend\controllers\aptitudeSessionController.js:252 | arg2: testId | arg3: 
+  setDoc           backend\controllers\aptitudeSessionController.js:258 | arg2: testId | arg3: {
+  getDoc           backend\controllers\aptitudeSessionController.js:283 | arg2: testId | arg3: 
+  setDoc           backend\controllers\aptitudeSessionController.js:417 | arg2: testId | arg3: {
+
+[COLLECTION] aptitude_history
+  queryCollection  backend\controllers\aptitudeSessionController.js:58 | arg2: 'userId' | arg3: userId
+  setDoc           backend\controllers\aptitudeSessionController.js:156 | arg2: histId | arg3: {
+
+[COLLECTION] mock_tests
+  getDoc           backend\controllers\aptitudeSessionController.js:296 | arg2: testId | arg3: 
+  setDoc           backend\controllers\aptitudeSessionController.js:425 | arg2: testId | arg3: resultDoc
+  queryCollection  backend\controllers\aptitudeSessionController.js:458 | arg2: 'userId' | arg3: userId
+  queryCollection  backend\controllers\aptitudeSessionController.js:505 | arg2: 'userId' | arg3: userId
+  queryCollection  backend\controllers\aptitudeSessionController.js:570 | arg2: 'userId' | arg3: userId
+  queryCollection  backend\controllers\progressController.js:30 | arg2: 'userId' | arg3: userId
+  queryCollection  backend\controllers\progressController.js:164 | arg2: 'userId' | arg3: userId
+
+[COLLECTION] resumes
+  getDoc           backend\controllers\atsController.js:92 | arg2: req.body.resumeId | arg3: 
+  queryCollection  backend\controllers\atsController.js:123 | arg2: 'userId' | arg3: userId
+  queryCollection  backend\controllers\hrController.js:64 | arg2: 'userId' | arg3: userId
+  setDoc           backend\controllers\onboardingController.js:104 | arg2: resumeId | arg3: resumeDoc
+  getDoc           backend\controllers\onboardingController.js:167 | arg2: resumeId | arg3: 
+  queryCollection  backend\controllers\resumeController.js:38 | arg2: 'userId' | arg3: userId
+  queryCollection  backend\controllers\resumeController.js:88 | arg2: 'userId' | arg3: userId
+  setDoc           backend\controllers\resumeController.js:94 | arg2: r.resumeId | arg3: { isPrimary: r.resumeId === id }
+  getDoc           backend\controllers\resumeController.js:105 | arg2: id | arg3: 
+  queryCollection  backend\controllers\resumeController.js:167 | arg2: 'userId' | arg3: userId
+  setDoc           backend\controllers\resumeController.js:190 | arg2: resumeId | arg3: resumeData
+  getDoc           backend\controllers\resumeController.js:240 | arg2: id | arg3: 
+  setDoc           backend\controllers\resumeController.js:249 | arg2: id | arg3: req.body
+  getDoc           backend\controllers\resumeController.js:270 | arg2: id | arg3: 
+  deleteDoc        backend\controllers\resumeController.js:279 | arg2: id | arg3: 
+  getDoc           backend\controllers\resumeController.js:365 | arg2: resumeData.resumeId | arg3: 
+  setDoc           backend\controllers\resumeController.js:387 | arg2: resumeId | arg3: {
+  queryCollection  backend\services\studentContext.js:34 | arg2: 'userId' | arg3: userId
+
+[COLLECTION] users
+  getDoc           backend\controllers\atsController.js:102 | arg2: userId | arg3: 
+  queryCollection  backend\controllers\authController.js:53 | arg2: 'email' | arg3: sanitizedEmail
+  queryCollection  backend\controllers\authController.js:118 | arg2: 'email' | arg3: sanitizedEmail
+  deleteDoc        backend\controllers\authController.js:137 | arg2: existing.userId | arg3: 
+  setDoc           backend\controllers\authController.js:210 | arg2: userId | arg3: newUser
+  queryCollection  backend\controllers\authController.js:297 | arg2: 'email' | arg3: sanitizedEmail
+  queryCollection  backend\controllers\authController.js:435 | arg2: 'email' | arg3: userEmail
+  setDoc           backend\controllers\authController.js:462 | arg2: userId | arg3: user
+  setDoc           backend\controllers\authController.js:513 | arg2: user.userId | arg3: updates
+  queryCollection  backend\controllers\authController.js:581 | arg2: 'email' | arg3: sanitizedEmail
+  getDoc           backend\controllers\authController.js:637 | arg2: userId | arg3: 
+  setDoc           backend\controllers\authController.js:651 | arg2: userId | arg3: { emailVerified: true }
+  getDoc           backend\controllers\authController.js:723 | arg2: userId | arg3: 
+  setDoc           backend\controllers\authController.js:778 | arg2: userId | arg3: { emailVerified: true }
+  getDoc           backend\controllers\authController.js:821 | arg2: userId | arg3: 
+  setDoc           backend\controllers\authController.js:840 | arg2: userId | arg3: userUpdates
+  getDoc           backend\controllers\authController.js:883 | arg2: userId | arg3: 
+  setDoc           backend\controllers\authController.js:890 | arg2: userId | arg3: {
+  getDoc           backend\controllers\hrController.js:63 | arg2: userId | arg3: 
+  getDoc           backend\controllers\onboardingController.js:30 | arg2: userId | arg3: 
+  setDoc           backend\controllers\onboardingController.js:323 | arg2: userId | arg3: {
+  setDoc           backend\controllers\onboardingController.js:352 | arg2: userId | arg3: {
+  setDoc           backend\controllers\onboardingController.js:374 | arg2: userId | arg3: {
+  getDoc           backend\controllers\onboardingController.js:395 | arg2: userId | arg3: 
+  getDoc           backend\controllers\profileController.js:23 | arg2: userId | arg3: 
+  getDoc           backend\controllers\profileController.js:95 | arg2: userId | arg3: 
+  setDoc           backend\controllers\profileController.js:139 | arg2: userId | arg3: { password: hashedNew }
+  setDoc           backend\controllers\profileController.js:209 | arg2: userId | arg3: userUpdates
+  getDoc           backend\controllers\profileController.js:231 | arg2: userId | arg3: 
+  getDoc           backend\controllers\profileController.js:283 | arg2: userId | arg3: 
+  setDoc           backend\controllers\profileController.js:303 | arg2: userId | arg3: {
+  getDoc           backend\controllers\profileController.js:339 | arg2: userId | arg3: 
+  setDoc           backend\controllers\profileController.js:352 | arg2: userId | arg3: {
+  getDoc           backend\controllers\profileController.js:424 | arg2: userId | arg3: 
+  getDoc           backend\controllers\profileController.js:453 | arg2: userId | arg3: 
+  setDoc           backend\controllers\profileController.js:466 | arg2: userId | arg3: {
+  getDoc           backend\controllers\profileController.js:489 | arg2: userId | arg3: 
+  setDoc           backend\controllers\profileController.js:501 | arg2: userId | arg3: { resumeDownloadUrl: downloadUrl }
+  getDoc           backend\controllers\resumeController.js:163 | arg2: userId | arg3: 
+  getDoc           backend\services\studentContext.js:27 | arg2: userId | arg3: 
+
+[COLLECTION] profiles
+  getDoc           backend\controllers\atsController.js:103 | arg2: `prof_${userId}` | arg3: 
+  getDoc           backend\controllers\atsController.js:134 | arg2: `prof_${userId}` | arg3: 
+  deleteDoc        backend\controllers\authController.js:138 | arg2: 'prof_' + existing.userId | arg3: 
+  setDoc           backend\controllers\authController.js:214 | arg2: profileId | arg3: {
+  setDoc           backend\controllers\authController.js:466 | arg2: profileId | arg3: {
+  setDoc           backend\controllers\authController.js:854 | arg2: profileId | arg3: profileUpdates
+  getDoc           backend\controllers\hrController.js:62 | arg2: 'prof_' + userId | arg3: 
+  setDoc           backend\controllers\onboardingController.js:320 | arg2: profileId | arg3: profileUpdates
+  getDoc           backend\controllers\profileController.js:22 | arg2: profileId | arg3: 
+  setDoc           backend\controllers\profileController.js:46 | arg2: profileId | arg3: profileDoc
+  getDoc           backend\controllers\profileController.js:96 | arg2: profileId | arg3: 
+  setDoc           backend\controllers\profileController.js:229 | arg2: profileId | arg3: profileUpdates
+  getDoc           backend\controllers\profileController.js:367 | arg2: 'prof_' + userId | arg3: 
+  getDoc           backend\controllers\profileController.js:423 | arg2: 'prof_' + userId | arg3: 
+  getDoc           backend\services\studentContext.js:26 | arg2: `prof_${userId}` | arg3: 
+
+[COLLECTION] ats_results
+  setDoc           backend\controllers\atsController.js:162 | arg2: reportId | arg3: reportDoc
+  queryCollection  backend\controllers\atsController.js:183 | arg2: 'userId' | arg3: userId
+  setDoc           backend\controllers\onboardingController.js:108 | arg2: reportId | arg3: {
+  queryCollection  backend\controllers\progressController.js:33 | arg2: 'userId' | arg3: userId
+  queryCollection  backend\controllers\progressController.js:167 | arg2: 'userId' | arg3: userId
+
+[COLLECTION] companies
+  queryCollection  backend\controllers\companyController.js:8 | arg2:  | arg3: 
+  setDoc           backend\controllers\companyController.js:22 | arg2: comp.id | arg3: comp
+  getDoc           backend\controllers\companyController.js:36 | arg2: id | arg3: 
+  queryCollection  backend\controllers\companyController.js:40 | arg2:  | arg3: 
+  getDoc           backend\firebase\seedData.js:5 | arg2: 'comp_tcs' | arg3: 
+  setDoc           backend\firebase\seedData.js:214 | arg2: comp.id | arg3: comp
+
+[COLLECTION] company_preps
+  getDoc           backend\controllers\companyController.js:73 | arg2: docId | arg3: 
+  setDoc           backend\controllers\companyController.js:81 | arg2: docId | arg3: {
+
+[COLLECTION] download_history
+  queryCollection  backend\controllers\dashboardController.js:40 | arg2: 'userId' | arg3: userId
+  setDoc           backend\controllers\downloadController.js:18 | arg2: downloadId | arg3: record
+  queryCollection  backend\controllers\downloadController.js:29 | arg2: 'userId' | arg3: userId
+
+[COLLECTION] ai_recommendations
+  getDoc           backend\controllers\dashboardController.js:61 | arg2: `rec_${userId}` | arg3: 
+  setDoc           backend\controllers\dashboardController.js:72 | arg2: `rec_${userId}` | arg3: {
+
+[COLLECTION] hr_interviews
+  queryCollection  backend\controllers\hrController.js:15 | arg2: 'userId' | arg3: userId
+  queryCollection  backend\controllers\hrController.js:50 | arg2: 'userId' | arg3: userId
+  setDoc           backend\controllers\hrController.js:137 | arg2: interviewId | arg3: interviewData
+  queryCollection  backend\controllers\hrController.js:173 | arg2: 'userId' | arg3: userId
+  queryCollection  backend\controllers\progressController.js:31 | arg2: 'userId' | arg3: userId
+  queryCollection  backend\controllers\progressController.js:165 | arg2: 'userId' | arg3: userId
+  queryCollection  backend\services\studentContext.js:45 | arg2: 'userId' | arg3: userId
+
+[COLLECTION] hr_questions
+  queryCollection  backend\controllers\hrController.js:73 | arg2: 'userId' | arg3: userId
+  setDoc           backend\controllers\hrController.js:101 | arg2: q.id | arg3: questionDoc
+  setDoc           backend\firebase\seedData.js:189 | arg2: hq.id | arg3: hq
+
+[COLLECTION] student_analysis
+  setDoc           backend\controllers\onboardingController.js:211 | arg2: analysisId | arg3: analysisDoc
+  queryCollection  backend\controllers\onboardingController.js:397 | arg2: 'userId' | arg3: userId
+  queryCollection  backend\controllers\onboardingController.js:453 | arg2: 'userId' | arg3: userId
+  queryCollection  backend\services\studentContext.js:79 | arg2: 'userId' | arg3: userId
+
+[COLLECTION] study_plans
+  setDoc           backend\controllers\onboardingController.js:224 | arg2: planId | arg3: studyPlanDoc
+  getDoc           backend\controllers\onboardingController.js:396 | arg2: `plan_${userId}` | arg3: 
+  getDoc           backend\controllers\onboardingController.js:419 | arg2: planId | arg3: 
+  setDoc           backend\controllers\onboardingController.js:434 | arg2: planId | arg3: {
+  getDoc           backend\controllers\onboardingController.js:452 | arg2: `plan_${userId}` | arg3: 
+
+[COLLECTION] skills
+  queryCollection  backend\controllers\onboardingController.js:258 | arg2: 'userId' | arg3: userId
+  setDoc           backend\controllers\onboardingController.js:266 | arg2: skillId | arg3: {
+  queryCollection  backend\controllers\resumeController.js:53 | arg2: 'resumeId' | arg3: r.resumeId
+  queryCollection  backend\controllers\resumeController.js:115 | arg2: 'resumeId' | arg3: id
+  setDoc           backend\controllers\resumeController.js:197 | arg2: skillId | arg3: { skillId
+  queryCollection  backend\services\studentContext.js:37 | arg2: 'userId' | arg3: userId
+
+[COLLECTION] projects
+  queryCollection  backend\controllers\onboardingController.js:281 | arg2: 'userId' | arg3: userId
+  setDoc           backend\controllers\onboardingController.js:289 | arg2: projectId | arg3: {
+  queryCollection  backend\controllers\resumeController.js:59 | arg2: 'resumeId' | arg3: r.resumeId
+  queryCollection  backend\controllers\resumeController.js:116 | arg2: 'resumeId' | arg3: id
+  setDoc           backend\controllers\resumeController.js:205 | arg2: projectId | arg3: { projectId
+  queryCollection  backend\services\studentContext.js:92 | arg2: 'userId' | arg3: userId
+
+[COLLECTION] resume_versions
+  queryCollection  backend\controllers\profileController.js:535 | arg2: 'userId' | arg3: userId
+  deleteDoc        backend\controllers\profileController.js:542 | arg2: old.versionId | arg3: 
+  setDoc           backend\controllers\profileController.js:560 | arg2: versionId | arg3: versionDoc
+  queryCollection  backend\controllers\profileController.js:575 | arg2: 'userId' | arg3: userId
+  getDoc           backend\controllers\profileController.js:592 | arg2: versionId | arg3: 
+  deleteDoc        backend\controllers\profileController.js:596 | arg2: versionId | arg3: 
+
+[COLLECTION] technical_practice
+  queryCollection  backend\controllers\progressController.js:32 | arg2: 'userId' | arg3: userId
+  queryCollection  backend\controllers\progressController.js:166 | arg2: 'userId' | arg3: userId
+  setDoc           backend\controllers\technicalController.js:146 | arg2: submissionId | arg3: {
+  setDoc           backend\controllers\technicalController.js:227 | arg2: submissionId | arg3: submission
+  queryCollection  backend\controllers\technicalController.js:267 | arg2: 'userId' | arg3: userId
+  queryCollection  backend\services\studentContext.js:44 | arg2: 'userId' | arg3: userId
+
+[COLLECTION] technical_questions
+  queryCollection  backend\controllers\progressController.js:37 | arg2:  | arg3: 
+  queryCollection  backend\controllers\technicalController.js:62 | arg2:  | arg3: 
+  setDoc           backend\controllers\technicalController.js:108 | arg2: q.questionId | arg3: q
+  queryCollection  backend\controllers\technicalController.js:139 | arg2:  | arg3: 
+  queryCollection  backend\controllers\technicalController.js:179 | arg2:  | arg3: 
+  queryCollection  backend\controllers\technicalController.js:271 | arg2:  | arg3: 
+  setDoc           backend\firebase\seedData.js:161 | arg2: tq.questionId | arg3: tq
+
+[COLLECTION] progress_insights_cache
+  getDoc           backend\controllers\progressController.js:144 | arg2: cacheKey | arg3: 
+  setDoc           backend\controllers\progressController.js:218 | arg2: cacheKey | arg3: {
+
+[COLLECTION] certificates
+  queryCollection  backend\controllers\resumeController.js:65 | arg2: 'resumeId' | arg3: r.resumeId
+  queryCollection  backend\controllers\resumeController.js:117 | arg2: 'resumeId' | arg3: id
+  setDoc           backend\controllers\resumeController.js:213 | arg2: certificateId | arg3: { certificateId

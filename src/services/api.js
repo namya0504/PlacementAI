@@ -26,29 +26,82 @@ const getCsrfToken = async () => {
 
 const getAuthHeaders = () => ({});
 
-// Fast in-memory GET cache with short TTL (15s) to eliminate duplicate calls during navigation
+// In-memory GET cache with per-endpoint TTLs to eliminate duplicate calls during navigation.
+// Endpoints matching a prefix key use that TTL; all others fall back to 15s.
 const getCache = new Map();
-const CACHE_TTL_MS = 15000;
+const CACHE_TTL_MAP = {
+  '/profile':       60_000,  // 60s — profile data changes infrequently
+  '/company':      300_000,  // 5 min — company lists rarely change
+  '/onboarding/plan': 300_000, // 5 min — study plan is static between edits
+  '/hr/questions': 300_000,  // 5 min — question bank is static
+  '/aptitude/active': 5_000, // 5s — active test state must stay fresh
+};
+const DEFAULT_CACHE_TTL_MS = 15_000;
+
+/** Returns the TTL (ms) for a given endpoint path. */
+function getCacheTtl(endpoint) {
+  for (const [prefix, ttl] of Object.entries(CACHE_TTL_MAP)) {
+    if (endpoint.startsWith(prefix)) return ttl;
+  }
+  return DEFAULT_CACHE_TTL_MS;
+}
 
 export const clearApiCache = () => {
   getCache.clear();
 };
 
+/**
+ * Clears only cache entries whose key starts with the given prefix.
+ * Use this for targeted invalidation after mutations (e.g. '/resume' after a save).
+ */
+export const clearApiCachePrefix = (prefix) => {
+  for (const key of getCache.keys()) {
+    if (key.startsWith(prefix)) getCache.delete(key);
+  }
+};
+
 export const apiCall = async (endpoint, method = 'GET', body = null, isFormData = false, customTimeout = null) => {
   const isGet = method.toUpperCase() === 'GET';
   const cacheKey = `${endpoint}`;
-  // check-email probes are always live — never serve from cache
-  const skipCache = isGet && endpoint.startsWith('/auth/check-email');
+  // Endpoints that must always return fresh data — never serve from cache
+  const skipCache = isGet && (
+    endpoint.startsWith('/auth/check-email') ||
+    endpoint === '/profile/resume'
+  );
 
   // Serve from cache if available and fresh
   if (isGet && !skipCache) {
     const cached = getCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    const ttl = getCacheTtl(endpoint);
+    if (cached && Date.now() - cached.timestamp < ttl) {
       return cached.data;
     }
   } else if (!isGet) {
-    // Invalidate GET cache on mutations
-    getCache.clear();
+    // Scoped cache invalidation on mutations — clear only the affected endpoint group
+    const mutationPrefixes = {
+      '/resume':      ['/resume'],
+      '/profile':     ['/profile'],
+      '/ats':         ['/ats'],
+      '/onboarding':  ['/onboarding'],
+      '/aptitude':    ['/aptitude', '/mock-tests'],
+      '/technical':   ['/technical'],
+      '/hr':          ['/hr'],
+      '/progress':    ['/progress', '/dashboard'],
+      '/dashboard':   ['/dashboard', '/progress'],
+      '/downloads':   ['/downloads'],
+      '/storage':     ['/storage'],
+      '/github':      ['/github'],
+    };
+    let cleared = false;
+    for (const [prefix, targets] of Object.entries(mutationPrefixes)) {
+      if (endpoint.startsWith(prefix)) {
+        targets.forEach(t => clearApiCachePrefix(t));
+        cleared = true;
+        break;
+      }
+    }
+    // Fallback: clear everything if no specific mapping found
+    if (!cleared) getCache.clear();
   }
 
   const headers = getAuthHeaders();

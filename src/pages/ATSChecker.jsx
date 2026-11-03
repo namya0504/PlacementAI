@@ -32,11 +32,13 @@ import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../services/api';
 import { ROUTES } from '../routes/paths';
+import { useToast } from '../context/ToastContext';
 
 export default function ATSChecker() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { currentUser, updateProfileData } = useAuth();
+  const toast = useToast();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   
   // Scanning & Result state
@@ -59,6 +61,7 @@ export default function ATSChecker() {
 
   // Saved resumes + profile resume
   const [savedResumes, setSavedResumes] = useState([]);
+  const [savedResumesLoaded, setSavedResumesLoaded] = useState(false);
   const [profileResume, setProfileResume] = useState(null);
   const [selectedResumeId, setSelectedResumeId] = useState('');
 
@@ -86,7 +89,7 @@ export default function ATSChecker() {
         const primary = resumes.find(r => r.isPrimary) || resumes[0];
         setSelectedResumeId(primary.resumeId);
       }
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => setSavedResumesLoaded(true));
 
     API.getProfileResume().then(r => {
       if (r?.hasResume) setProfileResume(r);
@@ -94,14 +97,15 @@ export default function ATSChecker() {
   }, [currentUser]);
 
   // Handle URL query parameter ?resumeId=...
+  // Gate analysis behind savedResumesLoaded so the resume list is available before we run.
   useEffect(() => {
     const resumeId = searchParams.get('resumeId');
-    if (resumeId) {
+    if (resumeId && savedResumesLoaded) {
       setSelectedResumeId(resumeId);
       setScanMode('saved');
       handleAnalyzeSavedResume(resumeId);
     }
-  }, [searchParams]);
+  }, [searchParams, savedResumesLoaded]);
 
   // Handle Role Save & Sync across Profile and Resume Builder
   const handleSaveRole = async (newRole) => {
@@ -307,7 +311,7 @@ export default function ATSChecker() {
       await html2pdf().from(reportElement).set(opt).save();
     } catch (err) {
       console.error('PDF export error:', err);
-      alert('Could not export report as PDF: ' + err.message);
+      toast.error('Could not export report as PDF: ' + err.message);
     } finally {
       setIsDownloadingPdf(false);
     }
@@ -457,19 +461,29 @@ export default function ATSChecker() {
                 >
                   <FileText className="w-3.5 h-3.5" /> Saved Resumes ({savedResumes.length})
                 </button>
-                {profileResume && (
+                {/* Profile Resume tab — always shown; disabled with tooltip when no resume uploaded */}
+                <div className="relative group">
                   <button
                     type="button"
-                    onClick={() => { setScanMode('profile'); setErrorMessage(''); }}
+                    onClick={() => { if (profileResume) { setScanMode('profile'); setErrorMessage(''); } }}
+                    disabled={!profileResume}
+                    aria-disabled={!profileResume}
                     className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition ${
-                      scanMode === 'profile'
-                        ? 'bg-white text-[#7C3AED] shadow-sm border border-[#EAEBF4]'
-                        : 'text-slate-600 hover:text-slate-900'
+                      !profileResume
+                        ? 'text-slate-400 cursor-not-allowed opacity-60'
+                        : scanMode === 'profile'
+                          ? 'bg-white text-[#7C3AED] shadow-sm border border-[#EAEBF4]'
+                          : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
                     <User className="w-3.5 h-3.5" /> Profile Resume
                   </button>
-                )}
+                  {!profileResume && (
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 text-center text-[10px] font-semibold bg-slate-800 text-white rounded-lg px-2.5 py-1.5 opacity-0 group-hover:opacity-100 transition pointer-events-none z-10 whitespace-normal leading-snug">
+                      No resume uploaded yet — go to Profile to upload
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

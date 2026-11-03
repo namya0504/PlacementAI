@@ -7,6 +7,7 @@ import {
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../services/api';
+import { useToast } from '../context/ToastContext';
 
 function formatFileSize(bytes) {
   if (!bytes) return '';
@@ -17,6 +18,7 @@ function formatFileSize(bytes) {
 
 export default function Profile() {
   const { currentUser, updateProfileData, logout } = useAuth();
+  const toast = useToast();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -56,6 +58,7 @@ export default function Profile() {
 
   // ── AI Insights State (Resume / GitHub / LinkedIn sync) ─────────
   const [insightModalOpen, setInsightModalOpen] = useState(false);
+  const [showInsightsBanner, setShowInsightsBanner] = useState(false); // non-blocking CTA after resume upload
   const [insightSource, setInsightSource] = useState('resume'); // 'resume' | 'github' | 'combined'
   const [insightSourcesUsed, setInsightSourcesUsed] = useState([]);
   const [suggestedBio, setSuggestedBio] = useState('');
@@ -96,11 +99,11 @@ export default function Profile() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      alert('Unsupported format. Use JPEG, PNG, or WebP.');
+      toast.error('Unsupported format. Use JPEG, PNG, or WebP.');
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      alert('Image must be under 5 MB.');
+      toast.error('Image must be under 5 MB.');
       return;
     }
     const formData = new FormData();
@@ -113,7 +116,7 @@ export default function Profile() {
         updateProfileData({ photoURL: res.photoURL });
       }
     } catch (err) {
-      alert(err.message || 'Avatar upload failed.');
+      toast.error(err.message || 'Avatar upload failed.');
     } finally {
       setAvatarUploading(false);
     }
@@ -140,16 +143,15 @@ export default function Profile() {
       const res = await API.uploadProfileResume(formData);
       setResume({ hasResume: true, ...res });
 
-      // If AI extracted skills or suggested summary, prompt user to update profile
+      // If AI extracted skills or suggested summary, show a non-blocking banner (not auto-open modal)
       if (res?.extracted && (res.extracted.skills?.length || res.extracted.aboutMe)) {
         setInsightSource('resume');
         setSuggestedBio(res.extracted.aboutMe || profileData.bio || '');
-        // Fresh replacement list from combined sources — NOT appending to old saved skills
         const freshSkills = Array.isArray(res.extracted.skills) ? res.extracted.skills : [];
         setSuggestedSkills(freshSkills);
         setSelectedSkills(new Set(freshSkills));
         setInsightSourcesUsed(res.extracted.sourcesUsed || ['Resume']);
-        setInsightModalOpen(true);
+        setShowInsightsBanner(true); // soft CTA — user decides when to review
       }
     } catch (err) {
       setResumeError(err.message || 'Upload failed. Please try again.');
@@ -177,10 +179,10 @@ export default function Profile() {
         setInsightSourcesUsed(res.extracted.sourcesUsed || ['Combined Evidence']);
         setInsightModalOpen(true);
       } else {
-        alert('Profile sources scanned, but no new skills or bio could be extracted.');
+        toast.info('Profile sources scanned, but no new skills or bio could be extracted.');
       }
     } catch (err) {
-      alert(err.message || 'Could not synthesize profile sources. Please check your links.');
+      toast.error(err.message || 'Could not synthesize profile sources. Please check your links.');
     } finally {
       setScanningGitHub(false);
     }
@@ -210,7 +212,7 @@ export default function Profile() {
       setSuccessNotice(`✓ Saved skills updated to ${finalSkills.length} verified competencies and personalized About Me!`);
       setTimeout(() => setSuccessNotice(''), 6000);
     } catch (err) {
-      alert(err.message || 'Failed to update profile.');
+      toast.error(err.message || 'Failed to update profile.');
     } finally {
       setApplyingInsights(false);
     }
@@ -547,6 +549,29 @@ export default function Profile() {
               </div>
             )}
 
+            {/* Non-blocking AI insights banner — shown after upload instead of auto-opening modal */}
+            {showInsightsBanner && (
+              <div className="p-3 rounded-xl bg-purple-50 border border-purple-200 text-[#7C3AED] text-xs flex items-center gap-3">
+                <Sparkles className="w-4 h-4 shrink-0" />
+                <span className="flex-1 font-semibold">
+                  We extracted {suggestedSkills.length > 0 ? `${suggestedSkills.length} skills` : 'insights'} from your resume — review and apply them to your profile?
+                </span>
+                <button
+                  onClick={() => { setShowInsightsBanner(false); setInsightModalOpen(true); }}
+                  className="shrink-0 px-3 py-1.5 rounded-lg bg-[#7C3AED] text-white text-[11px] font-bold hover:bg-[#6D28D9] transition"
+                >
+                  Review
+                </button>
+                <button
+                  onClick={() => setShowInsightsBanner(false)}
+                  aria-label="Dismiss"
+                  className="shrink-0 text-purple-400 hover:text-purple-700 transition"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
             {resumeLoading ? (
               <div className="flex items-center gap-2 text-xs text-slate-500">
                 <Loader2 className="w-4 h-4 animate-spin text-[#7C3AED]" /> Loading resume info…
@@ -638,7 +663,7 @@ export default function Profile() {
 
       {/* ── Edit Profile Modal ─────────────────────────────────── */}
       {isEditing && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto border border-[#EAEBF4]">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
@@ -755,7 +780,7 @@ export default function Profile() {
 
       {/* ── AI Insights Review Modal (Combined Resume / GitHub / LinkedIn) ── */}
       {insightModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-7 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto border border-[#EAEBF4]">
             {/* Header */}
             <div className="flex items-start justify-between border-b border-slate-100 pb-4">
@@ -902,7 +927,7 @@ export default function Profile() {
 
       {/* ── Deactivate Account Dialog ──────────────────────────── */}
       {showDeactivateDialog && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">

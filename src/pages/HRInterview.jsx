@@ -23,6 +23,7 @@ import {
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../services/api';
+import { useToast } from '../context/ToastContext';
 
 const ROUND_TITLES = {
   1: 'Behavioral & Core Introduction',
@@ -33,6 +34,7 @@ const ROUND_TITLES = {
 
 export default function HRInterview() {
   const { currentUser } = useAuth();
+  const toast = useToast();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [interviewMode, setInterviewMode] = useState('intro'); // 'intro' | 'live' | 'feedback'
   const [currentRound, setCurrentRound] = useState(1);
@@ -158,7 +160,7 @@ export default function HRInterview() {
       setInterviewMode('feedback');
     } catch (err) {
       console.error('HR evaluation error:', err.message);
-      alert(err.message || 'Failed to evaluate answer. Please try again.');
+      toast.error(err.message || 'Failed to evaluate answer. Please try again.');
     } finally {
       setIsEvaluating(false);
     }
@@ -720,7 +722,7 @@ export default function HRInterview() {
 
         {/* HISTORY DRAWER / MODAL */}
         {showHistory && (
-          <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[60] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-100 max-h-[85vh] flex flex-col">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2">

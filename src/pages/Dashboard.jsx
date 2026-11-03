@@ -38,17 +38,19 @@ export default function Dashboard() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [moduleSearch, setModuleSearch] = useState('');
 
+  const [statsLoading, setStatsLoading] = useState(!currentUser?.stats);
+  const [_statsError, setStatsError] = useState(false);
   const [dashboardData, setDashboardData] = useState({
     stats: currentUser?.stats || {
-      resumeScore: 87,
-      atsScore: 87,
-      aptitudeScore: 82,
-      technicalScore: 70,
-      hrScore: 85,
-      overallReadiness: 76,
-      testsCompleted: 14,
-      mockInterviews: 6,
-      resumesCount: 5
+      resumeScore: 0,
+      atsScore: 0,
+      aptitudeScore: 0,
+      technicalScore: 0,
+      hrScore: 0,
+      overallReadiness: 0,
+      testsCompleted: 0,
+      mockInterviews: 0,
+      resumesCount: 0
     },
     recentActivities: []
   });
@@ -64,13 +66,19 @@ export default function Dashboard() {
   const [showDetailedRoadmap, setShowDetailedRoadmap] = useState(false);
 
   useEffect(() => {
+    setStatsLoading(true);
+    setStatsError(false);
     API.getDashboardStats()
       .then(res => {
         if (res && res.stats) {
           setDashboardData(res);
         }
       })
-      .catch(err => console.warn('Dashboard stats notice:', err.message));
+      .catch(err => {
+        console.warn('Dashboard stats notice:', err.message);
+        setStatsError(true);
+      })
+      .finally(() => setStatsLoading(false));
 
     loadRecommendations(false);
     loadStudyPlan();
@@ -181,8 +189,24 @@ export default function Dashboard() {
   const studentSubtitle = currentUser?.role || currentUser?.branch || '3rd Year, IT';
   const userPhoto = currentUser?.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=120';
 
-  const atsScoreVal = stats.atsScore || stats.resumeScore || 87;
-  const overallReadinessVal = stats.overallReadiness || 76;
+  const rawAtsScore = statsLoading ? 0 : (stats.atsScore || stats.resumeScore || 0);
+  const rawOverallReadiness = statsLoading ? 0 : (stats.overallReadiness || 0);
+
+  // Animated ring values — start at 0, animate to real value after mount
+  const [animatedAts, setAnimatedAts] = React.useState(0);
+  const [animatedOverall, setAnimatedOverall] = React.useState(0);
+  React.useEffect(() => {
+    if (!statsLoading) {
+      const t = setTimeout(() => {
+        setAnimatedAts(rawAtsScore);
+        setAnimatedOverall(rawOverallReadiness);
+      }, 120); // slight delay so CSS transition fires after paint
+      return () => clearTimeout(t);
+    }
+  }, [statsLoading, rawAtsScore, rawOverallReadiness]);
+
+  const atsScoreVal = animatedAts;
+  const overallReadinessVal = animatedOverall;
 
   // Default recent activity list matching reference screenshot, smoothly backed by user's actual history
   const displayActivities = recentActivities.length > 0 ? recentActivities.slice(0, 4) : [
@@ -330,110 +354,122 @@ export default function Dashboard() {
           {/* 1. TOP 4 SUMMARY METRIC CARDS ROW                                     */}
           {/* ═════════════════════════════════════════════════════════════════════ */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            
-            {/* Card 1: Resumes Created */}
-            <div className="bg-white rounded-3xl p-5 border border-[#EAEBF4] shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-[#7C3AED] text-white flex items-center justify-center shrink-0 shadow-md shadow-purple-500/20">
-                  <FileText className="w-6 h-6" />
-                </div>
-                <div>
-                  <div className="text-2xl font-extrabold text-slate-900 font-outfit leading-none">
-                    {stats.resumesCount || 5}
-                  </div>
-                  <div className="text-xs text-slate-500 font-medium mt-1">
-                    Resumes Created
-                  </div>
-                </div>
-              </div>
-              <div className="mt-4 pt-3 border-t border-slate-50">
-                <Link
-                  to={ROUTES.resumeBuilder}
-                  className="text-xs font-bold text-[#7C3AED] hover:text-[#6D28D9] inline-flex items-center gap-1 transition"
-                >
-                  <span>View all</span>
-                  <span>→</span>
-                </Link>
-              </div>
-            </div>
 
-            {/* Card 2: ATS Score (Avg) */}
-            <div className="bg-white rounded-3xl p-5 border border-[#EAEBF4] shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center shrink-0">
-                  <BarChart3 className="w-6 h-6" />
-                </div>
-                <div>
-                  <div className="text-2xl font-extrabold text-slate-900 font-outfit leading-none">
-                    {atsScoreVal}%
+            {statsLoading ? (
+              // Shimmer skeleton cards
+              <>
+                {[0,1,2,3].map(i => (
+                  <div key={i} className="bg-white rounded-3xl p-5 border border-[#EAEBF4] shadow-xs flex flex-col justify-between animate-pulse">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-slate-100 shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-6 w-10 bg-slate-100 rounded-lg" />
+                        <div className="h-3 w-24 bg-slate-100 rounded-lg" />
+                      </div>
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-slate-50">
+                      <div className="h-3 w-16 bg-slate-100 rounded-lg" />
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-500 font-medium mt-1">
-                    ATS Score (Avg)
+                ))}
+              </>
+            ) : (
+              <>
+                {/* Card 1: Resumes Created */}
+                <div className="bg-white rounded-3xl p-5 border border-[#EAEBF4] shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-[#7C3AED] text-white flex items-center justify-center shrink-0 shadow-md shadow-purple-500/20">
+                      <FileText className="w-6 h-6" />
+                    </div>
+                    <div>
+                      {stats.resumesCount > 0 ? (
+                        <div className="text-2xl font-extrabold text-slate-900 font-outfit leading-none">{stats.resumesCount}</div>
+                      ) : (
+                        <div className="text-xs font-semibold text-slate-400 leading-snug">Not started yet</div>
+                      )}
+                      <div className="text-xs text-slate-500 font-medium mt-1">Resumes Created</div>
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-slate-50">
+                    {stats.resumesCount > 0 ? (
+                      <Link to={ROUTES.resumeBuilder} className="text-xs font-bold text-[#7C3AED] hover:text-[#6D28D9] inline-flex items-center gap-1 transition">
+                        <span>View all</span><span>→</span>
+                      </Link>
+                    ) : (
+                      <Link to={ROUTES.resumeBuilder} className="text-xs font-bold text-[#7C3AED] hover:text-[#6D28D9] inline-flex items-center gap-1 transition">
+                        <span>Create your first resume</span><span>→</span>
+                      </Link>
+                    )}
                   </div>
                 </div>
-              </div>
-              <div className="mt-4 pt-3 border-t border-slate-50">
-                <Link
-                  to={ROUTES.atsChecker}
-                  className="text-xs font-bold text-[#7C3AED] hover:text-[#6D28D9] inline-flex items-center gap-1 transition"
-                >
-                  <span>Improve now</span>
-                  <span>→</span>
-                </Link>
-              </div>
-            </div>
 
-            {/* Card 3: Tests Attempted */}
-            <div className="bg-white rounded-3xl p-5 border border-[#EAEBF4] shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-[#FDF2F8] text-[#DB2777] flex items-center justify-center shrink-0">
-                  <Target className="w-6 h-6" />
-                </div>
-                <div>
-                  <div className="text-2xl font-extrabold text-slate-900 font-outfit leading-none">
-                    {stats.testsCompleted || 14}
+                {/* Card 2: ATS Score */}
+                <div className="bg-white rounded-3xl p-5 border border-[#EAEBF4] shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center shrink-0">
+                      <BarChart3 className="w-6 h-6" />
+                    </div>
+                    <div>
+                      {atsScoreVal > 0 ? (
+                        <div className="text-2xl font-extrabold text-slate-900 font-outfit leading-none">{atsScoreVal}%</div>
+                      ) : (
+                        <div className="text-xs font-semibold text-slate-400 leading-snug">Not attempted yet</div>
+                      )}
+                      <div className="text-xs text-slate-500 font-medium mt-1">ATS Score (Avg)</div>
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-500 font-medium mt-1">
-                    Tests Attempted
+                  <div className="mt-4 pt-3 border-t border-slate-50">
+                    <Link to={ROUTES.atsChecker} className="text-xs font-bold text-[#7C3AED] hover:text-[#6D28D9] inline-flex items-center gap-1 transition">
+                      <span>{atsScoreVal > 0 ? 'Improve now' : 'Scan your resume'}</span><span>→</span>
+                    </Link>
                   </div>
                 </div>
-              </div>
-              <div className="mt-4 pt-3 border-t border-slate-50">
-                <Link
-                  to={ROUTES.progress}
-                  className="text-xs font-bold text-[#7C3AED] hover:text-[#6D28D9] inline-flex items-center gap-1 transition"
-                >
-                  <span>View progress</span>
-                  <span>→</span>
-                </Link>
-              </div>
-            </div>
 
-            {/* Card 4: Interviews Done */}
-            <div className="bg-white rounded-3xl p-5 border border-[#EAEBF4] shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center shrink-0">
-                  <Video className="w-6 h-6" />
-                </div>
-                <div>
-                  <div className="text-2xl font-extrabold text-slate-900 font-outfit leading-none">
-                    {stats.mockInterviews || 6}
+                {/* Card 3: Tests Attempted */}
+                <div className="bg-white rounded-3xl p-5 border border-[#EAEBF4] shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-[#FDF2F8] text-[#DB2777] flex items-center justify-center shrink-0">
+                      <Target className="w-6 h-6" />
+                    </div>
+                    <div>
+                      {stats.testsCompleted > 0 ? (
+                        <div className="text-2xl font-extrabold text-slate-900 font-outfit leading-none">{stats.testsCompleted}</div>
+                      ) : (
+                        <div className="text-xs font-semibold text-slate-400 leading-snug">Not attempted yet</div>
+                      )}
+                      <div className="text-xs text-slate-500 font-medium mt-1">Tests Attempted</div>
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-500 font-medium mt-1">
-                    Interviews Done
+                  <div className="mt-4 pt-3 border-t border-slate-50">
+                    <Link to={stats.testsCompleted > 0 ? ROUTES.progress : ROUTES.aptitude} className="text-xs font-bold text-[#7C3AED] hover:text-[#6D28D9] inline-flex items-center gap-1 transition">
+                      <span>{stats.testsCompleted > 0 ? 'View progress' : 'Take first test'}</span><span>→</span>
+                    </Link>
                   </div>
                 </div>
-              </div>
-              <div className="mt-4 pt-3 border-t border-slate-50">
-                <Link
-                  to={ROUTES.hrInterview}
-                  className="text-xs font-bold text-[#7C3AED] hover:text-[#6D28D9] inline-flex items-center gap-1 transition"
-                >
-                  <span>View all</span>
-                  <span>→</span>
-                </Link>
-              </div>
-            </div>
+
+                {/* Card 4: Interviews Done */}
+                <div className="bg-white rounded-3xl p-5 border border-[#EAEBF4] shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-[#EDE9FE] text-[#7C3AED] flex items-center justify-center shrink-0">
+                      <Video className="w-6 h-6" />
+                    </div>
+                    <div>
+                      {stats.mockInterviews > 0 ? (
+                        <div className="text-2xl font-extrabold text-slate-900 font-outfit leading-none">{stats.mockInterviews}</div>
+                      ) : (
+                        <div className="text-xs font-semibold text-slate-400 leading-snug">Not attempted yet</div>
+                      )}
+                      <div className="text-xs text-slate-500 font-medium mt-1">Interviews Done</div>
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-slate-50">
+                    <Link to={stats.mockInterviews > 0 ? ROUTES.hrInterview : ROUTES.hrInterview} className="text-xs font-bold text-[#7C3AED] hover:text-[#6D28D9] inline-flex items-center gap-1 transition">
+                      <span>{stats.mockInterviews > 0 ? 'View all' : 'Practice now'}</span><span>→</span>
+                    </Link>
+                  </div>
+                </div>
+              </>
+            )}
 
           </div>
 

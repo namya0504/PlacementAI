@@ -26,7 +26,9 @@ const setAuthCookie = (res, token) => {
 };
 
 export const issueCsrfToken = (req, res) => {
-  const csrfToken = req.cookies?.csrfToken || randomBytes(32).toString('hex');
+  // SEC-18 fix: always generate a fresh token — never reuse the existing cookie value.
+  // Reusing allows an attacker who captures an old token to use it indefinitely.
+  const csrfToken = randomBytes(32).toString('hex');
   const isProd = process.env.NODE_ENV === 'production';
   res.cookie('csrfToken', csrfToken, {
     httpOnly: true,

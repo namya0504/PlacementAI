@@ -396,7 +396,7 @@ export default function Technical() {
 
       {/* ── Technical History Panel ──────────────────────────── */}
       {showHistory && (
-        <div className="fixed inset-0 z-50 flex">
+        <div className="fixed inset-0 z-[60] flex">
           <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setShowHistory(false)} />
           <div className="relative ml-auto w-full max-w-2xl bg-white shadow-2xl flex flex-col h-full overflow-hidden">
             <div className="h-16 border-b border-[#EAEBF4] px-6 flex items-center justify-between shrink-0">
