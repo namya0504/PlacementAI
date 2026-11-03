@@ -42,9 +42,14 @@ const getTransporter = async () => {
     return cachedTransporter;
   }
 
-  // Development fallback: Ethereal test account — never cache null on failure
+  // Development fallback: Ethereal test account.
+  // Wrap in a 5-second timeout — if the Ethereal API is unreachable (no internet / CI),
+  // we skip it rather than blocking the request for 30+ seconds.
   try {
-    const testAccount = await nodemailer.createTestAccount();
+    const testAccount = await Promise.race([
+      nodemailer.createTestAccount(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Ethereal timeout')), 5000))
+    ]);
     const transporter = nodemailer.createTransport({
       host: testAccount.smtp.host,
       port: testAccount.smtp.port,
@@ -52,10 +57,10 @@ const getTransporter = async () => {
       auth: { user: testAccount.user, pass: testAccount.pass }
     });
     cachedTransporter = transporter;
-    console.log(`✉️ Nodemailer initialized with development test transport: ${testAccount.user}`);
+    console.log(`✉️ Nodemailer dev transport: ${testAccount.user}`);
     return cachedTransporter;
   } catch (etherealErr) {
-    console.warn('Could not initialize fallback test mailer:', etherealErr.message);
+    console.warn('Email dev transport unavailable (set SMTP_USER/SMTP_PASS for real delivery):', etherealErr.message);
     // Do NOT set cachedTransporter = null — let next call retry
     return null;
   }
