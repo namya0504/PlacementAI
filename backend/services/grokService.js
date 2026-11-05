@@ -34,8 +34,8 @@ function getProviderConfig(apiKey) {
     return {
       provider: 'groq',
       endpoint: 'https://api.groq.com/openai/v1/chat/completions',
-      defaultModel: 'openai/gpt-oss-120b',
-      fallbackModel: 'openai/gpt-oss-20b'
+      defaultModel: 'llama-3.3-70b-versatile',
+      fallbackModel: 'llama-3.1-8b-instant'
     };
   }
   return {
@@ -104,6 +104,9 @@ async function callAI(messages, options = {}) {
     max_tokens: featureCfg.maxTokens
   };
 
+  // Only apply JSON response_format for Groq (not xAI — xAI's strict validator
+  // rejects complex nested schemas with json_validate_failed on complex prompts).
+  // For xAI we rely on prompt instructions + our own parser in generateJSON.
   if (jsonMode && providerCfg.provider === 'groq') {
     payload.response_format = { type: 'json_object' };
   }

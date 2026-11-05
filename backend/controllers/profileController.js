@@ -59,14 +59,16 @@ export const getProfile = async (req, res, next) => {
       }
     }
 
+    const effectiveRole = profileDoc.targetRole || profileDoc.role || userDoc.targetRole || userDoc.role || '';
+
     const combined = {
       ...profileDoc,
       uid: userId,
       userId,
       name: userDoc.name || '',
       email: userDoc.email || '',
-      role: profileDoc.role || userDoc.role || '',
-      targetRole: profileDoc.targetRole || profileDoc.role || userDoc.targetRole || userDoc.role || '',
+      role: effectiveRole,
+      targetRole: effectiveRole,
       phone: profileDoc.phone || userDoc.phone || '',
       location: profileDoc.location || userDoc.location || '',
       college: profileDoc.college || userDoc.college || '',
@@ -190,15 +192,17 @@ export const updateProfile = async (req, res, next) => {
       }
     }
 
-    // targetRole is the user's career goal (user-editable).
-    // The system 'role' field (e.g. 'admin', 'recruiter') must NEVER be overwritten by user input.
     const assignedTargetRole = (targetRole !== undefined ? targetRole : role);
+    const sanitizedRole = (assignedTargetRole !== undefined && typeof assignedTargetRole === 'string' && assignedTargetRole.trim())
+      ? assignedTargetRole.trim().slice(0, 80)
+      : null;
 
-    // Update user info — only targetRole is written, not the system role
+    // Update user info
     const userUpdates = {};
     if (typeof name === 'string' && name.trim()) userUpdates.name = name.trim().slice(0, 80);
-    if (typeof assignedTargetRole === 'string' && assignedTargetRole.trim()) {
-      userUpdates.targetRole = assignedTargetRole.trim().slice(0, 80);
+    if (sanitizedRole) {
+      userUpdates.targetRole = sanitizedRole;
+      userUpdates.role = sanitizedRole;
     }
     if (typeof phone === 'string' && phone.trim()) userUpdates.phone = phone.trim().slice(0, 25);
     if (typeof location === 'string') userUpdates.location = location.trim().slice(0, 100);
@@ -215,7 +219,7 @@ export const updateProfile = async (req, res, next) => {
     const profileUpdates = {
       profileId,
       userId,
-      ...(assignedTargetRole !== undefined && assignedTargetRole.trim() && { targetRole: String(assignedTargetRole).trim().slice(0, 80) }),
+      ...(sanitizedRole && { targetRole: sanitizedRole, role: sanitizedRole }),
       ...(phone !== undefined && phone.trim() && { phone: String(phone).trim().slice(0, 25) }),
       ...(location !== undefined && { location: String(location).trim().slice(0, 100) }),
       ...(college !== undefined && college.trim() && { college: String(college).trim().slice(0, 150) }),
@@ -243,19 +247,21 @@ export const updateProfile = async (req, res, next) => {
       }
     }
 
+    const finalRole = sanitizedRole || userDoc?.targetRole || userDoc?.role || updatedProfile.targetRole || updatedProfile.role || '';
+
     return sendSuccess(res, {
+      ...updatedProfile,
       uid: userId,
       name: userDoc?.name || name,
       email: userDoc?.email,
-      role: userDoc?.role || '',
-      targetRole: updatedProfile.targetRole || userDoc?.targetRole || userDoc?.role || '',
+      role: finalRole,
+      targetRole: finalRole,
       phone: updatedProfile.phone || userDoc?.phone || '',
       location: updatedProfile.location || userDoc?.location || '',
       college: updatedProfile.college || userDoc?.college || '',
       branch: updatedProfile.branch || userDoc?.branch || '',
       passingYear: updatedProfile.passingYear || userDoc?.passingYear || '',
-      photoURL: resolvedPhotoURL,
-      ...updatedProfile
+      photoURL: resolvedPhotoURL
     }, 'Profile updated successfully');
   } catch (err) {
     next(err);

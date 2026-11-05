@@ -28,8 +28,24 @@ export default function Profile() {
   const [profileData, setProfileData] = useState({
     name: currentUser?.name || '',
     email: currentUser?.email || '',
-    role: currentUser?.role || currentUser?.targetRole || '',
+    role: currentUser?.targetRole || currentUser?.role || '',
+    targetRole: currentUser?.targetRole || currentUser?.role || '',
     photoURL: currentUser?.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(currentUser?.name || 'Student')}`,
+    phone: currentUser?.phone || '',
+    location: currentUser?.location || '',
+    college: currentUser?.college || '',
+    branch: currentUser?.branch || '',
+    passingYear: currentUser?.passingYear || '',
+    bio: currentUser?.bio || '',
+    linkedIn: currentUser?.linkedIn || '',
+    github: currentUser?.github || '',
+    skills: currentUser?.skills || []
+  });
+
+  const [editForm, setEditForm] = useState({
+    name: currentUser?.name || '',
+    role: currentUser?.targetRole || currentUser?.role || '',
+    targetRole: currentUser?.targetRole || currentUser?.role || '',
     phone: currentUser?.phone || '',
     location: currentUser?.location || '',
     college: currentUser?.college || '',
@@ -73,6 +89,7 @@ export default function Profile() {
     API.getProfile()
       .then(data => {
         if (data) {
+          const effectiveRole = data.targetRole || data.role || currentUser?.targetRole || currentUser?.role || '';
           setProfileData(prev => ({
             ...prev,
             ...data,
@@ -81,7 +98,8 @@ export default function Profile() {
             college: data.college || currentUser?.college || prev.college || '',
             branch: data.branch || currentUser?.branch || prev.branch || '',
             passingYear: data.passingYear || currentUser?.passingYear || prev.passingYear || '',
-            role: data.role || data.targetRole || currentUser?.role || prev.role || ''
+            role: effectiveRole,
+            targetRole: effectiveRole
           }));
         }
       })
@@ -194,20 +212,26 @@ export default function Profile() {
     setApplyingInsights(true);
     try {
       const finalSkills = Array.from(selectedSkills);
+      const effectiveRole = profileData.targetRole || profileData.role || currentUser?.targetRole || currentUser?.role || '';
       const updatedFields = {
         ...profileData,
-        targetRole: profileData.role,
+        role: effectiveRole,
+        targetRole: effectiveRole,
         bio: suggestedBio.trim(),
         skills: finalSkills // Sets/replaces the saved skills with verified selection
       };
       const saved = await API.updateProfile(updatedFields);
-      setProfileData(prev => ({
-        ...prev,
-        ...saved,
+      const finalSavedRole = saved?.targetRole || saved?.role || effectiveRole;
+      const merged = {
+        ...profileData,
+        ...(saved || {}),
+        role: finalSavedRole,
+        targetRole: finalSavedRole,
         bio: suggestedBio.trim(),
         skills: finalSkills
-      }));
-      updateProfileData(saved);
+      };
+      setProfileData(merged);
+      updateProfileData(merged);
       setInsightModalOpen(false);
       setSuccessNotice(`✓ Saved skills updated to ${finalSkills.length} verified competencies and personalized About Me!`);
       setTimeout(() => setSuccessNotice(''), 6000);
@@ -263,29 +287,75 @@ export default function Profile() {
     }
   };
 
+  const handleOpenEdit = () => {
+    const activeRole = profileData.targetRole || profileData.role || currentUser?.targetRole || currentUser?.role || '';
+    setEditForm({
+      name: profileData.name || currentUser?.name || '',
+      role: activeRole,
+      targetRole: activeRole,
+      phone: profileData.phone || currentUser?.phone || '',
+      location: profileData.location || currentUser?.location || '',
+      college: profileData.college || currentUser?.college || '',
+      branch: profileData.branch || currentUser?.branch || '',
+      passingYear: profileData.passingYear || currentUser?.passingYear || '',
+      bio: profileData.bio || '',
+      linkedIn: profileData.linkedIn || '',
+      github: profileData.github || '',
+      skills: Array.isArray(profileData.skills) ? [...profileData.skills] : []
+    });
+    setEditError('');
+    setIsEditing(true);
+  };
+
+  const handleCloseEdit = () => {
+    setIsEditing(false);
+    setEditError('');
+  };
+
   // ── Profile save ─────────────────────────────────────────────
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     setEditError('');
-    if (!profileData.name?.trim()) { setEditError('Full name is required.'); return; }
-    if (!profileData.phone?.trim()) { setEditError('Phone number cannot be removed.'); return; }
-    if (!profileData.college?.trim()) { setEditError('College is required.'); return; }
-    if (!profileData.branch?.trim()) { setEditError('Branch is required.'); return; }
-    if (!profileData.passingYear?.trim()) { setEditError('Passing year is required.'); return; }
-    if (!profileData.role?.trim()) { setEditError('Target role is required.'); return; }
+    if (!editForm.name?.trim()) { setEditError('Full name is required.'); return; }
+    if (!editForm.phone?.trim()) { setEditError('Phone number cannot be removed.'); return; }
+    if (!editForm.college?.trim()) { setEditError('College is required.'); return; }
+    if (!editForm.branch?.trim()) { setEditError('Branch is required.'); return; }
+    if (!editForm.passingYear?.trim()) { setEditError('Passing year is required.'); return; }
+    const roleVal = (editForm.targetRole || editForm.role || '').trim();
+    if (!roleVal) { setEditError('Target role is required.'); return; }
     try {
       setLoading(true);
-      const prevGithub = (currentUser?.github || '').trim().toLowerCase();
-      const newGithub = (profileData.github || '').trim();
-      const prevLinkedIn = (currentUser?.linkedIn || '').trim().toLowerCase();
-      const newLinkedIn = (profileData.linkedIn || '').trim();
+      const prevGithub = (currentUser?.github || profileData.github || '').trim().toLowerCase();
+      const newGithub = (editForm.github || '').trim();
+      const prevLinkedIn = (currentUser?.linkedIn || profileData.linkedIn || '').trim().toLowerCase();
+      const newLinkedIn = (editForm.linkedIn || '').trim();
       const payload = {
-        ...profileData,
-        targetRole: profileData.role
+        name: editForm.name.trim(),
+        phone: editForm.phone.trim(),
+        college: editForm.college.trim(),
+        branch: editForm.branch.trim(),
+        passingYear: editForm.passingYear.trim(),
+        location: (editForm.location || '').trim(),
+        role: roleVal,
+        targetRole: roleVal,
+        github: newGithub,
+        linkedIn: newLinkedIn,
+        bio: (editForm.bio || '').trim(),
+        skills: Array.isArray(editForm.skills) ? editForm.skills : []
       };
       const updated = await API.updateProfile(payload);
-      updateProfileData(updated);
+      const effectiveRole = updated?.targetRole || updated?.role || roleVal;
+      const merged = {
+        ...profileData,
+        ...payload,
+        ...(updated || {}),
+        role: effectiveRole,
+        targetRole: effectiveRole
+      };
+      setProfileData(merged);
+      updateProfileData(merged);
       setIsEditing(false);
+      toast.success('Profile updated successfully!');
 
       // If user added or changed their GitHub or LinkedIn handle, offer to scan and update skills & bio
       const githubChanged = newGithub && newGithub.toLowerCase() !== prevGithub;
@@ -367,10 +437,10 @@ export default function Profile() {
               <div className="space-y-1">
                 <h2 className="text-2xl font-extrabold text-slate-900 font-outfit">{profileData.name}</h2>
                 <p className="text-xs font-semibold text-[#7C3AED]">{profileData.email}</p>
-                <p className="text-xs text-slate-500 font-medium">{profileData.role} Candidate</p>
+                <p className="text-xs text-slate-500 font-medium">{(profileData.targetRole || profileData.role || 'Candidate')} Candidate</p>
               </div>
             </div>
-            <button onClick={() => setIsEditing(true)} className="px-5 py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-xs flex items-center gap-2 shadow-md shadow-purple-500/20 transition">
+            <button onClick={handleOpenEdit} className="px-5 py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-xs flex items-center gap-2 shadow-md shadow-purple-500/20 transition">
               <Edit3 className="w-4 h-4" /> Edit Profile
             </button>
           </div>
@@ -406,7 +476,7 @@ export default function Profile() {
                 ['College', profileData.college],
                 ['Branch', profileData.branch],
                 ['Passing Year', profileData.passingYear],
-                ['Target Role', profileData.role]
+                ['Target Role', profileData.targetRole || profileData.role]
               ].map(([label, val]) => (
                 <div key={label} className="p-3.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-2xl space-y-1">
                   <span className="text-slate-400 font-semibold block text-[11px]">{label}</span>
@@ -522,7 +592,7 @@ export default function Profile() {
                   </div>
                 </div>
                 <button
-                  onClick={() => setIsEditing(true)}
+                  onClick={handleOpenEdit}
                   className="px-3.5 py-1.5 rounded-xl bg-[#7C3AED] text-white text-xs font-bold hover:bg-[#6D28D9] transition shadow-xs shrink-0"
                 >
                   + Add Profiles
@@ -670,42 +740,42 @@ export default function Profile() {
                 <h3 className="text-lg font-bold text-slate-900 font-outfit">Edit Profile</h3>
                 <p className="text-[11px] text-slate-500">Compulsory fields cannot be emptied once set</p>
               </div>
-              <button onClick={() => { setIsEditing(false); setEditError(''); }} className="p-1 text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+              <button onClick={handleCloseEdit} className="p-1 text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
             </div>
             {editError && <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs">{editError}</div>}
             <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">Full Name <span className="text-red-500">*</span></label>
-                  <input type="text" value={profileData.name} onChange={e => setProfileData({ ...profileData, name: e.target.value })} className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]" required />
+                  <input type="text" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]" required />
                 </div>
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">Target Role <span className="text-red-500">*</span></label>
-                  <input type="text" value={profileData.role} onChange={e => setProfileData({ ...profileData, role: e.target.value })} className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]" required />
+                  <input type="text" value={editForm.targetRole || editForm.role} onChange={e => setEditForm({ ...editForm, role: e.target.value, targetRole: e.target.value })} className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]" required />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">College <span className="text-red-500">*</span></label>
-                  <input type="text" value={profileData.college} onChange={e => setProfileData({ ...profileData, college: e.target.value })} className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]" required />
+                  <input type="text" value={editForm.college} onChange={e => setEditForm({ ...editForm, college: e.target.value })} className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]" required />
                 </div>
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">Branch <span className="text-red-500">*</span></label>
-                  <input type="text" value={profileData.branch} onChange={e => setProfileData({ ...profileData, branch: e.target.value })} className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]" required />
+                  <input type="text" value={editForm.branch} onChange={e => setEditForm({ ...editForm, branch: e.target.value })} className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]" required />
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">Passing Year <span className="text-red-500">*</span></label>
-                  <input type="text" value={profileData.passingYear} onChange={e => setProfileData({ ...profileData, passingYear: e.target.value })} placeholder="2026" className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]" required />
+                  <input type="text" value={editForm.passingYear} onChange={e => setEditForm({ ...editForm, passingYear: e.target.value })} placeholder="2026" className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]" required />
                 </div>
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">Phone <span className="text-red-500">*</span></label>
-                  <input type="text" value={profileData.phone} onChange={e => setProfileData({ ...profileData, phone: e.target.value })} placeholder="+91 98765 43210" className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]" required />
+                  <input type="text" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} placeholder="+91 98765 43210" className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]" required />
                 </div>
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">Location</label>
-                  <input type="text" value={profileData.location} onChange={e => setProfileData({ ...profileData, location: e.target.value })} placeholder="Bangalore, India" className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]" />
+                  <input type="text" value={editForm.location} onChange={e => setEditForm({ ...editForm, location: e.target.value })} placeholder="Bangalore, India" className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -715,8 +785,8 @@ export default function Profile() {
                   </div>
                   <input
                     type="text"
-                    value={profileData.github || ''}
-                    onChange={e => setProfileData({ ...profileData, github: e.target.value })}
+                    value={editForm.github || ''}
+                    onChange={e => setEditForm({ ...editForm, github: e.target.value })}
                     placeholder="e.g. octocat or https://github.com/octocat"
                     className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]"
                   />
@@ -727,14 +797,14 @@ export default function Profile() {
                   </div>
                   <input
                     type="text"
-                    value={profileData.linkedIn || ''}
-                    onChange={e => setProfileData({ ...profileData, linkedIn: e.target.value })}
+                    value={editForm.linkedIn || ''}
+                    onChange={e => setEditForm({ ...editForm, linkedIn: e.target.value })}
                     placeholder="e.g. https://linkedin.com/in/username"
                     className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]"
                   />
                 </div>
               </div>
-              {(profileData.github?.trim() || profileData.linkedIn?.trim()) && (
+              {(editForm.github?.trim() || editForm.linkedIn?.trim()) && (
                 <div className="flex items-center justify-between p-3 rounded-xl bg-purple-50/70 border border-purple-200">
                   <div className="flex items-center gap-2 text-xs text-purple-900 font-medium">
                     <Sparkles className="w-4 h-4 text-purple-600 shrink-0" />
@@ -742,7 +812,7 @@ export default function Profile() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleScanCombinedSources({ github: profileData.github, linkedin: profileData.linkedIn })}
+                    onClick={() => handleScanCombinedSources({ github: editForm.github, linkedin: editForm.linkedIn })}
                     disabled={scanningGitHub}
                     className="px-3 py-1 rounded-lg bg-[#7C3AED] text-white text-[11px] font-bold hover:bg-[#6D28D9] transition shadow-xs disabled:opacity-50 shrink-0"
                   >
@@ -754,9 +824,9 @@ export default function Profile() {
                 <label className="font-bold text-slate-700 block mb-1">Skills (comma-separated)</label>
                 <input
                   type="text"
-                  value={Array.isArray(profileData.skills) ? profileData.skills.join(', ') : (profileData.skills || '')}
-                  onChange={e => setProfileData({
-                    ...profileData,
+                  value={Array.isArray(editForm.skills) ? editForm.skills.join(', ') : (editForm.skills || '')}
+                  onChange={e => setEditForm({
+                    ...editForm,
                     skills: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
                   })}
                   placeholder="e.g. Python, SQL, Cybersecurity, Network Defense"
@@ -765,10 +835,10 @@ export default function Profile() {
               </div>
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Bio</label>
-                <textarea rows="3" value={profileData.bio || ''} onChange={e => setProfileData({ ...profileData, bio: e.target.value })} className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]" />
+                <textarea rows="3" value={editForm.bio || ''} onChange={e => setEditForm({ ...editForm, bio: e.target.value })} className="w-full p-2.5 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]" />
               </div>
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-                <button type="button" onClick={() => setIsEditing(false)} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition">Cancel</button>
+                <button type="button" onClick={handleCloseEdit} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition">Cancel</button>
                 <button type="submit" disabled={loading} className="px-5 py-2 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold flex items-center gap-1.5 disabled:opacity-50 shadow-md shadow-purple-500/20 transition">
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save Changes
                 </button>

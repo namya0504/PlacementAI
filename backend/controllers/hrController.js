@@ -3,6 +3,13 @@ import { GrokService } from '../services/grokService.js';
 import { getStudentContext } from '../services/studentContext.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import { calculatePlacementReadiness } from '../utils/scoring.js';
+import { InterviewService } from '../services/interviewService.js';
+import { PythonBridge } from '../services/pythonBridge.js';
+import { SocialProfileService } from '../services/socialProfileService.js';
+import {
+  buildResumeIngestionPrompt,
+  buildGitHubInsightsPrompt
+} from '../services/interviewPrompts.js';
 
 const ROUND_PASS_THRESHOLD = 60; // avg score >= 60 to clear a round
 const ROUND_MIN_ANSWERS = 2;     // must answer at least 2 questions to be eligible for clearance
@@ -28,13 +35,269 @@ async function getRoundProgress(userId) {
   return roundMap;
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// 1. MULTI-ROUND CHAT INTERVIEW SESSION CONTROLLERS (New Upgrade)
+// ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/hr/session/start
+ * Starts a new multi-round interview session.
+ */
+export const startInterviewSession = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const {
+      targetRole,
+      experienceLevel = 'Fresher',
+      keySkills = [],
+      jobDescription = '',
+      candidateProfile = null,
+      repoInsights = null,
+      micEnabled = true
+    } = req.body;
+
+    if (!targetRole || !String(targetRole).trim()) {
+      return sendError(res, 'Target role is required to start the interview.', 400);
+    }
+
+    const sessionState = await InterviewService.startSession({
+      userId,
+      targetRole: String(targetRole).trim(),
+      experienceLevel,
+      keySkills,
+      jobDescription,
+      candidateProfile,
+      repoInsights,
+      micEnabled
+    });
+
+    return sendSuccess(res, { session: sessionState, ...sessionState }, 'Interview session initialized successfully.', 201);
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * GET /api/hr/session/:sessionId/state
+ * Retrieves authoritative server session state, including remaining timer.
+ */
+export const getInterviewSessionState = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const { sessionId } = req.params;
+    const state = await InterviewService.getSessionState(sessionId, userId);
+    return sendSuccess(res, { session: state, ...state }, 'Session state retrieved.');
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /api/hr/session/:sessionId/answer
+ * Submits user response (voice or typed), evaluates quick metrics, returns next question or wrapup.
+ */
+export const submitInterviewAnswer = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const { sessionId } = req.params;
+    const { userResponse, isVoice = false, speechMetrics = null, latencySec = 1.5 } = req.body;
+
+    const state = await InterviewService.submitAnswer(sessionId, userId, {
+      userResponse,
+      isVoice,
+      speechMetrics,
+      latencySec
+    });
+
+    return sendSuccess(res, { session: state, ...state }, 'Answer recorded.');
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /api/hr/session/:sessionId/transition
+ * Transitions from round wrap-up to the next round.
+ */
+export const transitionInterviewRound = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const { sessionId } = req.params;
+    const state = await InterviewService.transitionRound(sessionId, userId);
+    return sendSuccess(res, { session: state, ...state }, 'Transitioned to next round.');
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /api/hr/session/:sessionId/end
+ * Concludes interview early or upon completion, generates comprehensive final report.
+ */
+export const endInterviewSession = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const { sessionId } = req.params;
+    const state = await InterviewService.endSession(sessionId, userId);
+    const finalReport = state.finalReport || {};
+    return sendSuccess(res, { report: finalReport, session: state, ...state }, 'Interview concluded and report generated.');
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * GET /api/hr/session/:sessionId/report
+ * Returns the final report for a session.
+ */
+export const getInterviewReport = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const { sessionId } = req.params;
+    const session = await FirestoreHelper.getDoc('hr_interview_sessions', sessionId);
+    if (!session || session.userId !== userId) {
+      return sendError(res, 'Session report not found.', 404);
+    }
+    const report = session.finalReport || {};
+    return sendSuccess(res, { report, ...report }, 'Report retrieved.');
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /api/hr/voice/transcribe
+ * Multipart voice upload -> Python transcription + speech delivery analytics.
+ */
+export const transcribeInterviewVoice = async (req, res, next) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return sendError(res, 'No audio file provided.', 400);
+    }
+
+    const { language = 'en-IN', latency = 1.5, sessionId = null, questionId = null } = req.body;
+    const result = await PythonBridge.transcribeAudio(
+      req.file.buffer,
+      req.file.originalname || 'recording.webm',
+      {
+        language,
+        latency: Number(latency) || 1.5,
+        sessionId,
+        questionId
+      }
+    );
+
+    return sendSuccess(res, result, 'Voice audio processed successfully.');
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /api/hr/resume/parse
+ * Multipart resume upload -> Python text extraction -> structured candidate profile.
+ */
+export const parseInterviewResume = async (req, res, next) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return sendError(res, 'No resume file uploaded.', 400);
+    }
+
+    const rawText = await PythonBridge.extractResumeText(req.file.buffer, req.file.originalname);
+    if (!rawText || rawText.trim().length < 30) {
+      return sendError(res, 'Could not extract readable text from resume. Please verify the document is not an image-only scan.', 400);
+    }
+
+    // Attempt full structured parse; fall back to simple extraction on JSON validation error
+    let profile = null;
+    try {
+      const prompt = buildResumeIngestionPrompt(rawText);
+      profile = await GrokService.generateJSON(prompt);
+    } catch (parseErr) {
+      // xAI json_validate_failed or JSON parse error — retry with a simpler prompt
+      console.warn('[parseInterviewResume] Full parse failed, trying simplified prompt:', parseErr.message);
+      const simplePrompt = `Extract from this resume into compact JSON with keys: name, summary, skills (object with languages/frameworks/tools arrays), projects (array of {name,description,tech,role}), experience (array of {company,title,duration}), claims_to_verify (array of strings).
+Resume: ${rawText.slice(0, 5000)}
+Return JSON only.`;
+      try {
+        profile = await GrokService.generateJSON(simplePrompt);
+      } catch (fallbackErr) {
+        // Last resort: return a minimal synthesized profile from raw text so the interview still starts
+        console.warn('[parseInterviewResume] Simplified parse also failed:', fallbackErr.message);
+        const lines = rawText.split('\n').filter(l => l.trim().length > 3).slice(0, 30);
+        profile = {
+          name: null,
+          summary: lines.slice(0, 3).join(' '),
+          skills: { languages: [], frameworks: [], tools: [], soft: [] },
+          projects: [],
+          experience: [],
+          claims_to_verify: [],
+          interview_probes: [],
+          _fallback: true
+        };
+      }
+    }
+
+    return sendSuccess(res, {
+      filename: req.file.originalname,
+      candidateProfile: profile,
+      previewText: rawText.slice(0, 300)
+    }, 'Resume parsed successfully.');
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /api/hr/github/inspect
+ * Ingests candidate public GitHub portfolio and produces interview insights.
+ */
+export const inspectCandidateGitHub = async (req, res, next) => {
+  try {
+    const { username, url } = req.body;
+    const input = username || url;
+    if (!input) {
+      return sendError(res, 'GitHub username or profile URL is required.', 400);
+    }
+
+    const ghData = await SocialProfileService.fetchGitHubData(input);
+    if (!ghData) {
+      return sendError(res, `Could not find public GitHub profile for "${input}".`, 404);
+    }
+
+    // Generate repo insights via LLM
+    let repoInsights = [];
+    if (ghData.repositories && ghData.repositories.length > 0) {
+      const prompt = buildGitHubInsightsPrompt(ghData.repositories);
+      repoInsights = await GrokService.generateJSON(prompt).catch(() => []);
+    }
+
+    return sendSuccess(res, {
+      profile: {
+        username: ghData.username,
+        name: ghData.name,
+        avatarUrl: ghData.avatarUrl,
+        bio: ghData.bio,
+        publicRepos: ghData.publicRepos
+      },
+      repositories: ghData.repositories || [],
+      repoInsights: Array.isArray(repoInsights) ? repoInsights : []
+    }, 'GitHub profile inspected.');
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 2. LEGACY COMPATIBILITY CONTROLLERS (Single-question mode & history)
+// ══════════════════════════════════════════════════════════════════════════════
+
 export const getHRQuestions = async (req, res, next) => {
   try {
     const userId = req.user.userId;
     const round = req.query.round ? Number(req.query.round) : 1;
     const forceGenerate = req.query.generate === 'true';
 
-    // Round gating: round > 1 requires previous round to be cleared
     if (round > 1) {
       const progress = await getRoundProgress(userId);
       const prevRound = round - 1;
@@ -45,20 +308,6 @@ export const getHRQuestions = async (req, res, next) => {
     }
 
     const studentContext = await getStudentContext(userId);
-
-    // Fetch last 3 previous answers from this round to build context for follow-up questions
-    const allInterviews = await FirestoreHelper.queryCollection('hr_interviews', 'userId', userId);
-    const roundInterviews = allInterviews
-      .filter(iv => iv.round === round)
-      .sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))
-      .slice(0, 3);
-
-    const previousContext = roundInterviews.map(iv => ({
-      question: iv.questionTitle,
-      answer: iv.userResponse,
-      score: iv.score
-    }));
-
     const profile = await FirestoreHelper.getDoc('profiles', 'prof_' + userId) || {};
     const userDoc = await FirestoreHelper.getDoc('users', userId) || {};
     const resumes = await FirestoreHelper.queryCollection('resumes', 'userId', userId);
@@ -69,7 +318,6 @@ export const getHRQuestions = async (req, res, next) => {
     let questions = [];
 
     if (!forceGenerate) {
-      // Query questions specifically belonging to this user
       const userQuestions = await FirestoreHelper.queryCollection('hr_questions', 'userId', userId);
       const matching = userQuestions.filter(q => 
         q.round === round &&
@@ -88,7 +336,7 @@ export const getHRQuestions = async (req, res, next) => {
         interests: profile.interests || ['Technology']
       };
 
-      questions = await GrokService.generateHRQuestions(userContext, studentContext, round, previousContext);
+      questions = await GrokService.generateHRQuestions(userContext, studentContext, round, []);
 
       for (const q of questions) {
         const questionDoc = {
@@ -136,11 +384,9 @@ export const evaluateHRAnswer = async (req, res, next) => {
 
     await FirestoreHelper.setDoc('hr_interviews', interviewId, interviewData);
 
-    // Recompute round progress after saving
     const progress = await getRoundProgress(userId);
     const roundStatus = progress[round] || { answered: 0, avgScore: 0, cleared: false };
 
-    // Update Placement Readiness
     const readiness = await FirestoreHelper.getDoc('placement_readiness', 'readiness_' + userId) || {};
     const mockInterviews = (readiness.mockInterviews || 0) + 1;
     const prevHr = typeof readiness.hrScore === 'number' ? readiness.hrScore : null;
@@ -163,17 +409,18 @@ export const evaluateHRAnswer = async (req, res, next) => {
   }
 };
 
-/**
- * GET /api/hr/history
- * Returns all HR interview records for the user, grouped by round.
- */
 export const getHRHistory = async (req, res, next) => {
   try {
     const userId = req.user.userId;
-    const allInterviews = await FirestoreHelper.queryCollection('hr_interviews', 'userId', userId);
-    allInterviews.sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
+    const [allInterviews, allSessions] = await Promise.all([
+      FirestoreHelper.queryCollection('hr_interviews', 'userId', userId),
+      FirestoreHelper.queryCollection('hr_interview_sessions', 'userId', userId)
+    ]);
 
-    // Group by round
+    allInterviews.sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
+    allSessions.sort((a, b) => new Date(b.overallStartedAt || 0) - new Date(a.overallStartedAt || 0));
+
+    // Group individual answers by round
     const byRound = {};
     for (const iv of allInterviews) {
       const r = iv.round || 1;
@@ -192,16 +439,24 @@ export const getHRHistory = async (req, res, next) => {
 
     const progress = await getRoundProgress(userId);
 
-    return sendSuccess(res, { byRound, progress }, 'HR interview history retrieved');
+    // Formatted multi-round sessions
+    const sessions = allSessions.map(s => ({
+      sessionId: s.sessionId,
+      targetRole: s.targetRole,
+      experienceLevel: s.experienceLevel,
+      status: s.status,
+      overallScore: s.finalReport?.overallScore || null,
+      verdict: s.finalReport?.verdict || null,
+      startedAt: s.overallStartedAt,
+      completedAt: s.completedAt
+    }));
+
+    return sendSuccess(res, { byRound, progress, sessions }, 'HR interview history retrieved');
   } catch (err) {
     next(err);
   }
 };
 
-/**
- * GET /api/hr/progress
- * Returns which rounds are cleared and current round status.
- */
 export const getHRProgress = async (req, res, next) => {
   try {
     const userId = req.user.userId;

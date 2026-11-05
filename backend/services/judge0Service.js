@@ -1,5 +1,5 @@
 import { config } from '../config/env.js';
-import { GrokService } from './grokService.js';
+import { CodeRunnerService } from './codeRunnerService.js';
 
 export const Judge0Service = {
   languageMap: {
@@ -66,7 +66,7 @@ export const Judge0Service = {
       }
     }
 
-    // Default & High-Fidelity: Use GrokService Code Judge for rigorous, real evaluation
-    return GrokService.evaluateCodeExecution(code, language, title, description, testCases);
+    // Default & High-Fidelity: Use CodeRunnerService for rigorous, real evaluation
+    return CodeRunnerService.evaluate(code, language, testCases, title, description);
   }
 };

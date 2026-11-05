@@ -186,7 +186,7 @@ export default function Dashboard() {
 
   const studentFirstName = currentUser?.name ? currentUser.name.split(' ')[0] : 'Diya';
   const studentFullName = currentUser?.name || 'Diya Shah';
-  const studentSubtitle = currentUser?.role || currentUser?.branch || '3rd Year, IT';
+  const studentSubtitle = currentUser?.targetRole || currentUser?.role || currentUser?.branch || 'Candidate';
   const userPhoto = currentUser?.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=120';
 
   const rawAtsScore = statsLoading ? 0 : (stats.atsScore || stats.resumeScore || 0);

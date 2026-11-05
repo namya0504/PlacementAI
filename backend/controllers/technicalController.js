@@ -1,5 +1,6 @@
 import { FirestoreHelper } from '../firebase/firestoreHelper.js';
 import { GrokService } from '../services/grokService.js';
+import { CodeRunnerService } from '../services/codeRunnerService.js';
 import { getStudentContext } from '../services/studentContext.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import { calculatePlacementReadiness } from '../utils/scoring.js';
@@ -84,13 +85,21 @@ export const getTechnicalQuestions = async (req, res, next) => {
       });
     }
 
+    const currentId = req.query.currentId || req.query.excludeId || null;
+    const isExplicitGenerate = generate === 'true' || generate === true;
+
+    // Filter out current question if excludeId/currentId was supplied so next question is distinct
+    if (currentId) {
+      list = list.filter(q => q.questionId !== currentId && q.id !== currentId);
+    }
+
     const targetCount = Math.min(Number(limit) || 4, 10);
 
     // If requested or not enough questions found, generate dynamically using Grok
-    if (generate === 'true' || generate === true || list.length === 0) {
+    if (isExplicitGenerate || list.length === 0) {
       try {
         const studentContext = await getStudentContext(userId);
-        const countToGen = Math.max(targetCount - list.length, 2);
+        const countToGen = isExplicitGenerate ? 2 : Math.max(targetCount - list.length, 2);
         const newQuestions = await GrokService.generateTechnicalQuestions(
           category || 'Data Structures',
           difficulty,
@@ -100,13 +109,19 @@ export const getTechnicalQuestions = async (req, res, next) => {
           language || category || 'Python'
         );
 
+        const savedNewQuestions = [];
         for (const q of newQuestions) {
           // Ensure every generated question has at least 3 test cases
           if (isCodeType) {
             q.testCases = augmentTestCases(q);
           }
           await FirestoreHelper.setDoc('technical_questions', q.questionId, q);
-          list.push(q);
+          savedNewQuestions.push(q);
+        }
+
+        // Put freshly generated questions at the front so list[0] is the new challenge
+        if (savedNewQuestions.length > 0) {
+          list = [...savedNewQuestions, ...list];
         }
       } catch (aiErr) {
         console.warn('[Technical] Dynamic generation warning:', aiErr.message);
@@ -191,13 +206,13 @@ export const submitCode = async (req, res, next) => {
 
     console.log(`[Technical] Evaluating code submission: user=${userId}, lang=${language}, question=${q?.title || questionId}`);
 
-    // Rigorous evaluation using GrokService (No false assumptions)
-    const evalResult = await GrokService.evaluateCodeExecution(
+    // High-performance evaluation via CodeRunnerService (Deterministic native runner with AI fallback)
+    const evalResult = await CodeRunnerService.evaluate(
       code,
       language,
+      testCases,
       q?.title || 'Coding Challenge',
-      q?.description || q?.question || '',
-      testCases
+      q?.description || q?.question || ''
     );
 
     const passCount = evalResult.passCount;

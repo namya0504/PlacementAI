@@ -101,7 +101,8 @@ export const apiCall = async (endpoint, method = 'GET', body = null, isFormData 
   // Endpoints that must always return fresh data — never serve from cache
   const skipCache = isGet && (
     endpoint.startsWith('/auth/check-email') ||
-    endpoint === '/profile/resume'
+    endpoint === '/profile/resume' ||
+    endpoint.includes('generate=true')
   );
 
   // Serve from cache if available and fresh
@@ -291,6 +292,15 @@ export const API = {
   getTechnicalHistory: () => apiCall('/technical/history', 'GET'),
 
   // HR Interview
+  startInterviewSession: (payload) => apiCall('/hr/session/start', 'POST', payload),
+  getInterviewSessionState: (sessionId) => apiCall(`/hr/session/${sessionId}/state`, 'GET'),
+  submitInterviewAnswer: (sessionId, payload) => apiCall(`/hr/session/${sessionId}/answer`, 'POST', payload),
+  transitionInterviewRound: (sessionId) => apiCall(`/hr/session/${sessionId}/transition`, 'POST'),
+  endInterviewSession: (sessionId) => apiCall(`/hr/session/${sessionId}/end`, 'POST'),
+  getInterviewReport: (sessionId) => apiCall(`/hr/session/${sessionId}/report`, 'GET'),
+  transcribeInterviewVoice: (formData) => apiCall('/hr/voice/transcribe', 'POST', formData, true, 30000),
+  parseInterviewResume: (formData) => apiCall('/hr/resume/parse', 'POST', formData, true, 30000),
+  inspectCandidateGitHub: (payload) => apiCall('/hr/github/inspect', 'POST', payload),
   getHRQuestions: (round = 1, generate = false) => apiCall(`/hr/questions?round=${round}${generate ? '&generate=true' : ''}`, 'GET'),
   evaluateHRAnswer: (payload) => apiCall('/hr/evaluate', 'POST', payload),
   getHRHistory: () => apiCall('/hr/history', 'GET'),
