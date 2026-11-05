@@ -104,7 +104,12 @@ export default function Login() {
       } else if (err.errorCode === 'ACCOUNT_DEACTIVATED') {
         setError(err.message || 'This account has been deactivated.');
       } else {
-        setError(err.message || 'Failed to log in. Please check your credentials.');
+        const msg = String(err.message || '');
+        if (msg.includes('auth/invalid-api-key')) {
+          setError('Authentication service is re-establishing connection. Please try again.');
+        } else {
+          setError(msg || 'Failed to log in. Please check your credentials.');
+        }
       }
     } finally {
       setLoading(false);
@@ -123,16 +128,28 @@ export default function Login() {
 
     try {
       setForgotLoading(true);
-      const { sendFirebasePasswordReset } = await import('../services/firebase/authService');
-      const firebaseResult = await sendFirebasePasswordReset(email.trim());
-
-      if (firebaseResult.success) {
-        setInfoMessage('Password reset email sent! Check your inbox (and spam folder).');
-        return;
+      // Attempt backend delivery first (handles user sync and styled HTML email dispatch)
+      let sent = false;
+      try {
+        const res = await API.forgotPassword(email.trim());
+        if (res) {
+          setInfoMessage(res?.message || 'Password reset instructions have been dispatched. Check your inbox.');
+          sent = true;
+        }
+      } catch (backendErr) {
+        console.warn('Backend forgot-password delivery attempt notice:', backendErr.message);
       }
 
-      const res = await API.forgotPassword(email.trim());
-      setInfoMessage(res?.message || 'Password reset instructions have been dispatched.');
+      // If backend was unreachable, fallback to client Firebase SDK
+      if (!sent) {
+        const { sendFirebasePasswordReset } = await import('../services/firebase/authService');
+        const firebaseResult = await sendFirebasePasswordReset(email.trim());
+        if (firebaseResult.success) {
+          setInfoMessage('Password reset email sent! Check your inbox (and spam folder).');
+        } else {
+          setError(firebaseResult.message || 'Unable to request password reset. Please try again.');
+        }
+      }
     } catch (err) {
       setError(err.message || 'Unable to request password reset. Please try again.');
     } finally {

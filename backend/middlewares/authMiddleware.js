@@ -47,7 +47,9 @@ export const protectRoute = async (req, res, next) => {
       }
 
       // 3. Fallback to Firebase Identity Toolkit REST API verification (only when API key is configured)
-      const restApiKey = process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || 'AIzaSyBd2Zoslz2SoI1kkkzHJ4nrFYEXHWH8d3w';
+      const rawRestKey = process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || 'AIzaSyBd2Zoslz2SoI1kkkzHJ4nrFYEXHWH8d3w';
+      const trimmedKey = String(rawRestKey).trim().replace(/^["']+|["']+$/g, '');
+      const restApiKey = (trimmedKey.startsWith('AIza') && trimmedKey.length >= 35) ? trimmedKey : 'AIzaSyBd2Zoslz2SoI1kkkzHJ4nrFYEXHWH8d3w';
       if (restApiKey) {
         try {
           const verifyRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${restApiKey}`, {

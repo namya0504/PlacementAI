@@ -25,6 +25,49 @@ const setAuthCookie = (res, token) => {
   });
 };
 
+export const getCleanFirebaseApiKey = () => {
+  const raw = process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || 'AIzaSyBd2Zoslz2SoI1kkkzHJ4nrFYEXHWH8d3w';
+  const trimmed = String(raw).trim().replace(/^["']+|["']+$/g, '');
+  return (trimmed.startsWith('AIza') && trimmed.length >= 35) ? trimmed : 'AIzaSyBd2Zoslz2SoI1kkkzHJ4nrFYEXHWH8d3w';
+};
+
+/**
+ * Verifies email + password directly against Google Firebase Identity Toolkit.
+ * Seamlessly authenticates users who have updated/reset their password in Firebase Auth.
+ */
+export const verifyWithFirebaseAuth = async (email, password) => {
+  try {
+    const apiKey = getCleanFirebaseApiKey();
+    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        password,
+        returnSecureToken: true
+      })
+    });
+
+    const data = await res.json();
+    if (res.ok && data?.idToken) {
+      return {
+        success: true,
+        uid: data.localId,
+        email: data.email,
+        displayName: data.displayName,
+        idToken: data.idToken
+      };
+    }
+    return {
+      success: false,
+      error: data?.error?.message || 'INVALID_LOGIN_CREDENTIALS'
+    };
+  } catch (err) {
+    console.warn('Firebase Identity Toolkit verification notice:', err.message);
+    return { success: false, error: err.message };
+  }
+};
+
 export const issueCsrfToken = (req, res) => {
   // SEC-18 fix: always generate a fresh token — never reuse the existing cookie value.
   // Reusing allows an attacker who captures an old token to use it indefinitely.
@@ -301,7 +344,60 @@ export const loginUser = async (req, res, next) => {
     let user = users[0];
 
     if (!user) {
-      return sendError(res, 'Invalid email or password', 401, null, 'EMAIL_NOT_FOUND');
+      // Check if account exists in Firebase Auth
+      const fbAuth = await verifyWithFirebaseAuth(sanitizedEmail, password);
+      if (fbAuth.success) {
+        const userId = fbAuth.uid || ('usr_' + Date.now());
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const displayName = fbAuth.displayName || sanitizedEmail.split('@')[0];
+        const avatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}`;
+
+        user = {
+          userId,
+          name: displayName,
+          email: sanitizedEmail,
+          password: hashedPassword,
+          role: '',
+          targetRole: '',
+          phone: '',
+          location: '',
+          college: '',
+          branch: '',
+          passingYear: '',
+          photoURL: avatar,
+          emailVerified: true,
+          onboarding: {
+            status: 'not_started',
+            currentStep: 1,
+            completedAt: null,
+            skippedAt: null
+          },
+          createdAt: new Date().toISOString()
+        };
+        await FirestoreHelper.setDoc('users', userId, user);
+
+        const profileId = 'prof_' + userId;
+        await FirestoreHelper.setDoc('profiles', profileId, {
+          profileId,
+          userId,
+          phone: '',
+          location: '',
+          college: '',
+          branch: '',
+          passingYear: '',
+          role: '',
+          targetRole: '',
+          linkedIn: '',
+          github: '',
+          bio: '',
+          interests: [],
+          skills: []
+        });
+
+        console.log(`✅ Auto-provisioned Firestore profile from Firebase Auth for ${sanitizedEmail}`);
+      } else {
+        return sendError(res, 'Invalid email or password', 401, null, 'EMAIL_NOT_FOUND');
+      }
     }
 
     // Deactivated account — block login
@@ -315,7 +411,24 @@ export const loginUser = async (req, res, next) => {
       return sendError(res, message, 403, null, 'ACCOUNT_DEACTIVATED');
     }
 
-    const match = await bcrypt.compare(password, user.password || '');
+    let match = await bcrypt.compare(password, user.password || '');
+    if (!match) {
+      // User may have reset their password through Firebase Auth! Verify with Firebase Identity Toolkit
+      const fbAuth = await verifyWithFirebaseAuth(sanitizedEmail, password);
+      if (fbAuth.success) {
+        match = true;
+        // Password was changed via Firebase Auth. Sync the new password to Firestore database
+        const newHashedPassword = await bcrypt.hash(password, 10);
+        await FirestoreHelper.setDoc('users', user.userId, {
+          password: newHashedPassword,
+          emailVerified: true
+        }, true);
+        user.password = newHashedPassword;
+        user.emailVerified = true;
+        console.log(`✅ Synced newly reset password from Firebase Auth to Firestore for ${sanitizedEmail}`);
+      }
+    }
+
     if (!match) {
       return sendError(res, 'Invalid email or password', 401, null, 'WRONG_PASSWORD');
     }
@@ -404,8 +517,7 @@ export const googleLogin = async (req, res, next) => {
       // 2. If Admin SDK is not initialized or failed, verify via Firebase Identity Toolkit REST API
       if (!userEmail) {
         try {
-          const apiKey = process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || 'AIzaSyBd2Zoslz2SoI1kkkzHJ4nrFYEXHWH8d3w';
-          if (!apiKey) throw new Error('FIREBASE_API_KEY not configured for REST fallback');
+          const apiKey = getCleanFirebaseApiKey();
           const verifyRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -600,14 +712,47 @@ export const forgotPassword = async (req, res, next) => {
       try {
         resetLink = await auth.generatePasswordResetLink(sanitizedEmail);
       } catch (fbErr) {
-        console.warn('Firebase reset link generation notice:', fbErr.message);
+        if (fbErr.code === 'auth/user-not-found' || fbErr.message?.includes('user-not-found')) {
+          try {
+            await auth.createUser({
+              uid: users[0]?.userId || ('usr_' + Date.now()),
+              email: sanitizedEmail,
+              displayName: users[0]?.name || sanitizedEmail.split('@')[0]
+            });
+            resetLink = await auth.generatePasswordResetLink(sanitizedEmail);
+          } catch (createErr) {
+            console.warn('Could not auto-provision user in Firebase Auth for reset link:', createErr.message);
+          }
+        } else {
+          console.warn('Firebase reset link generation notice:', fbErr.message);
+        }
       }
     }
 
-    // Only dispatch an email if we got a real Firebase reset link.
-    // The client SDK path (sendFirebasePasswordReset) handles delivery for accounts
-    // created via Firebase Auth. This backend path covers accounts that were created
-    // before Firebase Auth sync existed, if any.
+    // Direct Firebase Identity Toolkit delivery fallback if no resetLink obtained yet
+    if (!resetLink) {
+      try {
+        const apiKey = getCleanFirebaseApiKey();
+        const oobRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            requestType: 'PASSWORD_RESET',
+            email: sanitizedEmail
+          })
+        });
+        const oobData = await oobRes.json();
+        if (oobRes.ok) {
+          console.log(`✉️ Firebase Identity Toolkit sent password reset email to ${sanitizedEmail}`);
+        } else {
+          console.warn('Firebase Identity Toolkit sendOobCode notice:', oobData);
+        }
+      } catch (restOobErr) {
+        console.warn('Firebase Identity Toolkit sendOobCode network notice:', restOobErr.message);
+      }
+    }
+
+    // If we obtained a direct resetLink from Admin SDK, dispatch our styled email template
     if (resetLink) {
       try {
         await sendPasswordResetEmail({ to: sanitizedEmail, resetLink });

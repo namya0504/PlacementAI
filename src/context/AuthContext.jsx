@@ -53,7 +53,7 @@ export const AuthProvider = ({ children }) => {
         if (active) setCurrentUser(user || null);
       } catch (error) {
         const message = String(error?.message || '').toLowerCase();
-        const isUnauthenticated = message.includes('401') || message.includes('unauthorized') || message.includes('token');
+        const isUnauthenticated = message.includes('401') || message.includes('unauthorized') || message.includes('token') || message.includes('invalid-api-key');
         if (active && isUnauthenticated) {
           clearStoredToken();
           setCurrentUser(null);
@@ -75,6 +75,13 @@ export const AuthProvider = ({ children }) => {
     const user = await API.login({ email, password }, rememberMe);
     if (user?.token) setStoredToken(user.token, rememberMe);
     setCurrentUser(user);
+
+    // Keep Firebase client session established in the background
+    try {
+      const { signInToFirebaseClient } = await import('../services/firebase/authService');
+      await signInToFirebaseClient(email, password);
+    } catch (_) {}
+
     return user;
   };
 

@@ -27,6 +27,9 @@ const formatAuthError = (err) => {
   const code = err?.code || '';
   const currentHostname = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
 
+  if (code === 'auth/invalid-api-key') {
+    return 'Authentication service configuration error. Please refresh the page or try again.';
+  }
   if (code === 'auth/unauthorized-domain') {
     return `Firebase domain not authorized: "${currentHostname}" is not registered in your Firebase project. Please add "${currentHostname}" (or "vercel.app") in Firebase Console -> Authentication -> Settings -> Authorized Domains.`;
   }

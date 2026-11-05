@@ -140,6 +140,15 @@ export const updateProfile = async (req, res, next) => {
       }
       const hashedNew = await bcrypt.hash(newPassword, 10);
       await FirestoreHelper.setDoc('users', userId, { password: hashedNew }, true);
+
+      // Keep Firebase Auth password in sync if live Firebase is active
+      try {
+        const { auth } = await import('../firebase/firebaseAdmin.js');
+        if (auth) {
+          await auth.updateUser(userId, { password: newPassword }).catch(() => {});
+        }
+      } catch (_) {}
+
       return sendSuccess(res, {}, 'Password updated successfully');
     }
 
