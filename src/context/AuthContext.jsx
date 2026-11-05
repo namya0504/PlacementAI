@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { API, clearApiCache } from '../services/api';
+import { API, clearApiCache, getStoredToken, setStoredToken, clearStoredToken } from '../services/api';
 
 const AuthContext = createContext();
 const LEGACY_AUTH_CACHE_KEY = 'placement_ai_user';
@@ -37,12 +37,27 @@ export const AuthProvider = ({ children }) => {
           });
         }
 
+        let token = getStoredToken();
+        if (!token && authService.clientAuth?.currentUser) {
+          try {
+            const fbIdToken = await authService.clientAuth.currentUser.getIdToken();
+            if (fbIdToken) {
+              setStoredToken(fbIdToken, true);
+              token = fbIdToken;
+            }
+          } catch {}
+        }
+
         const user = await API.getCurrentUser();
+        if (user?.token) setStoredToken(user.token, true);
         if (active) setCurrentUser(user || null);
       } catch (error) {
         const message = String(error?.message || '').toLowerCase();
         const isUnauthenticated = message.includes('401') || message.includes('unauthorized') || message.includes('token');
-        if (active && isUnauthenticated) setCurrentUser(null);
+        if (active && isUnauthenticated) {
+          clearStoredToken();
+          setCurrentUser(null);
+        }
         if (!isUnauthenticated) console.warn('Session restore notice:', error.message);
       } finally {
         if (active) setLoading(false);
@@ -53,11 +68,12 @@ export const AuthProvider = ({ children }) => {
     return () => { active = false; };
   }, []);
 
-  const login = async (email, password) => {
+  const login = async (email, password, rememberMe = true) => {
     clearApiCache();
     // Keep the global loading state limited to initial session restoration so
     // ProtectedRoute does not unmount the login form while it is submitting.
-    const user = await API.login({ email, password });
+    const user = await API.login({ email, password }, rememberMe);
+    if (user?.token) setStoredToken(user.token, rememberMe);
     setCurrentUser(user);
     return user;
   };
@@ -69,6 +85,7 @@ export const AuthProvider = ({ children }) => {
       : { name: nameOrData, email: emailArg, password: passwordArg, ...extraData };
 
     const user = await API.register(payload);
+    if (user?.token) setStoredToken(user.token, true);
     setCurrentUser(user);
 
     // Keep a Firebase client session for verification email actions. The API
@@ -114,12 +131,14 @@ export const AuthProvider = ({ children }) => {
       name: googleResult.user.displayName || profileInfo.name,
       photoURL: googleResult.user.photoURL || profileInfo.photoURL
     });
+    if (user?.token) setStoredToken(user.token, true);
     setCurrentUser(user);
     return user;
   };
 
   const logout = () => {
     clearApiCache();
+    clearStoredToken();
     setCurrentUser(null);
     return API.logout().catch(() => {});
   };

@@ -33,6 +33,7 @@ const configuredOrigins = (process.env.FRONTEND_URL || '')
 
 const baseAllowedOrigins = [
   ...configuredOrigins,
+  'https://placement-ai-nu.vercel.app',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   'http://localhost:3000',
@@ -48,15 +49,23 @@ app.use(cors({
     // Allow server-to-server or non-browser tools (no origin header)
     if (!origin) return callback(null, true);
 
-    // Development tolerance or explicitly configured origins
-    if (baseAllowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
-      return callback(null, true);
-    }
+    try {
+      const hostname = new URL(origin).hostname;
+      if (
+        baseAllowedOrigins.includes(origin) ||
+        hostname.endsWith('.vercel.app') ||
+        process.env.NODE_ENV !== 'production'
+      ) {
+        return callback(null, true);
+      }
+    } catch {}
 
     // Reject with a proper CORS error so the browser gets a clear message
     return callback(new Error(`CORS: Origin "${origin}" is not allowed`));
   }, 
-  credentials: true 
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'Cache-Control', 'Pragma']
 }));
 
 app.use(cookieParser());

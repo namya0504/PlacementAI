@@ -24,7 +24,42 @@ const getCsrfToken = async () => {
   return csrfTokenRequest;
 };
 
-const getAuthHeaders = () => ({});
+const TOKEN_STORAGE_KEY = 'placement_ai_auth_token';
+
+export const getStoredToken = () => {
+  try {
+    return localStorage.getItem(TOKEN_STORAGE_KEY) || sessionStorage.getItem(TOKEN_STORAGE_KEY) || '';
+  } catch {
+    return '';
+  }
+};
+
+export const setStoredToken = (token, rememberMe = true) => {
+  try {
+    if (token) {
+      if (rememberMe) {
+        localStorage.setItem(TOKEN_STORAGE_KEY, token);
+      } else {
+        sessionStorage.setItem(TOKEN_STORAGE_KEY, token);
+      }
+    } else {
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
+      sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+    }
+  } catch {}
+};
+
+export const clearStoredToken = () => {
+  try {
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+  } catch {}
+};
+
+const getAuthHeaders = () => {
+  const token = getStoredToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 // In-memory GET cache with per-endpoint TTLs to eliminate duplicate calls during navigation.
 // Endpoints matching a prefix key use that TTL; all others fall back to 15s.
@@ -107,7 +142,12 @@ export const apiCall = async (endpoint, method = 'GET', body = null, isFormData 
   const headers = getAuthHeaders();
   if (body && !isFormData) headers['Content-Type'] = 'application/json';
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase())) {
-    headers['X-CSRF-Token'] = await getCsrfToken();
+    try {
+      const csrf = await getCsrfToken();
+      if (csrf) headers['X-CSRF-Token'] = csrf;
+    } catch {
+      // CSRF token is best-effort when Authorization header is present
+    }
   }
 
   // Dynamic timeout: AI & heavy generation routes get 45s, normal requests get 25s
@@ -176,14 +216,29 @@ export const API = {
   apiCall,
   // Auth
   checkEmail: (email) => apiCall(`/auth/check-email?email=${encodeURIComponent(email)}`, 'GET'),
-  register: (userData) => apiCall('/auth/register', 'POST', userData),
-  login: (credentials) => apiCall('/auth/login', 'POST', credentials),
-  googleLogin: (socialData) => apiCall('/auth/google-login', 'POST', socialData),
+  register: async (userData) => {
+    const result = await apiCall('/auth/register', 'POST', userData);
+    if (result?.token) setStoredToken(result.token, true);
+    return result;
+  },
+  login: async (credentials, rememberMe = true) => {
+    const result = await apiCall('/auth/login', 'POST', credentials);
+    if (result?.token) setStoredToken(result.token, rememberMe);
+    return result;
+  },
+  googleLogin: async (socialData) => {
+    const result = await apiCall('/auth/google-login', 'POST', socialData);
+    if (result?.token) setStoredToken(result.token, true);
+    return result;
+  },
   forgotPassword: (payloadOrEmail) => {
     const payload = typeof payloadOrEmail === 'string' ? { email: payloadOrEmail } : payloadOrEmail;
     return apiCall('/auth/forgot-password', 'POST', payload);
   },
-  logout: () => apiCall('/auth/logout', 'POST'),
+  logout: async () => {
+    clearStoredToken();
+    return apiCall('/auth/logout', 'POST').catch(() => {});
+  },
   deactivateAccount: () => apiCall('/auth/deactivate', 'POST'),
   getCurrentUser: () => apiCall('/auth/me', 'GET'),
   resendVerification: (data = {}) => apiCall('/auth/resend-verification', 'POST', data),

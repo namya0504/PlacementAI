@@ -43,10 +43,10 @@ export const config = {
   nodeEnv: sanitizeEnvString(process.env.NODE_ENV, 'development'),
   jwtSecret: rawJwtSecret,
   firebase: {
-    projectId: sanitizeEnvString(process.env.FIREBASE_PROJECT_ID, 'placementai-app'),
+    projectId: sanitizeEnvString(process.env.FIREBASE_PROJECT_ID, 'placementai-11ba6'),
     clientEmail: sanitizeEnvString(process.env.FIREBASE_CLIENT_EMAIL),
     privateKey: sanitizePrivateKey(process.env.FIREBASE_PRIVATE_KEY),
-    storageBucket: sanitizeEnvString(process.env.FIREBASE_STORAGE_BUCKET, 'placementai-app.appspot.com')
+    storageBucket: sanitizeEnvString(process.env.FIREBASE_STORAGE_BUCKET, 'placementai-11ba6.firebasestorage.app')
   },
   supabase: {
     url: sanitizeEnvString(process.env.SUPABASE_URL),

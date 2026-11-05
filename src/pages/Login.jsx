@@ -93,7 +93,7 @@ export default function Login() {
 
     try {
       setLoading(true);
-      const user = await login(email.trim(), password);
+      const user = await login(email.trim(), password, rememberMe);
       const dest = getRedirectPath(user);
       navigate(dest, { replace: true });
     } catch (err) {

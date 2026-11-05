@@ -1,33 +1,13 @@
 // Firebase Configuration & Service Initializer
-// All values MUST be provided via environment variables.
-// Set VITE_FIREBASE_* in your .env file (see .env.example).
-
-const requiredEnvVars = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
-};
-
-// Warn in development if any env var is missing; do not ship hardcoded fallbacks.
-if (import.meta.env.DEV) {
-  const missing = Object.entries(requiredEnvVars)
-    .filter(([, v]) => !v)
-    .map(([k]) => `VITE_FIREBASE_${k.replace(/([A-Z])/g, '_$1').toUpperCase()}`);
-  if (missing.length > 0) {
-    console.warn('[Firebase] Missing environment variables:', missing.join(', '));
-  }
-}
+// Uses environment variables if set (VITE_FIREBASE_*), with project credentials as default fallback.
 
 const firebaseConfig = {
-  apiKey: requiredEnvVars.apiKey || '',
-  authDomain: requiredEnvVars.authDomain || '',
-  projectId: requiredEnvVars.projectId || '',
-  storageBucket: requiredEnvVars.storageBucket || '',
-  messagingSenderId: requiredEnvVars.messagingSenderId || '',
-  appId: requiredEnvVars.appId || ''
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBd2Zoslz2SoI1kkkzHJ4nrFYEXHWH8d3w",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "placementai-11ba6.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "placementai-11ba6",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "placementai-11ba6.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "741583360825",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:741583360825:web:e3cd6155e03cf1cb1b8ee8"
 };
 
 export default firebaseConfig;

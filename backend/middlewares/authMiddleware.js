@@ -28,6 +28,7 @@ export const protectRoute = async (req, res, next) => {
     try {
       const decoded = jwt.verify(token, config.jwtSecret);
       req.user = decoded;
+      req.token = token;
       return next();
     } catch (jwtErr) {
       // 2. Fallback to Firebase Admin SDK ID token verification
@@ -46,7 +47,7 @@ export const protectRoute = async (req, res, next) => {
       }
 
       // 3. Fallback to Firebase Identity Toolkit REST API verification (only when API key is configured)
-      const restApiKey = process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY;
+      const restApiKey = process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || 'AIzaSyBd2Zoslz2SoI1kkkzHJ4nrFYEXHWH8d3w';
       if (restApiKey) {
         try {
           const verifyRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${restApiKey}`, {

@@ -16,7 +16,7 @@ const generateToken = (userId, email, role) => {
 };
 
 const setAuthCookie = (res, token) => {
-  const isProd = process.env.NODE_ENV === 'production';
+  const isProd = process.env.NODE_ENV === 'production' || Boolean(process.env.RENDER || process.env.VERCEL || process.env.RAILWAY_ENVIRONMENT);
   res.cookie('token', token, {
     httpOnly: true,
     secure: isProd,              // HTTPS only in production (required for sameSite=none)
@@ -29,7 +29,7 @@ export const issueCsrfToken = (req, res) => {
   // SEC-18 fix: always generate a fresh token — never reuse the existing cookie value.
   // Reusing allows an attacker who captures an old token to use it indefinitely.
   const csrfToken = randomBytes(32).toString('hex');
-  const isProd = process.env.NODE_ENV === 'production';
+  const isProd = process.env.NODE_ENV === 'production' || Boolean(process.env.RENDER || process.env.VERCEL || process.env.RAILWAY_ENVIRONMENT);
   res.cookie('csrfToken', csrfToken, {
     httpOnly: true,
     secure: isProd,
@@ -279,7 +279,8 @@ export const registerUser = async (req, res, next) => {
       isNewUser: true,
       needsProfileCompletion: !hasCompulsoryData,
       verificationLink: process.env.NODE_ENV !== 'production' ? verificationLink : undefined,
-      stats: initialStats
+      stats: initialStats,
+      token
     };
 
     return sendSuccess(res, userResponse, 'Registration successful', 201);
@@ -366,7 +367,8 @@ export const loginUser = async (req, res, next) => {
       onboarding: user.onboarding || null,
       isNewUser: false,
       needsProfileCompletion: !hasCompulsoryData,
-      stats: readinessDoc
+      stats: readinessDoc,
+      token
     };
 
     return sendSuccess(res, userResponse, 'Login successful');
@@ -402,7 +404,7 @@ export const googleLogin = async (req, res, next) => {
       // 2. If Admin SDK is not initialized or failed, verify via Firebase Identity Toolkit REST API
       if (!userEmail) {
         try {
-          const apiKey = process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY;
+          const apiKey = process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || 'AIzaSyBd2Zoslz2SoI1kkkzHJ4nrFYEXHWH8d3w';
           if (!apiKey) throw new Error('FIREBASE_API_KEY not configured for REST fallback');
           const verifyRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
             method: 'POST',
@@ -562,7 +564,8 @@ export const googleLogin = async (req, res, next) => {
       onboarding: user.onboarding || null,
       isNewUser,
       needsProfileCompletion: !hasCompulsoryData,
-      stats: readinessDoc
+      stats: readinessDoc,
+      token
     }, 'Google Login successful');
   } catch (err) {
     next(err);
@@ -621,7 +624,7 @@ export const forgotPassword = async (req, res, next) => {
 
 export const logoutUser = async (req, res, next) => {
   try {
-    const isProd = process.env.NODE_ENV === 'production';
+    const isProd = process.env.NODE_ENV === 'production' || Boolean(process.env.RENDER || process.env.VERCEL || process.env.RAILWAY_ENVIRONMENT);
     res.clearCookie('token', {
       httpOnly: true,
       secure: isProd,
@@ -698,6 +701,7 @@ export const getCurrentUser = async (req, res, next) => {
       emailVerified: user.emailVerified ?? false,
       onboarding: user.onboarding || null,
       needsProfileCompletion: !hasCompulsoryData,
+      token: req.token || (req.user ? generateToken(user.userId, user.email, user.role) : undefined),
       stats: readinessDoc || {
         resumeScore: 0,
         atsScore: 0,
@@ -906,7 +910,7 @@ export const deactivateAccount = async (req, res, next) => {
     }
 
     // Clear auth cookie
-    const isProd = process.env.NODE_ENV === 'production';
+    const isProd = process.env.NODE_ENV === 'production' || Boolean(process.env.RENDER || process.env.VERCEL || process.env.RAILWAY_ENVIRONMENT);
     res.clearCookie('token', {
       httpOnly: true,
       secure: isProd,
