@@ -376,6 +376,9 @@ export const uploadProfileResume = async (req, res, next) => {
     // getProfileResume always regenerates from resumeStoragePath at read time.
     const signedUrl = await getSignedDownloadUrl('resumes', storagePath, 3600);
 
+    const rawBase = (req.file.originalname || 'Resume.pdf').replace(/\.[^/.]+$/, '').trim();
+    const cleanTitle = rawBase.replace(/[_-]+/g, ' ').trim() || 'My Resume';
+
     await FirestoreHelper.setDoc('users', userId, {
       resumeStorageProvider: 'supabase',
       resumeStoragePath: result.storagePath,
@@ -385,6 +388,30 @@ export const uploadProfileResume = async (req, res, next) => {
       resumeUploadedAt: new Date().toISOString()
       // resumeDownloadUrl intentionally not stored — always regenerated on read
     }, true);
+
+    // Also sync to 'resumes' collection so it appears in My Resumes with the proper name
+    try {
+      const resumeId = 'res_' + userId + '_' + Date.now();
+      await FirestoreHelper.setDoc('resumes', resumeId, {
+        resumeId,
+        userId,
+        title: cleanTitle,
+        role: userDoc?.targetRole || userDoc?.role || '',
+        source: 'uploaded',
+        isPrimary: true,
+        templateId: 'modern',
+        fileName: req.file.originalname,
+        storageProvider: 'supabase',
+        storagePath: result.storagePath,
+        pdfUrl: signedUrl,
+        pdfFileSize: req.file.size,
+        pdfFileType: req.file.mimetype,
+        pdfUploadedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString()
+      });
+    } catch (resumeSyncErr) {
+      console.warn('[Profile] Resume sync to resumes collection notice:', resumeSyncErr.message);
+    }
 
     // Extract combined skills & About Me across Resume, GitHub, and LinkedIn
     let extracted = null;
@@ -600,7 +627,28 @@ export const deleteProfileResume = async (req, res, next) => {
 export const getProfileResume = async (req, res, next) => {
   try {
     const userId = req.user.userId;
-    const userDoc = await FirestoreHelper.getDoc('users', userId);
+    let userDoc = await FirestoreHelper.getDoc('users', userId);
+
+    // If userDoc does not have resumeStoragePath, fallback to checking 'resumes' collection
+    // (e.g. uploaded during Onboarding) and auto-link it into profile
+    if (!userDoc?.resumeStoragePath) {
+      const userResumes = await FirestoreHelper.queryCollection('resumes', 'userId', userId);
+      const uploadedResume = userResumes.find(r => r.source === 'uploaded' && r.storagePath) ||
+                             userResumes.find(r => r.storagePath);
+      if (uploadedResume) {
+        const profileResumePatch = {
+          resumeStorageProvider: uploadedResume.storageProvider || 'supabase',
+          resumeStoragePath: uploadedResume.storagePath,
+          resumeFileName: uploadedResume.fileName || uploadedResume.title || 'resume.pdf',
+          resumeFileType: uploadedResume.pdfFileType || 'application/pdf',
+          resumeFileSize: uploadedResume.pdfFileSize || 0,
+          resumeUploadedAt: uploadedResume.pdfUploadedAt || uploadedResume.createdAt || new Date().toISOString()
+        };
+        await FirestoreHelper.setDoc('users', userId, profileResumePatch, true);
+        userDoc = { ...(userDoc || {}), ...profileResumePatch };
+        console.log(`✅ Auto-linked onboarding resume to user profile for user ${userId}`);
+      }
+    }
 
     if (!userDoc?.resumeStoragePath) {
       return sendSuccess(res, { hasResume: false }, 'No uploaded resume on file');

@@ -81,11 +81,14 @@ export const uploadOnboardingResume = async (req, res, next) => {
       console.warn('[OnboardingController] AI ATS fallback notice:', atsErr.message);
     }
 
-    // 6. Save resume record in 'resumes' collection (Additive, marking as uploaded & primary)
+    // 6. Save resume record in 'resumes' collection with clean, proper title
+    const rawBase = (req.file.originalname || 'Resume.pdf').replace(/\.[^/.]+$/, '').trim();
+    const cleanTitle = rawBase.replace(/[_-]+/g, ' ').trim() || (targetRole ? `${targetRole} Resume` : 'My Resume');
+
     const resumeDoc = {
       resumeId,
       userId,
-      title: `${targetRole} Resume`,
+      title: cleanTitle,
       role: targetRole,
       source: 'uploaded',
       isPrimary: true,
@@ -102,6 +105,38 @@ export const uploadOnboardingResume = async (req, res, next) => {
       createdAt: new Date().toISOString()
     };
     await FirestoreHelper.setDoc('resumes', resumeId, resumeDoc);
+
+    // 7. Auto-link resume to student's profile in 'users' so Profile.jsx immediately displays it without re-uploading
+    await FirestoreHelper.setDoc('users', userId, {
+      resumeStorageProvider: 'supabase',
+      resumeStoragePath: uploadResult.storagePath,
+      resumeFileName: req.file.originalname,
+      resumeFileType: req.file.mimetype,
+      resumeFileSize: req.file.size,
+      resumeUploadedAt: new Date().toISOString()
+    }, true);
+
+    // 8. Auto-populate candidate skills and bio in 'profiles' collection from extracted resume text
+    try {
+      const profileId = 'prof_' + userId;
+      const existingProfile = await FirestoreHelper.getDoc('profiles', profileId);
+      if (!existingProfile?.skills || existingProfile.skills.length === 0) {
+        const extracted = await GrokService.extractProfileSkillsAndBio({
+          resumeText: cleanText,
+          targetRole,
+          existingSkills: [],
+          existingBio: existingProfile?.bio || ''
+        });
+        if (extracted?.skills?.length || extracted?.bio) {
+          await FirestoreHelper.setDoc('profiles', profileId, {
+            ...(extracted.skills?.length && { skills: extracted.skills }),
+            ...(extracted.bio && !existingProfile?.bio && { bio: extracted.bio })
+          }, true);
+        }
+      }
+    } catch (profExtractErr) {
+      console.warn('[OnboardingController] Profile initial skills sync notice:', profExtractErr.message);
+    }
 
     // Save ATS report in 'ats_results'
     const reportId = 'ats_rep_' + userId + '_' + Date.now();
