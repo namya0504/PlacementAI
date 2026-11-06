@@ -570,6 +570,7 @@ export const loginUser = async (req, res, next) => {
       branch: user.branch || '',
       passingYear: user.passingYear || '',
       emailVerified: user.emailVerified ?? false,
+      verificationLink: verificationLink || undefined,
       onboarding: user.onboarding || null,
       isNewUser: false,
       needsProfileCompletion: !hasCompulsoryData,
@@ -885,6 +886,7 @@ export const getCurrentUser = async (req, res, next) => {
     // Sync emailVerified from Firebase Auth → Firestore.
     // When a user clicks the verification link, Firebase Auth marks them verified,
     // but our Firestore `emailVerified` field won't know unless we check here.
+    let verificationLink = undefined;
     if (!user.emailVerified) {
       try {
         const { auth } = await import('../firebase/firebaseAdmin.js');
@@ -894,6 +896,8 @@ export const getCurrentUser = async (req, res, next) => {
             await FirestoreHelper.setDoc('users', userId, { emailVerified: true }, true);
             user.emailVerified = true;
             console.log(`✅ Email verified synced from Firebase Auth for user ${userId}`);
+          } else {
+            verificationLink = await auth.generateEmailVerificationLink(user.email).catch(() => null);
           }
         }
       } catch (syncErr) {

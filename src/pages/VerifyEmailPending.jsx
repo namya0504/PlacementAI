@@ -11,7 +11,13 @@ export default function VerifyEmailPending() {
   const navigate = useNavigate();
   const { currentUser, logout, updateCurrentUser } = useAuth();
   const email = location.state?.email || currentUser?.email || 'your email address';
-  const verificationLink = location.state?.verificationLink || currentUser?.verificationLink;
+  const [activeLink, setActiveLink] = useState(location.state?.verificationLink || currentUser?.verificationLink || '');
+
+  useEffect(() => {
+    if (currentUser?.verificationLink && !activeLink) {
+      setActiveLink(currentUser.verificationLink);
+    }
+  }, [currentUser, activeLink]);
 
   // If user is already verified (e.g. navigated here manually after verifying),
   // redirect them to onboarding or dashboard immediately.
@@ -174,6 +180,17 @@ export default function VerifyEmailPending() {
             </p>
           </div>
 
+          {/* Spam / Junk Notice Box */}
+          <div className="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-3.5 text-xs text-amber-950 text-left space-y-1.5">
+            <div className="font-bold flex items-center gap-1.5 text-amber-900 text-xs">
+              <MailCheck className="w-4 h-4 shrink-0 text-amber-700" />
+              <span>Where is my email?</span>
+            </div>
+            <p className="leading-relaxed text-[11px] text-amber-900/90">
+              Emails from Firebase are sent from <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-amber-200 font-semibold text-slate-800">noreply@placementai-11ba6.firebaseapp.com</span>. Please check your <strong>Spam</strong>, <strong>Junk</strong>, or <strong>Promotions</strong> folder as providers frequently filter automated verification emails.
+            </p>
+          </div>
+
           {/* Feedback message */}
           {resendMsg && (
             <div className={`p-3.5 rounded-2xl text-xs flex items-start gap-2 text-left ${
@@ -212,15 +229,36 @@ export default function VerifyEmailPending() {
                 : <>Resend verification email</>}
             </button>
 
-            {verificationLink && (
-              <a
-                href={verificationLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full py-2.5 rounded-xl border border-purple-200 bg-purple-50/70 text-[#7C3AED] font-semibold text-xs hover:bg-purple-100 transition flex items-center justify-center gap-1.5"
-              >
-                Open Verification Link (Direct) <ArrowRight className="w-3.5 h-3.5" />
-              </a>
+            {activeLink && (
+              <div className="p-3.5 bg-purple-50/90 rounded-2xl border border-purple-200/90 text-left space-y-2">
+                <div className="text-xs font-bold text-purple-900 flex items-center justify-between">
+                  <span>Direct Verification Link</span>
+                  <span className="text-[10px] bg-purple-200/80 text-purple-800 px-2 py-0.5 rounded-full font-bold">Fast Track</span>
+                </div>
+                <p className="text-[11px] text-slate-600">
+                  Didn't receive the email? You can verify directly using this instant link:
+                </p>
+                <div className="flex items-center gap-2 pt-0.5">
+                  <a
+                    href={activeLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 py-2 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-xs shadow-sm transition flex items-center justify-center gap-1.5 text-center"
+                  >
+                    Verify Instantly <ArrowRight className="w-3.5 h-3.5" />
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(activeLink);
+                      setResendMsg('Verification link copied to clipboard!');
+                    }}
+                    className="px-3 py-2 rounded-xl border border-purple-200 bg-white text-purple-700 hover:bg-purple-50 text-xs font-semibold"
+                  >
+                    Copy Link
+                  </button>
+                </div>
+              </div>
             )}
 
             {import.meta.env.DEV && (
