@@ -111,6 +111,10 @@ export const checkEmail = async (req, res, next) => {
         daysRemaining
       }, 'Email check complete');
     }
+    // Allow re-attempting signup if previous registration was interrupted/unverified before onboarding
+    if (!user.emailVerified && user.onboarding?.status === 'not_started') {
+      return sendSuccess(res, { exists: false, pendingVerification: true }, 'Email check complete');
+    }
     return sendSuccess(res, { exists: true }, 'Email check complete');
   } catch (err) {
     next(err);
@@ -185,6 +189,20 @@ export const registerUser = async (req, res, next) => {
         } catch (cleanupErr) {
           console.warn('Deactivated account cleanup notice:', cleanupErr.message);
         }
+      } else if (!existing.emailVerified && existing.onboarding?.status === 'not_started') {
+        // User previously encountered a crashed/interrupted signup attempt before verifying.
+        // Clean up incomplete record so the user can complete registration cleanly and get their verification email.
+        try {
+          await FirestoreHelper.deleteDoc('users', existing.userId);
+          await FirestoreHelper.deleteDoc('profiles', 'prof_' + existing.userId);
+          const { auth } = await import('../firebase/firebaseAdmin.js');
+          if (auth) {
+            await auth.deleteUser(existing.userId).catch(() => {});
+          }
+          console.log(`♻️ Incomplete unverified registration for ${sanitizedEmail} cleaned up for fresh re-signup.`);
+        } catch (unverifiedCleanErr) {
+          console.warn('Unverified cleanup notice:', unverifiedCleanErr.message);
+        }
       } else {
         return sendError(res, 'User with this email already exists', 400);
       }
@@ -195,38 +213,46 @@ export const registerUser = async (req, res, next) => {
     const displayName = name ? name.trim().slice(0, 80) : sanitizedEmail.split('@')[0];
     const avatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}`;
 
-    // Sync with Firebase Auth Service if live Firebase is active.
-    // NOTE: The verification email is sent by the frontend Firebase client SDK
-    // (sendEmailVerification on clientAuth.currentUser) — not here.
-    // Firebase Admin createUser does NOT auto-send a verification email by itself.
+    // Sync with Firebase Auth Service if live Firebase is active
+    let verificationLink = null;
     try {
       const { auth } = await import('../firebase/firebaseAdmin.js');
       if (auth) {
-        await auth.createUser({
-          uid: userId,
-          email: sanitizedEmail,
-          password,
-          displayName
-        });
-        console.log(`✅ Firebase Auth user created for ${sanitizedEmail} (uid: ${userId})`);
+        try {
+          await auth.createUser({
+            uid: userId,
+            email: sanitizedEmail,
+            password,
+            displayName
+          });
+          console.log(`✅ Firebase Auth user created for ${sanitizedEmail} (uid: ${userId})`);
+        } catch (fbCreateErr) {
+          console.warn('Firebase Auth user creation notice (may already exist):', fbCreateErr.message);
+        }
+
+        try {
+          verificationLink = await auth.generateEmailVerificationLink(sanitizedEmail);
+          console.log(`✉️ Email verification link generated for ${sanitizedEmail}`);
+        } catch (linkErr) {
+          console.warn('Firebase generateEmailVerificationLink notice:', linkErr.message);
+        }
       }
     } catch (fbAuthErr) {
-      // Non-fatal — user is saved in Firestore regardless; Firebase Auth sync failed
-      console.warn('Firebase Auth user creation warning (non-fatal):', fbAuthErr.message);
+      console.warn('Firebase Auth setup notice:', fbAuthErr.message);
     }
 
-    // Development convenience: log a backend-generated verification link to the console.
-    // The real email delivery happens via Firebase client SDK on the frontend.
-    if (process.env.NODE_ENV !== 'production') {
+    // Dispatch verification email directly from backend
+    if (verificationLink) {
       try {
-        const { auth } = await import('../firebase/firebaseAdmin.js');
-        if (auth) {
-          const devLink = await auth.generateEmailVerificationLink(sanitizedEmail).catch(() => null);
-          if (devLink) {
-            console.log(`🔗 [DEV] Manual verification link for ${sanitizedEmail}:`, devLink);
-          }
-        }
-      } catch (_) {}
+        await sendVerificationEmail({
+          to: sanitizedEmail,
+          name: displayName,
+          verificationLink
+        });
+        console.log(`✉️ Dispatched verification email to ${sanitizedEmail}`);
+      } catch (mailErr) {
+        console.warn('⚠️ Verification email dispatch notice:', mailErr.message);
+      }
     }
 
     const newUser = {
@@ -321,7 +347,7 @@ export const registerUser = async (req, res, next) => {
       onboarding: newUser.onboarding,
       isNewUser: true,
       needsProfileCompletion: !hasCompulsoryData,
-      verificationLink: process.env.NODE_ENV !== 'production' ? verificationLink : undefined,
+      verificationLink: verificationLink || undefined,
       stats: initialStats,
       token
     };
