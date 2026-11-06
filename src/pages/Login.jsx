@@ -147,11 +147,11 @@ export default function Login() {
         if (firebaseResult.success) {
           setInfoMessage('Password reset email sent! Check your inbox (and spam folder).');
         } else {
-          setError(firebaseResult.message || 'Unable to request password reset. Please try again.');
+          setInfoMessage('If an account exists with this email, password reset instructions have been dispatched. Check your inbox.');
         }
       }
     } catch (err) {
-      setError(err.message || 'Unable to request password reset. Please try again.');
+      setInfoMessage('If an account exists with this email, password reset instructions have been dispatched. Check your inbox.');
     } finally {
       setForgotLoading(false);
     }

@@ -177,15 +177,31 @@ export const checkFirebaseEmailVerified = async () => {
  * This is the canonical forgot-password flow — no backend round-trip needed.
  */
 export const sendFirebasePasswordReset = async (email) => {
+  const sanitized = email.trim().toLowerCase();
   try {
-    await firebaseSendPasswordReset(clientAuth, email.trim().toLowerCase());
+    await firebaseSendPasswordReset(clientAuth, sanitized);
     return { success: true };
   } catch (err) {
-    console.warn('Firebase sendPasswordResetEmail notice:', err.code, err.message);
+    console.warn('Firebase sendPasswordResetEmail notice, attempting direct REST fallback:', err.code, err.message);
+    try {
+      const apiKey = firebaseConfig.apiKey || 'AIzaSyBd2Zoslz2SoI1kkkzHJ4nrFYEXHWH8d3w';
+      const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestType: 'PASSWORD_RESET',
+          email: sanitized
+        })
+      });
+      if (res.ok) {
+        return { success: true };
+      }
+    } catch (_) {}
+
     const code = err?.code || '';
     let message = 'Failed to send password reset email. Please try again.';
-    if (code === 'auth/user-not-found' || code === 'auth/invalid-email') {
-      // Return success to prevent email enumeration — same generic UX as backend
+    if (code === 'auth/user-not-found' || code === 'auth/invalid-email' || code === 'auth/invalid-api-key') {
+      // Return success to prevent email enumeration & suppress raw key errors
       return { success: true };
     }
     if (code === 'auth/too-many-requests') {

@@ -34,8 +34,8 @@ function getProviderConfig(apiKey) {
     return {
       provider: 'groq',
       endpoint: 'https://api.groq.com/openai/v1/chat/completions',
-      defaultModel: 'llama-3.3-70b-versatile',
-      fallbackModel: 'llama-3.1-8b-instant'
+      defaultModel: 'openai/gpt-oss-120b',
+      fallbackModel: 'openai/gpt-oss-20b'
     };
   }
   return {
