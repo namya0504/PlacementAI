@@ -132,6 +132,8 @@ export const signInToFirebaseClient = async (email, password) => {
  * Sends a Firebase verification email to the currently signed-in Firebase client user.
  * Returns { success, error? }.  Requires clientAuth.currentUser to be set first.
  */
+export const triggerFirebaseEmailVerification = async (...args) => sendFirebaseVerificationEmail(...args);
+
 export const sendFirebaseVerificationEmail = async () => {
   const user = clientAuth.currentUser;
   if (!user) {

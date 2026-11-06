@@ -68,6 +68,58 @@ export const verifyWithFirebaseAuth = async (email, password) => {
   }
 };
 
+
+/**
+ * Dispatches an official Firebase email verification message directly via Google Identity Toolkit.
+ * Uses Firebase Admin SDK custom token + sendOobCode, so Google's servers deliver the email
+ * directly to the student's real inbox without requiring custom SMTP credentials.
+ */
+export const dispatchFirebaseVerificationEmail = async (userId, email) => {
+  try {
+    const { auth } = await import('../firebase/firebaseAdmin.js');
+    if (!auth) return false;
+
+    const apiKey = getCleanFirebaseApiKey();
+    if (!apiKey) return false;
+
+    // 1. Create a custom token using Firebase Admin SDK
+    const customToken = await auth.createCustomToken(userId);
+
+    // 2. Exchange custom token for an idToken via Identity Toolkit REST API
+    const tokenRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: customToken, returnSecureToken: true })
+    });
+    const tokenData = await tokenRes.json();
+    if (!tokenRes.ok || !tokenData?.idToken) {
+      console.warn('Identity Toolkit signInWithCustomToken notice:', tokenData?.error?.message);
+      return false;
+    }
+
+    // 3. Request Google to dispatch the email verification message to user's real email
+    const sendRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requestType: 'VERIFY_EMAIL',
+        idToken: tokenData.idToken
+      })
+    });
+    const sendData = await sendRes.json();
+    if (sendRes.ok) {
+      console.log(`✉️ Firebase Auth verification email dispatched directly to ${email}`);
+      return true;
+    } else {
+      console.warn('Identity Toolkit sendOobCode notice:', sendData?.error?.message);
+      return false;
+    }
+  } catch (err) {
+    console.warn('Firebase verification dispatch error notice:', err.message);
+    return false;
+  }
+};
+
 export const issueCsrfToken = (req, res) => {
   // SEC-18 fix: always generate a fresh token — never reuse the existing cookie value.
   // Reusing allows an attacker who captures an old token to use it indefinitely.
@@ -198,6 +250,10 @@ export const registerUser = async (req, res, next) => {
           const { auth } = await import('../firebase/firebaseAdmin.js');
           if (auth) {
             await auth.deleteUser(existing.userId).catch(() => {});
+            try {
+              const fb = await auth.getUserByEmail(sanitizedEmail);
+              if (fb) await auth.deleteUser(fb.uid).catch(() => {});
+            } catch (_) {}
           }
           console.log(`♻️ Incomplete unverified registration for ${sanitizedEmail} cleaned up for fresh re-signup.`);
         } catch (unverifiedCleanErr) {
@@ -227,7 +283,17 @@ export const registerUser = async (req, res, next) => {
           });
           console.log(`✅ Firebase Auth user created for ${sanitizedEmail} (uid: ${userId})`);
         } catch (fbCreateErr) {
-          console.warn('Firebase Auth user creation notice (may already exist):', fbCreateErr.message);
+          if (fbCreateErr.code === 'auth/email-already-exists') {
+            try {
+              const fbUser = await auth.getUserByEmail(sanitizedEmail);
+              if (fbUser) {
+                await auth.updateUser(fbUser.uid, { password, displayName });
+                console.log(`✅ Synced existing Firebase Auth user credentials for ${sanitizedEmail}`);
+              }
+            } catch (_) {}
+          } else {
+            console.warn('Firebase Auth user creation notice:', fbCreateErr.message);
+          }
         }
 
         try {
@@ -241,18 +307,19 @@ export const registerUser = async (req, res, next) => {
       console.warn('Firebase Auth setup notice:', fbAuthErr.message);
     }
 
-    // Dispatch verification email directly from backend
+    // Dispatch verification emails asynchronously (non-blocking so registration returns instantly)
+    dispatchFirebaseVerificationEmail(userId, sanitizedEmail).catch((err) => {
+      console.warn('Firebase direct email verification notice:', err.message);
+    });
+
     if (verificationLink) {
-      try {
-        await sendVerificationEmail({
-          to: sanitizedEmail,
-          name: displayName,
-          verificationLink
-        });
-        console.log(`✉️ Dispatched verification email to ${sanitizedEmail}`);
-      } catch (mailErr) {
-        console.warn('⚠️ Verification email dispatch notice:', mailErr.message);
-      }
+      sendVerificationEmail({
+        to: sanitizedEmail,
+        name: displayName,
+        verificationLink
+      }).catch((mailErr) => {
+        console.warn('⚠️ SMTP email dispatch notice:', mailErr.message);
+      });
     }
 
     const newUser = {
@@ -889,15 +956,22 @@ export const getCurrentUser = async (req, res, next) => {
 
 export const resendVerificationEmail = async (req, res, next) => {
   try {
-    // Email comes from the authenticated JWT (set by protectRoute)
-    const userEmail = req.user?.email;
-    const userId = req.user?.userId;
-    if (!userEmail) return sendError(res, 'Could not determine user email from token', 400);
+    // Email comes from the authenticated JWT (set by protectRoute) OR request body
+    const userEmail = req.user?.email || req.body?.email;
+    const userId = req.user?.userId || req.body?.userId;
+    if (!userEmail) return sendError(res, 'Could not determine user email', 400);
 
     const sanitizedEmail = userEmail.trim().toLowerCase();
 
     // Check if already verified in Firestore to avoid redundant sends
-    const userDoc = userId ? await FirestoreHelper.getDoc('users', userId) : null;
+    let userDoc = null;
+    if (userId) {
+      userDoc = await FirestoreHelper.getDoc('users', userId);
+    }
+    if (!userDoc) {
+      const users = await FirestoreHelper.queryCollection('users', 'email', sanitizedEmail);
+      if (users.length > 0) userDoc = users[0];
+    }
     if (userDoc?.emailVerified) {
       return sendSuccess(res, { email: sanitizedEmail, alreadyVerified: true }, 'Email is already verified.');
     }
@@ -922,19 +996,25 @@ export const resendVerificationEmail = async (req, res, next) => {
     }
 
     const verificationLink = link || `${frontendBase}/verify-email-pending`;
+    const effectiveUserId = userDoc?.userId || userId;
 
-    try {
-      await sendVerificationEmail({
-        to: sanitizedEmail,
-        name: displayName,
-        verificationLink
-      });
-    } catch (mailErr) {
-      console.warn('⚠️ Resend verification email dispatch notice:', mailErr.message);
+    // 1. Dispatch official Firebase verification email via Identity Toolkit (real delivery)
+    if (effectiveUserId) {
+      dispatchFirebaseVerificationEmail(effectiveUserId, sanitizedEmail).catch(() => {});
     }
 
+    // 2. Dispatch via SMTP if configured (non-blocking)
+    sendVerificationEmail({
+      to: sanitizedEmail,
+      name: displayName,
+      verificationLink
+    }).catch((mailErr) => {
+      console.warn('⚠️ Resend verification email dispatch notice:', mailErr.message);
+    });
+
     return sendSuccess(res, {
-      email: sanitizedEmail
+      email: sanitizedEmail,
+      verificationLink: verificationLink || undefined
     }, 'Verification email sent. Please check your inbox and spam folder.');
   } catch (err) {
     next(err);
@@ -953,6 +1033,12 @@ export const confirmEmailVerification = async (req, res, next) => {
     if (!userId) return sendError(res, 'Unauthorized', 401);
 
     await FirestoreHelper.setDoc('users', userId, { emailVerified: true }, true);
+    try {
+      const { auth } = await import('../firebase/firebaseAdmin.js');
+      if (auth) {
+        await auth.updateUser(userId, { emailVerified: true }).catch(() => {});
+      }
+    } catch (_) {}
     return sendSuccess(res, { emailVerified: true }, 'Email has been successfully verified.');
   } catch (err) {
     next(err);

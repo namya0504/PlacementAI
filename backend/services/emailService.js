@@ -36,34 +36,27 @@ const getTransporter = async () => {
   const secure = port === 465;
 
   if (user && pass) {
-    // Only cache after successful creation
-    const transporter = nodemailer.createTransport({ host, port, secure, auth: { user, pass } });
-    cachedTransporter = transporter;
-    return cachedTransporter;
+    try {
+      const transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure,
+        auth: { user, pass },
+        connectionTimeout: 5000,
+        greetingTimeout: 5000,
+        socketTimeout: 5000
+      });
+      cachedTransporter = transporter;
+      return cachedTransporter;
+    } catch (createErr) {
+      console.warn('⚠️ SMTP Transporter creation warning:', createErr.message);
+      return null;
+    }
   }
 
-  // Development fallback: Ethereal test account.
-  // Wrap in a 5-second timeout — if the Ethereal API is unreachable (no internet / CI),
-  // we skip it rather than blocking the request for 30+ seconds.
-  try {
-    const testAccount = await Promise.race([
-      nodemailer.createTestAccount(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Ethereal timeout')), 5000))
-    ]);
-    const transporter = nodemailer.createTransport({
-      host: testAccount.smtp.host,
-      port: testAccount.smtp.port,
-      secure: testAccount.smtp.secure,
-      auth: { user: testAccount.user, pass: testAccount.pass }
-    });
-    cachedTransporter = transporter;
-    console.log(`✉️ Nodemailer dev transport: ${testAccount.user}`);
-    return cachedTransporter;
-  } catch (etherealErr) {
-    console.warn('Email dev transport unavailable (set SMTP_USER/SMTP_PASS for real delivery):', etherealErr.message);
-    // Do NOT set cachedTransporter = null — let next call retry
-    return null;
-  }
+  // When real SMTP credentials are not configured, do not block or use Ethereal.
+  // Real delivery is handled directly by Google Firebase Authentication Identity Toolkit.
+  return null;
 };
 
 /**
@@ -128,7 +121,7 @@ export const sendVerificationEmail = async ({ to, name, verificationLink }) => {
   try {
     const transporter = await getTransporter();
     if (transporter) {
-      const info = await transporter.sendMail({
+      const sendPromise = transporter.sendMail({
         from,
         to,
         subject: 'Verify your email address – PlacementAI',
@@ -136,21 +129,19 @@ export const sendVerificationEmail = async ({ to, name, verificationLink }) => {
         text: `Welcome ${studentName}! Please verify your PlacementAI email by clicking: ${verifyUrl}`
       });
 
-      console.log(`✉️ Verification email sent successfully to ${to} (MessageId: ${info.messageId})`);
-      const nodemailer = await getNodemailer();
-      if (nodemailer && nodemailer.getTestMessageUrl) {
-        const previewUrl = nodemailer.getTestMessageUrl(info);
-        if (previewUrl) {
-          console.log(`🔗 Ethereal preview link: ${previewUrl}`);
-        }
-      }
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('SMTP send timed out after 4s')), 4000)
+      );
+
+      const info = await Promise.race([sendPromise, timeoutPromise]);
+      console.log(`✉️ Verification email sent via SMTP to ${to} (MessageId: ${info.messageId})`);
       return { success: true, messageId: info.messageId };
     } else {
-      console.log(`ℹ️ [Email Fallback] Email service active. Link for ${to}: ${verifyUrl}`);
+      console.log(`ℹ️ [Email Dispatch] Verification link for ${to}: ${verifyUrl}`);
       return { success: true, directLink: verifyUrl };
     }
   } catch (err) {
-    console.error(`❌ Failed to send verification email to ${to}:`, err.message);
+    console.warn(`⚠️ SMTP dispatch notice for ${to}:`, err.message);
     return { success: false, error: err.message, directLink: verifyUrl };
   }
 };
@@ -210,19 +201,25 @@ export const sendPasswordResetEmail = async ({ to, resetLink }) => {
   try {
     const transporter = await getTransporter();
     if (transporter) {
-      const info = await transporter.sendMail({
+      const sendPromise = transporter.sendMail({
         from,
         to,
         subject: 'Reset your password – PlacementAI',
         html,
         text: `Please reset your PlacementAI password by visiting: ${actionUrl}`
       });
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('SMTP send timed out after 4s')), 4000)
+      );
+
+      const info = await Promise.race([sendPromise, timeoutPromise]);
       console.log(`✉️ Password reset email sent to ${to} (MessageId: ${info.messageId})`);
       return { success: true, messageId: info.messageId };
     }
     return { success: true, directLink: actionUrl };
   } catch (err) {
-    console.error(`❌ Failed to send password reset email to ${to}:`, err.message);
+    console.warn(`⚠️ SMTP reset dispatch notice for ${to}:`, err.message);
     return { success: false, error: err.message, directLink: actionUrl };
   }
 };

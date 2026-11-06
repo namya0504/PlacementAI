@@ -101,7 +101,7 @@ export default function AppRoutes() {
         <Route path={ROUTES.about} element={<About />} />
         <Route path={ROUTES.contact} element={<Contact />} />
         {/* Email verification gate — accessible when logged-in but not yet verified */}
-        <Route path={ROUTES.verifyEmail} element={<ProtectedRoute><VerifyEmailPending /></ProtectedRoute>} />
+        <Route path={ROUTES.verifyEmail} element={<VerifyEmailPending />} />
 
         {/* Authenticated Pages — each wrapped in ErrorBoundary so one broken page can't crash the app */}
         <Route path={ROUTES.onboarding}    element={<ProtectedRoute><ErrorBoundary><Onboarding /></ErrorBoundary></ProtectedRoute>} />

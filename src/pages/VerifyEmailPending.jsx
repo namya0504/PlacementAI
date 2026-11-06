@@ -11,6 +11,7 @@ export default function VerifyEmailPending() {
   const navigate = useNavigate();
   const { currentUser, logout, updateCurrentUser } = useAuth();
   const email = location.state?.email || currentUser?.email || 'your email address';
+  const verificationLink = location.state?.verificationLink || currentUser?.verificationLink;
 
   // If user is already verified (e.g. navigated here manually after verifying),
   // redirect them to onboarding or dashboard immediately.
@@ -81,7 +82,7 @@ export default function VerifyEmailPending() {
       }
 
       // no_session or any other Firebase error: use backend SMTP path
-      await API.resendVerification();
+      const res = await API.resendVerification({ email });
       setResendStatus('sent');
       setResendMsg('Verification email sent! Please check your inbox (and spam folder).');
       startCooldown();
@@ -122,6 +123,20 @@ export default function VerifyEmailPending() {
       }
     } catch (err) {
       setResendMsg(err.message || 'Could not check verification status. Please try again.');
+    } finally {
+      setCheckingVerification(false);
+    }
+  };
+
+  const handleSimulateVerify = async () => {
+    try {
+      setCheckingVerification(true);
+      setResendMsg('');
+      await API.verifyEmail();
+      updateCurrentUser({ emailVerified: true });
+      navigate('/onboarding', { replace: true });
+    } catch (err) {
+      setResendMsg(err.message || 'Verification update failed.');
     } finally {
       setCheckingVerification(false);
     }
@@ -196,6 +211,28 @@ export default function VerifyEmailPending() {
                 ? <><CheckCircle2 className="w-4 h-4 text-emerald-500" /> Resend in {resendCooldown}s</>
                 : <>Resend verification email</>}
             </button>
+
+            {verificationLink && (
+              <a
+                href={verificationLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-2.5 rounded-xl border border-purple-200 bg-purple-50/70 text-[#7C3AED] font-semibold text-xs hover:bg-purple-100 transition flex items-center justify-center gap-1.5"
+              >
+                Open Verification Link (Direct) <ArrowRight className="w-3.5 h-3.5" />
+              </a>
+            )}
+
+            {import.meta.env.DEV && (
+              <button
+                type="button"
+                onClick={handleSimulateVerify}
+                disabled={checkingVerification}
+                className="w-full py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold hover:bg-amber-100 transition flex items-center justify-center gap-1.5"
+              >
+                ⚡ Instant Verify (Dev Mode)
+              </button>
+            )}
           </div>
 
           <p className="text-xs text-slate-400">

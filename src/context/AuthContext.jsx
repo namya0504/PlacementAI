@@ -95,23 +95,27 @@ export const AuthProvider = ({ children }) => {
     if (user?.token) setStoredToken(user.token, true);
     setCurrentUser(user);
 
-    // Keep a Firebase client session for verification email actions. The API
-    // session itself is held in the HttpOnly backend cookie.
+    // Keep a Firebase client session in background so verification actions succeed,
+    // while returning immediately to allow instant UI navigation to /verify-email-pending.
     const plainEmail = (payload.email || '').trim().toLowerCase();
     const plainPassword = payload.password || '';
-    try {
-      const { signInToFirebaseClient, sendFirebaseVerificationEmail } = await import('../services/firebase/authService');
-      const fbSignIn = await signInToFirebaseClient(plainEmail, plainPassword);
-      if (fbSignIn.success) {
-        const fbVerify = await sendFirebaseVerificationEmail();
-        if (!fbVerify.success && !fbVerify.alreadyVerified) {
-          console.warn('Firebase email verification send notice:', fbVerify.message);
+    if (plainEmail && plainPassword) {
+      (async () => {
+        try {
+          const { signInToFirebaseClient, sendFirebaseVerificationEmail } = await import('../services/firebase/authService');
+          const fbSignIn = await signInToFirebaseClient(plainEmail, plainPassword);
+          if (fbSignIn?.success) {
+            const fbVerify = await sendFirebaseVerificationEmail();
+            if (!fbVerify.success && !fbVerify.alreadyVerified) {
+              console.warn('Firebase email verification send notice:', fbVerify.message);
+            }
+          } else {
+            console.warn('Firebase client sign-in after registration notice:', fbSignIn?.message);
+          }
+        } catch (error) {
+          console.warn('Firebase background post-registration sign-in notice:', error.message);
         }
-      } else {
-        console.warn('Firebase client sign-in after registration notice:', fbSignIn.message);
-      }
-    } catch (error) {
-      console.warn('Firebase post-registration sign-in notice:', error.message);
+      })();
     }
 
     return user;

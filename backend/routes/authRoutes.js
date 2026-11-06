@@ -13,7 +13,7 @@ import {
   deactivateAccount,
   issueCsrfToken
 } from '../controllers/authController.js';
-import { protectRoute } from '../middlewares/authMiddleware.js';
+import { protectRoute, optionalProtectRoute } from '../middlewares/authMiddleware.js';
 import { rateLimiter } from '../middlewares/rateLimiter.js';
 
 const router = express.Router();
@@ -45,7 +45,7 @@ router.post('/login', authLimiter, loginUser);
 router.post('/google-login', authLimiter, googleLogin);
 router.post('/google', authLimiter, googleLogin);
 router.post('/forgot-password', authLimiter, forgotPassword);
-router.post('/resend-verification', authLimiter, protectRoute, resendVerificationEmail);
+router.post('/resend-verification', authLimiter, optionalProtectRoute, resendVerificationEmail);
 router.post('/complete-profile', protectRoute, completeProfile);
 router.post('/verify-email', protectRoute, confirmEmailVerification);
 router.post('/logout', protectRoute, logoutUser);

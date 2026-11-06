@@ -84,3 +84,44 @@ export const protectRoute = async (req, res, next) => {
     });
   }
 };
+
+/**
+ * Optional protection middleware — attaches req.user if valid token exists,
+ * but allows the request to continue if unauthenticated.
+ */
+export const optionalProtectRoute = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    let token = null;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    } else if (req.cookies && req.cookies.token) {
+      token = req.cookies.token;
+    }
+
+    if (!token) return next();
+
+    try {
+      const decoded = jwt.verify(token, config.jwtSecret);
+      req.user = decoded;
+      req.token = token;
+      return next();
+    } catch {
+      if (auth) {
+        try {
+          const fbUser = await auth.verifyIdToken(token);
+          req.user = {
+            userId: fbUser.uid,
+            email: fbUser.email,
+            role: fbUser.role || ''
+          };
+          return next();
+        } catch {}
+      }
+    }
+    return next();
+  } catch {
+    return next();
+  }
+};

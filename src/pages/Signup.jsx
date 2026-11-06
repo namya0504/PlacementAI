@@ -139,7 +139,7 @@ export default function Signup() {
     if (currentUser && !authLoading && !isSubmitting) {
       // Unverified users must confirm their email first
       if (currentUser.emailVerified === false) {
-        navigate('/verify-email-pending', { replace: true });
+        navigate('/verify-email-pending', { replace: true, state: { email: currentUser.email, verificationLink: currentUser.verificationLink } });
         return;
       }
       if (currentUser.onboarding?.status === 'not_started' || currentUser.onboarding?.status === 'in_progress') {
