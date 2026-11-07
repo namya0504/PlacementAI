@@ -687,9 +687,10 @@ Difficulty: ${difficulty}
 ${studentContext?.skills?.length ? `Candidate's known tech stack: ${studentContext.skills.join(', ')}` : ''}
 
 CRITICAL CODING CHALLENGE REQUIREMENTS:
-1. Every coding challenge MUST provide AT LEAST 3 distinct, high-quality test cases with concrete input and expected output (e.g. Standard case, Edge/Boundary case, and Secondary case).
-2. The starterCode must be written properly in ${lang}.
-3. Also provide "starterCodes" object with idiomatic templates for Python, Java, C++, and JavaScript so students can switch languages.
+1. Every coding challenge MUST provide 3 distinct sample visible test cases in "testCases" with concrete input and expected output.
+2. Every coding challenge MUST also provide up to 5 challenging hidden edge-case test cases in "hiddenTestCases" covering boundary limits (e.g., empty/single element, negative numbers, zero, duplicate values, large boundary constraints).
+3. The starterCode must be written properly in ${lang}.
+4. Also provide "starterCodes" object with idiomatic templates for Python, Java, C++, and JavaScript so students can switch languages.
 
 Return a JSON object with a "questions" array:
 {
@@ -712,6 +713,13 @@ Return a JSON object with a "questions" array:
         { "input": "input string 1", "expectedOutput": "expected output 1" },
         { "input": "input string 2", "expectedOutput": "expected output 2" },
         { "input": "input string 3", "expectedOutput": "expected output 3" }
+      ],
+      "hiddenTestCases": [
+        { "input": "edge case input 1", "expectedOutput": "edge output 1", "edgeDescription": "Empty / single boundary" },
+        { "input": "edge case input 2", "expectedOutput": "edge output 2", "edgeDescription": "Negative or zero values" },
+        { "input": "edge case input 3", "expectedOutput": "edge output 3", "edgeDescription": "Duplicate values" },
+        { "input": "edge case input 4", "expectedOutput": "edge output 4", "edgeDescription": "Large scale boundary" },
+        { "input": "edge case input 5", "expectedOutput": "edge output 5", "edgeDescription": "Extreme edge condition" }
       ]
     }
   ]
@@ -760,6 +768,8 @@ Return a JSON object with a "questions" array:
           }
         }
 
+        let hiddenTestCases = Array.isArray(q.hiddenTestCases) ? q.hiddenTestCases.slice(0, 5) : [];
+
         return {
           questionId: `tech_${isCode ? 'code' : 'mcq'}_${Date.now()}_${idx}`,
           type: isCode ? 'code' : 'mcq',
@@ -774,6 +784,7 @@ Return a JSON object with a "questions" array:
           starterCode: q.starterCode || '',
           starterCodes: q.starterCodes || {},
           testCases,
+          hiddenTestCases,
           explanation: q.explanation || ''
         };
       });
@@ -892,6 +903,78 @@ Return a valid JSON object matching this schema:
         passed: false,
         error: 'Could not verify execution'
       }))
+    };
+  },
+
+  /**
+   * 8c. Evaluate custom testcase input (HackerRank / LeetCode style)
+   */
+  async evaluateCustomCode(code, language, title, description, customInput) {
+    if (!code || code.trim().length === 0) {
+      return {
+        isCustom: true,
+        status: 'Runtime Error',
+        actualOutput: 'No code submitted',
+        error: 'Empty code submission',
+        message: 'Please provide code before running.'
+      };
+    }
+
+    const prompt = `You are a strict automated code execution judge.
+The user wants to test their solution on a CUSTOM test input (like HackerRank or LeetCode custom testcase).
+
+Problem: ${title || 'Coding Challenge'}
+Description: ${description || 'Follow constraints'}
+Language: ${language}
+
+Submitted Code:
+\`\`\`${language}
+${code}
+\`\`\`
+
+User's Custom Input:
+\`\`\`
+${customInput}
+\`\`\`
+
+INSTRUCTIONS:
+1. Parse the user's custom input and trace it through the user's function.
+2. Determine what the function actually outputs or returns.
+3. If there is a syntax error, compile error, or runtime error (like out of bounds, division by zero, null pointer), set status: "Runtime Error" and describe the error.
+4. Otherwise set status: "Success".
+
+Return a valid JSON object:
+{
+  "status": "Success" | "Runtime Error",
+  "actualOutput": "exact return value or console output string",
+  "stdout": "any captured logs/prints if applicable",
+  "error": "error message if any, or null",
+  "message": "summary string"
+}`;
+
+    try {
+      const res = await generateJSON(prompt, { featureType: 'customCodeEvaluation' });
+      if (res && res.actualOutput !== undefined) {
+        return {
+          isCustom: true,
+          status: res.status || (res.error ? 'Runtime Error' : 'Success'),
+          actualOutput: String(res.actualOutput),
+          stdout: res.stdout || '',
+          error: res.error || null,
+          message: res.message || 'Custom test case evaluated successfully'
+        };
+      }
+    } catch (e) {
+      console.warn('[GrokService] Custom testcase evaluation error:', e.message);
+    }
+
+    return {
+      isCustom: true,
+      status: 'Runtime Error',
+      actualOutput: 'Execution could not be verified',
+      stdout: '',
+      error: 'AI Code Judge evaluation timeout or error',
+      message: 'Failed to execute custom testcase.'
     };
   },
 

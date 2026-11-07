@@ -288,6 +288,7 @@ export const API = {
   // Technical Practice
   getTechnicalQuestions: (params = '') => apiCall(`/technical/questions${params}`, 'GET'),
   submitTechnicalMCQ: (payload) => apiCall('/technical/submit-mcq', 'POST', payload),
+  runTechnicalCode: (payload) => apiCall('/technical/run-code', 'POST', payload),
   submitTechnicalCode: (payload) => apiCall('/technical/submit-code', 'POST', payload),
   getTechnicalHistory: () => apiCall('/technical/history', 'GET'),
 

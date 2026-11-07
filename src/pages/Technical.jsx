@@ -3,7 +3,7 @@ import {
   Play, Send, CheckCircle2, Code2, Menu, Clock, Terminal, Sparkles, RefreshCw,
   XCircle, AlertCircle, History, X, ChevronRight, ChevronDown, ChevronLeft,
   Check, Copy, RotateCcw, Lock, Unlock, ArrowRight, Trophy, BookOpen, Layers,
-  FileCode, CheckSquare, Zap
+  FileCode, CheckSquare, Zap, Eye, EyeOff, Sliders, ShieldCheck, HelpCircle
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { API } from '../services/api';
@@ -36,7 +36,6 @@ function formatTestCaseValue(val) {
     }
   }
   let str = String(val);
-  // Unescape literal \r\n, \n, and \t for clean multi-line display
   return str
     .replace(/\\r\\n/g, '\n')
     .replace(/\\n/g, '\n')
@@ -70,6 +69,7 @@ export default function Technical() {
   const [initialCode, setInitialCode] = useState(DEFAULT_STARTERS.Java);
   const [outputResult, setOutputResult] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [questionData, setQuestionData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState({ technicalScore: 0 });
@@ -78,6 +78,10 @@ export default function Technical() {
   // Active panel tab: 'description' | 'testcases' | 'results'
   const [activeTab, setActiveTab] = useState('description');
   const [activeCaseIdx, setActiveCaseIdx] = useState(0);
+
+  // Test Case mode: 'sample' | 'custom' (HackerRank / LeetCode style)
+  const [testCaseMode, setTestCaseMode] = useState('sample');
+  const [customInput, setCustomInput] = useState('');
 
   // History slide-over drawer
   const [showHistory, setShowHistory] = useState(false);
@@ -118,6 +122,7 @@ export default function Technical() {
     setOutputResult(null);
     setActiveTab('description');
     setActiveCaseIdx(0);
+    setTestCaseMode('sample');
 
     const params = new URLSearchParams();
     params.set('category', lang);
@@ -139,6 +144,10 @@ export default function Technical() {
         const starter = getStarterForLang(q, lang);
         setCode(starter);
         setInitialCode(starter);
+        // Pre-fill custom input with first sample test case input for user convenience
+        if (q.testCases && q.testCases.length > 0) {
+          setCustomInput(String(q.testCases[0].input || ''));
+        }
       }
     } catch (err) {
       console.error('Failed to load technical questions:', err);
@@ -154,7 +163,6 @@ export default function Technical() {
     setActiveTab('description');
     setActiveCaseIdx(0);
 
-    // If current question has starter code for the new language, switch code seamlessly
     if (questionData) {
       const starter = getStarterForLang(questionData, newLang);
       setCode(starter);
@@ -223,46 +231,62 @@ export default function Technical() {
     }
   };
 
-  // Run/Submit evaluation
-  const handleExecuteCode = async (isSubmission = false) => {
+  /**
+   * 1. RUN CODE:
+   * Evaluates visible test cases ONLY (or custom testcase if in custom mode).
+   * Does NOT evaluate hidden test cases and does NOT affect placement readiness score.
+   */
+  const handleRunCode = async () => {
     setIsRunning(true);
     setActiveTab('results');
     try {
-      const res = await API.submitTechnicalCode({
+      const isCustomActive = testCaseMode === 'custom' && customInput.trim().length > 0;
+      const payload = {
         questionId: questionData?.questionId || 'tech_code_1',
         code,
         language: selectedLang.toLowerCase(),
-        testCases: questionData?.testCases || []
-      });
-
-      const resultPayload = {
-        status: res.status, // 'Passed' | 'Partial' | 'Failed'
-        message: res.message,
-        passCount: res.passCount,
-        totalTests: res.totalTests,
-        score: res.score,
-        testResults: res.testResults || []
+        isCustom: isCustomActive,
+        customInput: isCustomActive ? customInput.trim() : undefined,
+        testCases: isCustomActive ? [] : (questionData?.testCases || [])
       };
 
-      setOutputResult(resultPayload);
+      const res = await API.runTechnicalCode(payload);
 
-      if (res.updatedStats) {
-        setStats(res.updatedStats);
-      }
-
-      // Check if all test cases passed
-      const totalTests = res.totalTests || (questionData?.testCases?.length || 3);
-      const passedAll = (res.status === 'Passed' || res.score === 100) && res.passCount >= Math.min(totalTests, 3);
-
-      if (passedAll) {
-        toast.success('🎉 Outstanding! All 3 test cases passed! Next challenge unlocked.');
-      } else if (res.status === 'Partial') {
-        toast.info(`${res.passCount} of ${totalTests} test cases passed. Review outputs below.`);
+      if (res?.isCustom) {
+        setOutputResult({
+          isCustom: true,
+          status: res.status,
+          customInput: res.customInput,
+          actualOutput: res.actualOutput,
+          stdout: res.stdout,
+          error: res.error,
+          message: res.message
+        });
+        if (res.status === 'Success') {
+          toast.success('Custom test case executed successfully!');
+        } else {
+          toast.error(res.error || 'Custom test case execution error');
+        }
       } else {
-        toast.error('Test cases failed. Check your logic and try again.');
+        setOutputResult({
+          isRun: true,
+          status: res.status,
+          passCount: res.passCount,
+          totalTests: res.totalTests,
+          score: res.score,
+          message: res.message,
+          testResults: res.testResults || []
+        });
+
+        if (res.passCount === res.totalTests) {
+          toast.success(`🎉 All ${res.totalTests} visible test cases passed! Submit your code to test against 5 hidden edge cases.`);
+        } else {
+          toast.info(`Passed ${res.passCount} of ${res.totalTests} visible test cases. Click "Submit Code" when ready.`);
+        }
       }
     } catch (err) {
       setOutputResult({
+        isRun: true,
         status: 'Failed',
         message: err.message || 'Execution error. Check syntax and constraints.',
         passCount: 0,
@@ -283,22 +307,97 @@ export default function Technical() {
     }
   };
 
-  // Condition to activate the "Next Challenge" button
-  const totalTestsCount = outputResult?.totalTests || (Array.isArray(questionData?.testCases) ? questionData.testCases.length : 3);
+  /**
+   * 2. SUBMIT CODE:
+   * Evaluates BOTH visible test cases AND up to 5 hidden edge cases.
+   * Hidden test case inputs and expected outputs are masked/hidden for integrity.
+   * Unlocks Next Challenge when 100% of all visible + hidden test cases pass.
+   */
+  const handleSubmitCode = async () => {
+    setIsSubmitting(true);
+    setActiveTab('results');
+    try {
+      const res = await API.submitTechnicalCode({
+        questionId: questionData?.questionId || 'tech_code_1',
+        code,
+        language: selectedLang.toLowerCase()
+      });
+
+      const resultPayload = {
+        isSubmission: true,
+        status: res.status, // 'Passed' | 'Partial' | 'Failed'
+        message: res.message,
+        passCount: res.passCount,
+        totalTests: res.totalTests,
+        visiblePassCount: res.visiblePassCount,
+        totalVisible: res.totalVisible,
+        hiddenPassCount: res.hiddenPassCount,
+        totalHidden: res.totalHidden,
+        score: res.score,
+        testResults: res.testResults || []
+      };
+
+      setOutputResult(resultPayload);
+
+      if (res.updatedStats) {
+        setStats(res.updatedStats);
+      }
+
+      const passedAll = res.status === 'Passed' || (res.score === 100 && res.passCount === res.totalTests);
+
+      if (passedAll) {
+        toast.success('🎉 Outstanding! All visible and 5 hidden edge cases passed! Next challenge unlocked.');
+      } else if (res.visiblePassCount === res.totalVisible && res.hiddenPassCount < res.totalHidden) {
+        toast.error(`⚠️ Passed all visible cases, but failed ${res.totalHidden - res.hiddenPassCount} hidden edge cases! Review boundary conditions.`);
+      } else {
+        toast.error('Test cases failed. Review outputs below and try again.');
+      }
+    } catch (err) {
+      setOutputResult({
+        isSubmission: true,
+        status: 'Failed',
+        message: err.message || 'Evaluation error. Check syntax and constraints.',
+        passCount: 0,
+        totalTests: (questionData?.testCases?.length || 3) + 5,
+        score: 0,
+        testResults: (questionData?.testCases || []).map((tc, idx) => ({
+          testCaseIndex: idx + 1,
+          input: tc.input,
+          expectedOutput: tc.expectedOutput,
+          actualOutput: 'Runtime / Compilation Error',
+          passed: false,
+          error: err.message
+        }))
+      });
+      toast.error(err.message || 'Submission failed. Check syntax and try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Condition to activate the "Next Challenge" button: MUST be a submission with 100% pass on all visible + hidden edge cases
   const allTestsPassed = Boolean(
     outputResult &&
+    outputResult.isSubmission &&
     (outputResult.status === 'Passed' || outputResult.score === 100) &&
-    outputResult.passCount >= Math.min(totalTestsCount, 3) &&
-    outputResult.passCount === totalTestsCount
+    outputResult.passCount === outputResult.totalTests &&
+    outputResult.totalTests > 0
   );
 
   const handleNextQuestion = () => {
     if (!allTestsPassed && !loading) {
-      toast.info('Pass all 3 test cases to unlock the next challenge, or use "New AI Challenge" to generate anytime.');
+      toast.info('Pass all visible and 5 hidden edge cases to unlock the next challenge, or use "New AI Challenge" to generate anytime.');
       return;
     }
     toast.info('Generating your next AI technical challenge...');
     loadQuestion(selectedLang, true, questionData?.questionId);
+  };
+
+  const handleResetCustomInput = () => {
+    if (questionData?.testCases?.[0]?.input) {
+      setCustomInput(String(questionData.testCases[0].input));
+      toast.info('Custom testcase reset to Sample Case 1');
+    }
   };
 
   const techScore = stats.technicalScore ?? 0;
@@ -310,11 +409,9 @@ export default function Technical() {
   const currentLangConfig = LANG_CONFIG[selectedLang] || LANG_CONFIG.Java;
   const fileExt = currentLangConfig.ext;
 
-  // Calculate lines for gutter
   const lineCount = Math.max((code || '').split('\n').length, 18);
   const lineNumbers = Array.from({ length: lineCount }, (_, i) => i + 1);
 
-  // Parse description
   const { body: descBody, constraints } = parseDescription(questionData?.description || questionData?.question);
 
   return (
@@ -333,10 +430,10 @@ export default function Technical() {
               <div className="flex items-center gap-2">
                 <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 font-outfit">Technical Preparation</h1>
                 <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-[#7C3AED] border border-purple-200">
-                  <Zap className="w-3 h-3 text-[#7C3AED]" /> Live AI Evaluation
+                  <ShieldCheck className="w-3 h-3 text-[#7C3AED]" /> Hidden Edge Tests Active
                 </span>
               </div>
-              <p className="text-xs text-slate-500">Autonomous code generation, real-time testing, and placement readiness tracking</p>
+              <p className="text-xs text-slate-500">Autonomous challenges with visible tests, 5 hidden edge cases, and custom test input</p>
             </div>
           </div>
 
@@ -397,16 +494,16 @@ export default function Technical() {
             </div>
 
             <div className="flex items-center gap-2.5 flex-wrap">
-              {/* Top Next Challenge Button (Lights up when all passed) */}
+              {/* Top Next Challenge Button (Lights up when submit passed all visible + hidden) */}
               <button
                 onClick={handleNextQuestion}
                 disabled={loading || !allTestsPassed}
                 className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition shadow-sm ${
                   allTestsPassed
-                    ? 'bg-gradient-to-r from-emerald-600 to-[#7C3AED] hover:from-emerald-700 hover:to-[#6D28D9] text-white shadow-emerald-500/20 animate-pulse'
+                    ? 'bg-gradient-to-r from-emerald-600 to-[#7C3AED] hover:from-emerald-700 hover:to-[#6D28D9] text-white shadow-emerald-500/20 animate-pulse cursor-pointer'
                     : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
                 }`}
-                title={allTestsPassed ? 'All 3 test cases passed! Click to generate your next challenge' : 'Pass all 3 test cases to unlock next challenge'}
+                title={allTestsPassed ? 'All visible and 5 hidden edge cases passed! Click to generate next challenge' : 'Pass all visible and 5 hidden edge cases on Submit to unlock'}
               >
                 {allTestsPassed ? <Sparkles className="w-4 h-4 text-amber-300" /> : <Lock className="w-3.5 h-3.5 text-slate-400" />}
                 <span>Next Challenge</span>
@@ -429,7 +526,7 @@ export default function Technical() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             
             {/* ── Left Pane: Problem Description, Test Cases, & Evaluation ── */}
-            <div className="lg:col-span-5 bg-white rounded-3xl border border-[#EAEBF4] shadow-xs overflow-hidden flex flex-col min-h-[580px]">
+            <div className="lg:col-span-5 bg-white rounded-3xl border border-[#EAEBF4] shadow-xs overflow-hidden flex flex-col min-h-[600px]">
               
               {/* Tab Navigation */}
               <div className="flex items-center border-b border-[#EAEBF4] bg-slate-50/70 px-4 pt-2 gap-2">
@@ -454,7 +551,10 @@ export default function Technical() {
                   }`}
                 >
                   <CheckSquare className="w-3.5 h-3.5" />
-                  <span>Test Cases ({questionData?.testCases?.length || 3})</span>
+                  <span>Test Cases</span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700">
+                    {questionData?.testCases?.length || 3}+5
+                  </span>
                 </button>
 
                 <button
@@ -468,7 +568,13 @@ export default function Technical() {
                   <Terminal className="w-3.5 h-3.5" />
                   <span>Results</span>
                   {outputResult && (
-                    <span className={`w-2 h-2 rounded-full ${allTestsPassed ? 'bg-emerald-500' : outputResult.status === 'Partial' ? 'bg-amber-500' : 'bg-red-500'}`} />
+                    <span className={`w-2 h-2 rounded-full ${
+                      allTestsPassed
+                        ? 'bg-emerald-500'
+                        : outputResult.status === 'Partial' || outputResult.isCustom
+                        ? 'bg-amber-500'
+                        : 'bg-red-500'
+                    }`} />
                   )}
                 </button>
               </div>
@@ -483,7 +589,7 @@ export default function Technical() {
                     <div>
                       <div className="text-sm font-extrabold text-slate-800 font-outfit">Generating Coding Challenge...</div>
                       <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
-                        Synthesizing algorithmic problem statement, edge constraints, and deterministic test cases.
+                        Synthesizing algorithmic problem statement, visible test cases, and 5 hidden edge cases.
                       </p>
                     </div>
                   </div>
@@ -564,7 +670,7 @@ export default function Technical() {
                                 onClick={() => setActiveTab('testcases')}
                                 className="text-[11px] font-bold text-[#7C3AED] hover:underline flex items-center gap-1"
                               >
-                                View all {questionData.testCases.length} test cases <ChevronRight className="w-3 h-3" />
+                                View all test cases & custom option <ChevronRight className="w-3 h-3" />
                               </button>
                             </div>
                             <div className="p-3.5 bg-[#F8F9FE] rounded-2xl border border-[#EAEBF4] font-mono text-xs space-y-2">
@@ -586,156 +692,256 @@ export default function Technical() {
                       </div>
                     )}
 
-                    {/* ── TAB 2: Test Cases ─────────────────────────── */}
+                    {/* ── TAB 2: Test Cases (Sample + Custom Testcase) ── */}
                     {activeTab === 'testcases' && (
                       <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h3 className="text-sm font-bold text-slate-900 font-outfit">Evaluation Test Cases</h3>
-                            <p className="text-[11px] text-slate-500">Every challenge contains 3 verified cases evaluated on submit</p>
-                          </div>
-                          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-50 text-[#7C3AED]">
-                            {questionData.testCases?.length || 0} Cases
-                          </span>
-                        </div>
-
-                        {/* Test case selector pills */}
-                        <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
-                          {(questionData.testCases || []).map((_, idx) => (
+                        
+                        {/* Sub-mode selector: Sample Cases vs Custom Testcase */}
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
                             <button
-                              key={idx}
-                              onClick={() => setActiveCaseIdx(idx)}
-                              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${
-                                activeCaseIdx === idx
+                              onClick={() => setTestCaseMode('sample')}
+                              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition flex items-center gap-1.5 ${
+                                testCaseMode === 'sample'
                                   ? 'bg-white text-slate-900 shadow-xs'
                                   : 'text-slate-500 hover:text-slate-800'
                               }`}
                             >
-                              Case {idx + 1}
+                              <CheckSquare className="w-3.5 h-3.5 text-purple-600" />
+                              <span>Sample Cases ({questionData.testCases?.length || 3})</span>
                             </button>
-                          ))}
+                            <button
+                              onClick={() => setTestCaseMode('custom')}
+                              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition flex items-center gap-1.5 ${
+                                testCaseMode === 'custom'
+                                  ? 'bg-white text-slate-900 shadow-xs'
+                                  : 'text-slate-500 hover:text-slate-800'
+                              }`}
+                            >
+                              <Sliders className="w-3.5 h-3.5 text-indigo-600" />
+                              <span>Custom Testcase</span>
+                            </button>
+                          </div>
+
+                          <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
+                            <Lock className="w-3 h-3 text-amber-600" /> +5 Hidden Edge Tests
+                          </span>
                         </div>
 
-                        {/* Selected test case details */}
-                        {Array.isArray(questionData.testCases) && questionData.testCases[activeCaseIdx] && (
-                          <div className="p-4 bg-[#F8F9FE] rounded-2xl border border-[#EAEBF4] space-y-3">
-                            <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
-                              <span className="text-xs font-bold text-slate-700 font-outfit">
-                                Test Case #{activeCaseIdx + 1}
-                              </span>
-                              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                                Ready for runner
-                              </span>
+                        {/* MODE A: Sample Test Cases */}
+                        {testCaseMode === 'sample' && (
+                          <div className="space-y-4">
+                            {/* Test case selector pills */}
+                            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
+                              {(questionData.testCases || []).map((_, idx) => (
+                                <button
+                                  key={idx}
+                                  onClick={() => setActiveCaseIdx(idx)}
+                                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${
+                                    activeCaseIdx === idx
+                                      ? 'bg-white text-slate-900 shadow-xs'
+                                      : 'text-slate-500 hover:text-slate-800'
+                                  }`}
+                                >
+                                  Case {idx + 1}
+                                </button>
+                              ))}
                             </div>
-                            <div>
-                              <span className="text-[11px] font-semibold text-slate-400 block mb-1">Input Parameters:</span>
-                              <pre className="font-mono text-xs text-slate-800 whitespace-pre-wrap break-all bg-white p-3 rounded-xl border border-[#EAEBF4] leading-relaxed">
-                                {formatTestCaseValue(questionData.testCases[activeCaseIdx].input)}
-                              </pre>
-                            </div>
-                            <div>
-                              <span className="text-[11px] font-semibold text-slate-400 block mb-1">Expected Output:</span>
-                              <pre className="font-mono text-xs text-emerald-700 font-bold whitespace-pre-wrap break-all bg-emerald-50/70 p-3 rounded-xl border border-emerald-200/60 leading-relaxed">
-                                {formatTestCaseValue(questionData.testCases[activeCaseIdx].expectedOutput)}
-                              </pre>
+
+                            {/* Selected test case details */}
+                            {Array.isArray(questionData.testCases) && questionData.testCases[activeCaseIdx] && (
+                              <div className="p-4 bg-[#F8F9FE] rounded-2xl border border-[#EAEBF4] space-y-3">
+                                <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
+                                  <span className="text-xs font-bold text-slate-700 font-outfit">
+                                    Sample Test Case #{activeCaseIdx + 1}
+                                  </span>
+                                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                                    Evaluated on "Run Code"
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-[11px] font-semibold text-slate-400 block mb-1">Input Parameters:</span>
+                                  <pre className="font-mono text-xs text-slate-800 whitespace-pre-wrap break-all bg-white p-3 rounded-xl border border-[#EAEBF4] leading-relaxed">
+                                    {formatTestCaseValue(questionData.testCases[activeCaseIdx].input)}
+                                  </pre>
+                                </div>
+                                <div>
+                                  <span className="text-[11px] font-semibold text-slate-400 block mb-1">Expected Output:</span>
+                                  <pre className="font-mono text-xs text-emerald-700 font-bold whitespace-pre-wrap break-all bg-emerald-50/70 p-3 rounded-xl border border-emerald-200/60 leading-relaxed">
+                                    {formatTestCaseValue(questionData.testCases[activeCaseIdx].expectedOutput)}
+                                  </pre>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Hidden Edge Cases Notice Card */}
+                            <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200/80 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <ShieldCheck className="w-4 h-4 text-purple-700 shrink-0" />
+                                <h4 className="text-xs font-extrabold text-purple-900 font-outfit">
+                                  5 Hidden Edge Cases Included on Submit
+                                </h4>
+                              </div>
+                              <p className="text-[11px] text-purple-800 leading-relaxed">
+                                When you click <strong>"Submit Code"</strong>, your solution is evaluated against all visible sample cases plus <strong>5 hidden edge cases</strong> (empty inputs, negative bounds, zero values, duplicates, and large constraints). Test case details remain hidden to maintain interview integrity.
+                              </p>
                             </div>
                           </div>
                         )}
+
+                        {/* MODE B: Custom Test Case (HackerRank / LeetCode style) */}
+                        {testCaseMode === 'custom' && (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h4 className="text-xs font-bold text-slate-800 font-outfit">Try Your Own Testcase</h4>
+                                <p className="text-[11px] text-slate-500">Enter custom input parameters matching the challenge signature.</p>
+                              </div>
+                              <button
+                                onClick={handleResetCustomInput}
+                                className="text-[11px] font-bold text-[#7C3AED] hover:underline"
+                              >
+                                Reset to Sample
+                              </button>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+                                Custom Input Parameters:
+                              </label>
+                              <textarea
+                                rows={4}
+                                value={customInput}
+                                onChange={e => setCustomInput(e.target.value)}
+                                placeholder="e.g. nums = [2, 7, 11, 15], target = 9"
+                                className="w-full font-mono text-xs p-3 rounded-2xl bg-white border border-[#EAEBF4] focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-slate-800 resize-none leading-relaxed"
+                              />
+                            </div>
+
+                            <div className="flex items-center justify-between pt-1">
+                              <span className="text-[11px] text-slate-400">
+                                Run Code will execute using this custom input.
+                              </span>
+                              <button
+                                onClick={handleRunCode}
+                                disabled={isRunning || isSubmitting}
+                                className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition disabled:opacity-50"
+                              >
+                                <Play className="w-3.5 h-3.5 text-purple-400" />
+                                <span>{isRunning ? 'Running...' : 'Run Custom Test'}</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
                       </div>
                     )}
 
                     {/* ── TAB 3: Results Console ────────────────────── */}
                     {activeTab === 'results' && (
                       <div className="space-y-4">
-                        {isRunning ? (
+                        {isRunning || isSubmitting ? (
                           <div className="py-20 text-center space-y-3">
                             <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center mx-auto text-[#7C3AED]">
                               <RefreshCw className="w-5 h-5 animate-spin" />
                             </div>
-                            <div className="text-sm font-bold text-slate-800 font-outfit">Evaluating Your Solution...</div>
-                            <p className="text-xs text-slate-400">Executing code against all 3 test cases in an isolated sandbox.</p>
+                            <div className="text-sm font-bold text-slate-800 font-outfit">
+                              {isSubmitting ? 'Evaluating Full Submission (Visible + 5 Hidden Edge Tests)...' : 'Running Code...'}
+                            </div>
+                            <p className="text-xs text-slate-400 max-w-xs mx-auto">
+                              {isSubmitting
+                                ? 'Testing edge cases, boundary limits, and constraints in secure execution sandbox.'
+                                : 'Compiling and verifying your solution.'}
+                            </p>
                           </div>
                         ) : !outputResult ? (
                           <div className="py-20 text-center space-y-3 text-slate-400">
                             <Terminal className="w-10 h-10 mx-auto text-slate-300" />
                             <div className="text-sm font-bold text-slate-700 font-outfit">No Test Results Yet</div>
                             <p className="text-xs text-slate-400 max-w-xs mx-auto">
-                              Click <strong className="text-slate-700">"Run Code"</strong> or <strong className="text-slate-700">"Submit Code"</strong> below to test your solution.
+                              Click <strong className="text-slate-700">"Run Code"</strong> to test visible or custom inputs, or <strong className="text-slate-700">"Submit Code"</strong> to evaluate all hidden edge cases.
                             </p>
                           </div>
-                        ) : (
+                        ) : outputResult.isCustom ? (
+                          /* ── RESULT VIEW A: Custom Testcase Result ── */
                           <div className="space-y-4">
-                            
-                            {/* ── CELEBRATION CARD WHEN ALL 3 PASSED ── */}
-                            {allTestsPassed ? (
-                              <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 to-purple-50 border border-emerald-200 space-y-3 shadow-xs">
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                                      <Trophy className="w-5 h-5 text-emerald-600" />
-                                    </div>
-                                    <div>
-                                      <h4 className="text-sm font-extrabold text-emerald-900 font-outfit">
-                                        All 3 Test Cases Passed!
-                                      </h4>
-                                      <p className="text-xs text-emerald-700 font-medium">
-                                        Score: 100% · Your technical readiness has been updated.
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-800">
-                                    Passed 3/3
+                            <div className={`p-4 rounded-2xl border space-y-2 ${
+                              outputResult.status === 'Success'
+                                ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
+                                : 'bg-red-50/70 border-red-200 text-red-900'
+                            }`}>
+                              <div className="flex items-center justify-between font-bold">
+                                <div className="flex items-center gap-2">
+                                  {outputResult.status === 'Success' ? (
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                  ) : (
+                                    <XCircle className="w-4 h-4 text-red-600" />
+                                  )}
+                                  <span className="text-xs font-outfit">Custom Testcase Execution</span>
+                                </div>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  outputResult.status === 'Success' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {outputResult.status}
+                                </span>
+                              </div>
+                              <p className="text-xs opacity-90">{outputResult.message}</p>
+                            </div>
+
+                            <div className="space-y-3 font-mono text-xs">
+                              <div>
+                                <span className="text-slate-400 font-sans font-semibold text-[11px] block mb-1">Your Input:</span>
+                                <pre className="bg-white p-3 rounded-xl border border-slate-200 text-slate-800 whitespace-pre-wrap break-all leading-relaxed">
+                                  {outputResult.customInput}
+                                </pre>
+                              </div>
+                              <div>
+                                <span className="text-slate-400 font-sans font-semibold text-[11px] block mb-1">Program Output / Returned:</span>
+                                <pre className={`p-3 rounded-xl border font-bold whitespace-pre-wrap break-all leading-relaxed ${
+                                  outputResult.status === 'Success'
+                                    ? 'bg-emerald-50/60 border-emerald-200 text-emerald-800'
+                                    : 'bg-red-50/60 border-red-200 text-red-700'
+                                }`}>
+                                  {outputResult.actualOutput}
+                                </pre>
+                              </div>
+                              {outputResult.stdout && (
+                                <div>
+                                  <span className="text-slate-400 font-sans font-semibold text-[11px] block mb-1">Console Logs (stdout):</span>
+                                  <pre className="bg-slate-900 text-slate-200 p-3 rounded-xl border border-slate-800 whitespace-pre-wrap break-all">
+                                    {outputResult.stdout}
+                                  </pre>
+                                </div>
+                              )}
+                              {outputResult.error && (
+                                <div className="p-3 rounded-xl bg-red-100/70 border border-red-200 text-red-800 text-[11px]">
+                                  {outputResult.error}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : outputResult.isRun ? (
+                          /* ── RESULT VIEW B: Run Code (Visible Tests Only) ── */
+                          <div className="space-y-4">
+                            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                              <div className="flex items-center justify-between font-bold">
+                                <div className="flex items-center gap-2">
+                                  <Play className="w-4 h-4 text-purple-600" />
+                                  <span className="text-xs font-outfit text-slate-900">
+                                    Sample Run Results ({outputResult.passCount}/{outputResult.totalTests} Passed)
                                   </span>
                                 </div>
-
-                                <div className="pt-2 border-t border-emerald-200/60 flex items-center justify-between gap-3">
-                                  <p className="text-[11px] text-slate-600 font-medium">
-                                    Next question is now activated. Ready for the next problem?
-                                  </p>
-                                  <button
-                                    onClick={handleNextQuestion}
-                                    className="px-4 py-2 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-purple-500/20 transition shrink-0"
-                                  >
-                                    <span>Next Challenge</span>
-                                    <ArrowRight className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
+                                <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-purple-100 text-[#7C3AED]">
+                                  Visible Only
+                                </span>
                               </div>
-                            ) : (
-                              /* Partial or Failed Banner */
-                              <div className={`p-4 rounded-2xl border space-y-2 ${
-                                outputResult.status === 'Partial'
-                                  ? 'bg-amber-50 border-amber-200 text-amber-900'
-                                  : 'bg-red-50 border-red-200 text-red-900'
-                              }`}>
-                                <div className="flex items-center justify-between font-bold">
-                                  <div className="flex items-center gap-2">
-                                    {outputResult.status === 'Partial' ? (
-                                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                                    ) : (
-                                      <XCircle className="w-4 h-4 text-red-600 shrink-0" />
-                                    )}
-                                    <span className="text-xs">
-                                      {outputResult.status === 'Partial'
-                                        ? `Passed ${outputResult.passCount} of ${outputResult.totalTests} test cases`
-                                        : 'Test cases failed'}
-                                    </span>
-                                  </div>
-                                  <span className="text-xs px-2 py-0.5 rounded font-bold bg-white/80">
-                                    Score: {outputResult.score}%
-                                  </span>
-                                </div>
-                                {outputResult.message && (
-                                  <p className="text-xs opacity-90">{outputResult.message}</p>
-                                )}
-                              </div>
-                            )}
+                              <p className="text-[11px] text-slate-600">
+                                ℹ️ Note: This was a sample run against visible test cases only. Click <strong>"Submit Code"</strong> to evaluate against all 5 hidden edge cases and earn placement score.
+                              </p>
+                            </div>
 
-                            {/* Detailed breakdown per test case */}
+                            {/* Visible Test Case Cards */}
                             <div className="space-y-2.5">
-                              <span className="text-xs font-bold text-slate-700 font-outfit uppercase tracking-wider block">
-                                Test Case Breakdown
-                              </span>
                               {(outputResult.testResults || []).map((tr, idx) => (
                                 <div
                                   key={idx}
@@ -752,7 +958,7 @@ export default function Technical() {
                                       ) : (
                                         <XCircle className="w-4 h-4 text-red-600" />
                                       )}
-                                      <span>Test Case #{tr.testCaseIndex || idx + 1}</span>
+                                      <span>Sample Case #{tr.testCaseIndex || idx + 1}</span>
                                     </div>
                                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                                       tr.passed ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
@@ -786,16 +992,177 @@ export default function Technical() {
                                         </pre>
                                       </div>
                                     </div>
-                                    {tr.error && (
-                                      <div className="p-2 rounded-lg bg-red-100/70 text-red-800 text-[11px] font-mono">
-                                        {tr.error}
-                                      </div>
-                                    )}
                                   </div>
                                 </div>
                               ))}
                             </div>
+                          </div>
+                        ) : (
+                          /* ── RESULT VIEW C: Full Submission (Visible + 5 Hidden Edge Tests) ── */
+                          <div className="space-y-4">
+                            {allTestsPassed ? (
+                              <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 to-purple-50 border border-emerald-200 space-y-3 shadow-xs">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                                      <Trophy className="w-5 h-5 text-emerald-600" />
+                                    </div>
+                                    <div>
+                                      <h4 className="text-sm font-extrabold text-emerald-900 font-outfit">
+                                        All Visible & 5 Hidden Edge Cases Passed!
+                                      </h4>
+                                      <p className="text-xs text-emerald-700 font-medium">
+                                        Score: 100% · All edge constraints satisfied · Readiness updated.
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-800">
+                                    {outputResult.passCount}/{outputResult.totalTests} Passed
+                                  </span>
+                                </div>
 
+                                <div className="pt-2 border-t border-emerald-200/60 flex items-center justify-between gap-3">
+                                  <p className="text-[11px] text-slate-600 font-medium">
+                                    Next question is now activated. Ready for the next problem?
+                                  </p>
+                                  <button
+                                    onClick={handleNextQuestion}
+                                    className="px-4 py-2 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-purple-500/20 transition shrink-0"
+                                  >
+                                    <span>Next Challenge</span>
+                                    <ArrowRight className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className={`p-4 rounded-2xl border space-y-2 ${
+                                outputResult.status === 'Partial'
+                                  ? 'bg-amber-50 border-amber-200 text-amber-900'
+                                  : 'bg-red-50 border-red-200 text-red-900'
+                              }`}>
+                                <div className="flex items-center justify-between font-bold">
+                                  <div className="flex items-center gap-2">
+                                    {outputResult.status === 'Partial' ? (
+                                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                                    ) : (
+                                      <XCircle className="w-4 h-4 text-red-600 shrink-0" />
+                                    )}
+                                    <span className="text-xs">
+                                      {outputResult.visiblePassCount === outputResult.totalVisible && outputResult.hiddenPassCount < outputResult.totalHidden
+                                        ? `Passed visible cases, but failed ${outputResult.totalHidden - outputResult.hiddenPassCount} hidden edge tests`
+                                        : `Passed ${outputResult.passCount} of ${outputResult.totalTests} total test cases`}
+                                    </span>
+                                  </div>
+                                  <span className="text-xs px-2 py-0.5 rounded font-bold bg-white/80">
+                                    Score: {outputResult.score}%
+                                  </span>
+                                </div>
+                                {outputResult.message && (
+                                  <p className="text-xs opacity-90">{outputResult.message}</p>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Test Cases Breakdown (Visible vs Hidden) */}
+                            <div className="space-y-2.5">
+                              <span className="text-xs font-bold text-slate-700 font-outfit uppercase tracking-wider block">
+                                Test Case Breakdown (Visible + 5 Hidden Edge Cases)
+                              </span>
+                              {(outputResult.testResults || []).map((tr, idx) => {
+                                const isHidden = tr.isHidden;
+
+                                if (isHidden) {
+                                  // HIDDEN TEST CASE: DO NOT SHOW INPUT OR EXPECTED OUTPUT
+                                  return (
+                                    <div
+                                      key={idx}
+                                      className={`p-3.5 rounded-2xl border space-y-2 font-mono text-xs ${
+                                        tr.passed
+                                          ? 'bg-emerald-50/40 border-emerald-200/80 text-emerald-900'
+                                          : 'bg-rose-50/60 border-rose-200 text-rose-900'
+                                      }`}
+                                    >
+                                      <div className="flex items-center justify-between font-bold font-sans">
+                                        <div className="flex items-center gap-1.5">
+                                          <Lock className={`w-3.5 h-3.5 ${tr.passed ? 'text-emerald-600' : 'text-rose-600'}`} />
+                                          <span>{tr.label || `Hidden Test Case #${idx + 1}`}</span>
+                                        </div>
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                          tr.passed ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                                        }`}>
+                                          {tr.passed ? '✓ Passed' : '✗ Failed (Edge Case)'}
+                                        </span>
+                                      </div>
+
+                                      <div className="p-2.5 rounded-xl bg-white/70 border border-slate-200/60 text-[11px] font-sans text-slate-600 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <EyeOff className="w-3.5 h-3.5 text-slate-400" />
+                                          <span>Input & expected output hidden for evaluation integrity</span>
+                                        </div>
+                                        <span className="text-[10px] font-semibold text-slate-400">
+                                          {tr.edgeDescription || 'Boundary constraint'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+
+                                // VISIBLE TEST CASE
+                                return (
+                                  <div
+                                    key={idx}
+                                    className={`p-3.5 rounded-2xl border space-y-2 font-mono text-xs ${
+                                      tr.passed
+                                        ? 'bg-emerald-50/50 border-emerald-200/80 text-emerald-900'
+                                        : 'bg-red-50/50 border-red-200/80 text-red-900'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between font-bold font-sans">
+                                      <div className="flex items-center gap-1.5">
+                                        {tr.passed ? (
+                                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                        ) : (
+                                          <XCircle className="w-4 h-4 text-red-600" />
+                                        )}
+                                        <span>{tr.label || `Visible Test Case #${idx + 1}`}</span>
+                                      </div>
+                                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                        tr.passed ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                                      }`}>
+                                        {tr.passed ? '✓ Passed' : '✗ Failed'}
+                                      </span>
+                                    </div>
+
+                                    <div className="space-y-1.5 text-[11px] text-slate-700">
+                                      <div>
+                                        <span className="text-slate-400 font-semibold block mb-0.5">Input:</span>
+                                        <pre className="bg-white p-2 rounded-lg border border-slate-200/60 whitespace-pre-wrap break-all">
+                                          {formatTestCaseValue(tr.input)}
+                                        </pre>
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                          <span className="text-slate-400 font-semibold block mb-0.5">Expected:</span>
+                                          <pre className="bg-white p-2 rounded-lg border border-slate-200/60 text-emerald-700 font-bold whitespace-pre-wrap break-all">
+                                            {formatTestCaseValue(tr.expectedOutput)}
+                                          </pre>
+                                        </div>
+                                        <div>
+                                          <span className="text-slate-400 font-semibold block mb-0.5">Actual:</span>
+                                          <pre className={`p-2 rounded-lg border font-bold whitespace-pre-wrap break-all ${
+                                            tr.passed
+                                              ? 'bg-white border-slate-200/60 text-emerald-700'
+                                              : 'bg-white border-red-200 text-red-600'
+                                          }`}>
+                                            {formatTestCaseValue(tr.actualOutput ?? 'None')}
+                                          </pre>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -822,7 +1189,7 @@ export default function Technical() {
             </div>
 
             {/* ── Right Pane: Code Editor Area ─────────────────── */}
-            <div className="lg:col-span-7 bg-[#0B1120] rounded-3xl p-5 border border-slate-800 shadow-xl flex flex-col min-h-[580px] space-y-4">
+            <div className="lg:col-span-7 bg-[#0B1120] rounded-3xl p-5 border border-slate-800 shadow-xl flex flex-col min-h-[600px] space-y-4">
               
               {/* Editor Top Bar */}
               <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
@@ -887,34 +1254,44 @@ export default function Technical() {
 
               {/* Editor Bottom Action Controls */}
               <div className="pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                <div className="text-[11px] text-slate-500 font-mono flex items-center gap-2">
+                <div className="text-[11px] text-slate-400 font-mono flex items-center gap-2">
                   <span>Tab = 4 spaces</span>
                   <span>·</span>
-                  <span>Evaluates 3 test cases</span>
+                  <button
+                    onClick={() => {
+                      setActiveTab('testcases');
+                      setTestCaseMode(testCaseMode === 'custom' ? 'sample' : 'custom');
+                    }}
+                    className="text-purple-400 hover:text-purple-300 underline font-bold"
+                  >
+                    {testCaseMode === 'custom' ? 'Mode: Custom Input' : 'Try Custom Input'}
+                  </button>
                 </div>
 
                 <div className="flex items-center gap-2.5 justify-end flex-wrap">
                   {/* Run Code Button */}
                   <button
-                    onClick={() => handleExecuteCode(false)}
-                    disabled={isRunning}
+                    onClick={handleRunCode}
+                    disabled={isRunning || isSubmitting}
                     className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono font-bold text-xs flex items-center gap-2 transition disabled:opacity-50 border border-slate-700"
+                    title={testCaseMode === 'custom' ? 'Run with your custom testcase' : 'Run against visible sample test cases'}
                   >
                     <Play className="w-3.5 h-3.5 text-purple-400" />
-                    <span>{isRunning ? 'Running...' : 'Run Code'}</span>
+                    <span>{isRunning ? 'Running...' : testCaseMode === 'custom' ? 'Run Custom' : 'Run Code'}</span>
                   </button>
 
                   {/* Submit Code Button */}
                   <button
-                    onClick={() => handleExecuteCode(true)}
-                    disabled={isRunning}
+                    onClick={handleSubmitCode}
+                    disabled={isRunning || isSubmitting}
                     className="px-5 py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-mono font-bold text-xs flex items-center gap-2 shadow-lg shadow-purple-600/30 transition disabled:opacity-50"
+                    title="Evaluate visible + 5 hidden edge cases"
                   >
-                    {isRunning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                    <span>{isRunning ? 'Evaluating...' : 'Submit Code'}</span>
+                    {isSubmitting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                    <span>{isSubmitting ? 'Evaluating...' : 'Submit Code'}</span>
                   </button>
 
-                  {/* Next Challenge Button (ACTIVATES WHEN ALL 3 PASSED) */}
+                  {/* Next Challenge Button (ACTIVATES WHEN ALL VISIBLE + HIDDEN PASSED ON SUBMIT) */}
                   <button
                     onClick={handleNextQuestion}
                     disabled={!allTestsPassed || loading}
@@ -923,7 +1300,7 @@ export default function Technical() {
                         ? 'bg-gradient-to-r from-emerald-500 to-[#7C3AED] hover:from-emerald-600 hover:to-[#6D28D9] text-white shadow-emerald-500/20 cursor-pointer animate-pulse'
                         : 'bg-slate-900/80 text-slate-600 border border-slate-800 cursor-not-allowed opacity-60'
                     }`}
-                    title={allTestsPassed ? 'Next challenge is unlocked!' : 'Pass all 3 test cases to unlock'}
+                    title={allTestsPassed ? 'Next challenge is unlocked!' : 'Pass all visible and 5 hidden edge cases on Submit to unlock'}
                   >
                     {allTestsPassed ? (
                       <Unlock className="w-3.5 h-3.5 text-emerald-300" />
@@ -1033,9 +1410,17 @@ export default function Technical() {
                           </button>
 
                           {isExpanded && s.type === 'code' && s.passCount !== null && (
-                            <div className="px-4 pb-3 pt-2 border-t border-slate-100 text-xs text-slate-600 bg-slate-50">
-                              {s.passCount}/{s.totalTests} test cases passed
-                              {s.difficulty && <span className="ml-2 text-slate-400">· {s.difficulty}</span>}
+                            <div className="px-4 pb-3 pt-2 border-t border-slate-100 text-xs text-slate-600 bg-slate-50 space-y-1">
+                              <div>
+                                {s.passCount}/{s.totalTests} test cases passed
+                                {s.difficulty && <span className="ml-2 text-slate-400">· {s.difficulty}</span>}
+                              </div>
+                              {s.totalHidden ? (
+                                <div className="text-[11px] text-purple-700 font-semibold flex items-center gap-1">
+                                  <Lock className="w-3 h-3 text-purple-600" />
+                                  <span>{s.hiddenPassCount || 0}/{s.totalHidden} hidden edge cases passed</span>
+                                </div>
+                              ) : null}
                             </div>
                           )}
                         </div>

@@ -845,35 +845,7 @@ export default function PreInterviewSetup({
       </div>
 
       {/* 5. Start Action Button */}
-      <div className="p-6 bg-gradient-to-r from-[#7C3AED]/5 via-purple-50/30 to-indigo-50/20 rounded-3xl border border-purple-100 shadow-xs space-y-4">
-        {/* Summary of what's ready */}
-        <div className="flex flex-wrap gap-2.5 text-[11px]">
-          <span className={`px-2.5 py-1 rounded-full font-bold flex items-center gap-1 border ${
-            resumeData?.profile
-              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-              : 'bg-slate-100 text-slate-500 border-slate-200'
-          }`}>
-            <FileText className="w-3 h-3" />
-            {resumeData?.profile ? `Resume ✓ (${resumeData.profile.projects?.length || 0} projects)` : 'No resume — generic questions'}
-          </span>
-          <span className={`px-2.5 py-1 rounded-full font-bold flex items-center gap-1 border ${
-            githubConnected
-              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-              : 'bg-slate-100 text-slate-500 border-slate-200'
-          }`}>
-            <GithubIcon className="w-3 h-3" />
-            {githubConnected ? `GitHub ✓ (${selectedRepoNames.length} repos)` : 'GitHub not connected'}
-          </span>
-          <span className={`px-2.5 py-1 rounded-full font-bold flex items-center gap-1 border ${
-            !skipMic
-              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-              : 'bg-slate-100 text-slate-500 border-slate-200'
-          }`}>
-            {skipMic ? <MicOff className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
-            {skipMic ? 'Text only' : 'Voice + Text'}
-          </span>
-        </div>
-
+      <div className="p-6 bg-gradient-to-r from-[#7C3AED]/5 via-purple-50/30 to-indigo-50/20 rounded-3xl border border-purple-100 shadow-xs">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
             <div className="text-xs text-slate-500">Starting interview for</div>

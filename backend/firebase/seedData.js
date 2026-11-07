@@ -110,6 +110,13 @@ export const seedInitialData = async () => {
           { input: 'nums = [2,7,11,15], target = 9', expectedOutput: '[0, 1]' },
           { input: 'nums = [3,2,4], target = 6', expectedOutput: '[1, 2]' },
           { input: 'nums = [3,3], target = 6', expectedOutput: '[0, 1]' }
+        ],
+        hiddenTestCases: [
+          { input: 'nums = [-3, 4, 3, 90], target = 0', expectedOutput: '[0, 2]', edgeDescription: 'Negative numbers summing to zero' },
+          { input: 'nums = [0, 4, 3, 0], target = 0', expectedOutput: '[0, 3]', edgeDescription: 'Zero elements at extremities' },
+          { input: 'nums = [1000000, 500, -500, 2000000], target = 0', expectedOutput: '[1, 2]', edgeDescription: 'Large integer boundaries' },
+          { input: 'nums = [5, 75, 25], target = 100', expectedOutput: '[1, 2]', edgeDescription: 'Non-consecutive indices match' },
+          { input: 'nums = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], target = 19', expectedOutput: '[8, 9]', edgeDescription: 'Tail elements boundary' }
         ]
       },
       {
@@ -132,6 +139,13 @@ export const seedInitialData = async () => {
           { input: 's = "A man, a plan, a canal: Panama"', expectedOutput: 'true' },
           { input: 's = "race a car"', expectedOutput: 'false' },
           { input: 's = " "', expectedOutput: 'true' }
+        ],
+        hiddenTestCases: [
+          { input: 's = ""', expectedOutput: 'true', edgeDescription: 'Empty string boundary' },
+          { input: 's = "a"', expectedOutput: 'true', edgeDescription: 'Single character boundary' },
+          { input: 's = "0P"', expectedOutput: 'false', edgeDescription: 'Alphanumeric mismatch' },
+          { input: 's = "ab_a"', expectedOutput: 'true', edgeDescription: 'Punctuation and underscore handling' },
+          { input: 's = "No \'x\' in Nixon"', expectedOutput: 'true', edgeDescription: 'Mixed case with single quotes' }
         ]
       },
       {
@@ -153,6 +167,13 @@ export const seedInitialData = async () => {
           { input: 'root = [5,3,6,2,4,null,null,1], k = 3', expectedOutput: '3' },
           { input: 'root = [3,1,4,null,2], k = 1', expectedOutput: '1' },
           { input: 'root = [2,1,3], k = 2', expectedOutput: '2' }
+        ],
+        hiddenTestCases: [
+          { input: 'root = [1], k = 1', expectedOutput: '1', edgeDescription: 'Single-node tree boundary' },
+          { input: 'root = [1, null, 2, null, 3, null, 4], k = 4', expectedOutput: '4', edgeDescription: 'Right-skewed linear tree' },
+          { input: 'root = [10, 5, 15, 2, 7, 12, 20], k = 1', expectedOutput: '2', edgeDescription: 'Minimum element (k=1) edge' },
+          { input: 'root = [10, 5, 15, 2, 7, 12, 20], k = 7', expectedOutput: '20', edgeDescription: 'Maximum element (k=N) boundary' },
+          { input: 'root = [-5, -10, 0, -15, -8], k = 2', expectedOutput: '-10', edgeDescription: 'Negative node values' }
         ]
       }
     ];
