@@ -209,6 +209,9 @@ export const apiCall = async (endpoint, method = 'GET', body = null, isFormData 
       throw new Error('Server request timed out. Please check your network connection.');
     }
     console.warn(`API Call Error (${endpoint}):`, err.message);
+    if (err.message === 'Failed to fetch') {
+      throw new Error('Backend server is not running on port 5000. Please ensure both frontend and backend are running (npm run dev).');
+    }
     throw err;
   }
 };
