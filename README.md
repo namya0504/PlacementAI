@@ -181,7 +181,7 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ## 👥 Contributors
 
-- **Namya / Diya** ([@diya2405](https://github.com/namya0504) / [@namya0504](https://github.com/diya2405))
+- **Namya / Diya** ([@namya0504](https://github.com/namya0504) / [@diya2405](https://github.com/diya2405))
 - **PlacementAI Development Team**
 
 ---
