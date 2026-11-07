@@ -78,3 +78,9 @@ __pycache__/
 *$py.class
 *.pyc
 .pytest_cache/
+
+# Local Architectural Documentation & Private Diagrams
+placementai_database_architecture_and_er_diagram.md
+*er_diagram*.md
+*architecture*.md
+
