@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Sparkles,
   Phone,
@@ -44,6 +44,12 @@ const PASSING_YEARS = [
 
 export default function CompleteProfileModal() {
   const { currentUser, completeProfile, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login', { replace: true });
+  };
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -424,7 +430,7 @@ export default function CompleteProfileModal() {
             <div className="flex items-center justify-center">
               <button
                 type="button"
-                onClick={logout}
+                onClick={handleLogout}
                 className="text-[11px] text-slate-400 hover:text-slate-600 font-semibold flex items-center gap-1 transition"
               >
                 <LogOut className="w-3 h-3" /> Log out of this account

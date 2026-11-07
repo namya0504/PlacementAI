@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   User, Mail, Phone, MapPin, Award, Edit3, CheckCircle, Menu, Upload, X, Save,
   Loader2, FileText, Download, Trash2, Eye, AlertTriangle, RefreshCw, FileUp,
@@ -18,6 +19,7 @@ function formatFileSize(bytes) {
 
 export default function Profile() {
   const { currentUser, updateProfileData, logout } = useAuth();
+  const navigate = useNavigate();
   const toast = useToast();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -380,7 +382,8 @@ export default function Profile() {
     setDeactivateError('');
     try {
       await API.deactivateAccount();
-      logout();
+      await logout();
+      navigate('/login', { replace: true });
     } catch (err) {
       setDeactivateError(err.message || 'Deactivation failed. Please try again.');
       setDeactivating(false);

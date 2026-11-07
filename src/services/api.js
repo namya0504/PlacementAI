@@ -53,6 +53,21 @@ export const clearStoredToken = () => {
   try {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
     sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+    localStorage.removeItem('placement_ai_user');
+    sessionStorage.removeItem('placement_ai_user');
+    // Clear any residual placement_ai token or user keys
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('placement_ai_') || key.startsWith('firebase:authUser'))) {
+        localStorage.removeItem(key);
+      }
+    }
+    for (let i = sessionStorage.length - 1; i >= 0; i--) {
+      const key = sessionStorage.key(i);
+      if (key && (key.startsWith('placement_ai_') || key.startsWith('firebase:authUser'))) {
+        sessionStorage.removeItem(key);
+      }
+    }
   } catch {}
 };
 
@@ -240,8 +255,13 @@ export const API = {
     return apiCall('/auth/forgot-password', 'POST', payload);
   },
   logout: async () => {
-    clearStoredToken();
-    return apiCall('/auth/logout', 'POST').catch(() => {});
+    try {
+      await apiCall('/auth/logout', 'POST');
+    } catch {
+      // Best-effort backend notification
+    } finally {
+      clearStoredToken();
+    }
   },
   deactivateAccount: () => apiCall('/auth/deactivate', 'POST'),
   getCurrentUser: () => apiCall('/auth/me', 'GET'),

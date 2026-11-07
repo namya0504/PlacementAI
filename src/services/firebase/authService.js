@@ -7,7 +7,8 @@ import {
   getRedirectResult,
   signInWithEmailAndPassword,
   sendEmailVerification,
-  sendPasswordResetEmail as firebaseSendPasswordReset
+  sendPasswordResetEmail as firebaseSendPasswordReset,
+  signOut
 } from 'firebase/auth';
 import firebaseConfig from './config';
 
@@ -213,5 +214,20 @@ export const sendFirebasePasswordReset = async (email) => {
       message = 'Network error. Please check your internet connection.';
     }
     return { success: false, error: code, message };
+  }
+};
+
+/**
+ * Signs out the Firebase client user completely and removes all client auth state.
+ */
+export const signOutFirebaseClient = async () => {
+  try {
+    if (clientAuth?.currentUser) {
+      await signOut(clientAuth);
+    }
+    return { success: true };
+  } catch (err) {
+    console.warn('Firebase client signOut notice:', err?.message);
+    return { success: false, error: err?.message };
   }
 };

@@ -95,7 +95,7 @@ export default function AppRoutes() {
     <Suspense fallback={<PageLoader />}>
       <Routes>
         {/* Public Pages */}
-        <Route path={ROUTES.home} element={<PublicOnlyRoute><Home /></PublicOnlyRoute>} />
+        <Route path={ROUTES.home} element={<Home />} />
         <Route path={ROUTES.login} element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
         <Route path={ROUTES.signup} element={<PublicOnlyRoute><Signup /></PublicOnlyRoute>} />
         <Route path={ROUTES.about} element={<About />} />

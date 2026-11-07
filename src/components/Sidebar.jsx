@@ -32,9 +32,9 @@ export default function Sidebar({ mobileOpen, setMobileOpen }) {
     { name: 'Settings', path: ROUTES.settings, icon: Settings },
   ];
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login', { replace: true });
   };
 
   const isItemActive = (path) => {

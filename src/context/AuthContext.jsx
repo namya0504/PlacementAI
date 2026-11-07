@@ -147,11 +147,29 @@ export const AuthProvider = ({ children }) => {
     return user;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    // 1. Immediately wipe in-memory auth caches & token storage
     clearApiCache();
     clearStoredToken();
     setCurrentUser(null);
-    return API.logout().catch(() => {});
+
+    // 2. Sign out Firebase client auth so IndexedDB session cannot resurrect
+    try {
+      const { signOutFirebaseClient } = await import('../services/firebase/authService');
+      await signOutFirebaseClient();
+    } catch (fbErr) {
+      console.warn('Firebase signout notice:', fbErr?.message);
+    }
+
+    // 3. Clear backend session cookies
+    try {
+      await API.logout();
+    } catch (apiErr) {
+      console.warn('API logout notice:', apiErr?.message);
+    } finally {
+      clearStoredToken();
+      setCurrentUser(null);
+    }
   };
 
   const updateCurrentUser = (updatedFields) => {

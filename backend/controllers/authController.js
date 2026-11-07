@@ -884,11 +884,16 @@ export const forgotPassword = async (req, res, next) => {
 export const logoutUser = async (req, res, next) => {
   try {
     const isProd = process.env.NODE_ENV === 'production' || Boolean(process.env.RENDER || process.env.VERCEL || process.env.RAILWAY_ENVIRONMENT);
-    res.clearCookie('token', {
+    const cookieOptions = {
+      path: '/',
       httpOnly: true,
       secure: isProd,
       sameSite: isProd ? 'none' : 'lax'
-    });
+    };
+    res.clearCookie('token', cookieOptions);
+    res.clearCookie('token', { path: '/' });
+    res.clearCookie('csrfToken', cookieOptions);
+    res.clearCookie('csrfToken', { path: '/' });
     return sendSuccess(res, {}, 'Logged out successfully');
   } catch (err) {
     next(err);
