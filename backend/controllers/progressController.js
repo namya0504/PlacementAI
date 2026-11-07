@@ -40,59 +40,74 @@ export const getCombinedProgress = async (req, res, next) => {
 
     // Filter and shape each module
     const aptitude = aptitudeTests
-      .filter(t => isInPeriod(t.completedAt))
-      .sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))
-      .map(t => ({
-        module: 'aptitude',
-        id: t.testId,
-        title: `${t.category || 'Aptitude'} Test`,
-        score: t.accuracy ?? t.score ?? 0,
-        passed: t.passed,
-        meta: { category: t.category, stage: t.stage, totalQuestions: t.totalQuestions, weakestTopic: t.weakestTopic },
-        completedAt: t.completedAt
-      }));
+      .filter(t => isInPeriod(t.completedAt || t.submittedAt || t.createdAt))
+      .sort((a, b) => new Date(b.completedAt || b.submittedAt || b.createdAt) - new Date(a.completedAt || a.submittedAt || a.createdAt))
+      .map(t => {
+        const rawScore = t.accuracy ?? t.score ?? 0;
+        const score = Math.round(Number(rawScore) || 0);
+        return {
+          module: 'aptitude',
+          id: t.testId || t.id,
+          title: `${t.category || 'Aptitude'} Test`,
+          score,
+          passed: typeof t.passed === 'boolean' ? t.passed : score >= 60,
+          meta: { category: t.category, stage: t.stage, totalQuestions: t.totalQuestions, weakestTopic: t.weakestTopic },
+          completedAt: t.completedAt || t.submittedAt || t.createdAt
+        };
+      });
 
     const hr = hrInterviews
-      .filter(iv => isInPeriod(iv.completedAt))
-      .sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))
-      .map(iv => ({
-        module: 'hr',
-        id: iv.interviewId,
-        title: `HR Round ${iv.round}: ${(iv.questionTitle || 'Interview Question').slice(0, 60)}`,
-        score: iv.score ?? 0,
-        passed: (iv.score ?? 0) >= 60,
-        meta: { round: iv.round, feedback: iv.feedback, scores: iv.evaluateScores || {} },
-        completedAt: iv.completedAt
-      }));
+      .filter(iv => isInPeriod(iv.completedAt || iv.createdAt))
+      .sort((a, b) => new Date(b.completedAt || b.createdAt) - new Date(a.completedAt || a.createdAt))
+      .map(iv => {
+        const rawScore = iv.evaluation?.overallScore ?? iv.score ?? 0;
+        const score = Math.round(Number(rawScore) || 0);
+        return {
+          module: 'hr',
+          id: iv.interviewId || iv.id,
+          title: `HR Round ${iv.round || 1}: ${(iv.questionTitle || 'Interview Question').slice(0, 60)}`,
+          score,
+          passed: typeof iv.passed === 'boolean' ? iv.passed : score >= 60,
+          meta: { round: iv.round, feedback: iv.feedback, scores: iv.evaluateScores || {} },
+          completedAt: iv.completedAt || iv.createdAt
+        };
+      });
 
     const technical = techSubmissions
-      .filter(s => isInPeriod(s.completedAt))
-      .sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))
+      .filter(s => isInPeriod(s.completedAt || s.submittedAt || s.createdAt))
+      .sort((a, b) => new Date(b.completedAt || b.submittedAt || b.createdAt) - new Date(a.completedAt || a.submittedAt || a.createdAt))
       .map(s => {
         const q = qMap[s.questionId] || {};
+        const rawScore = s.score ?? (s.status === 'Passed' || s.isCorrect ? 100 : 0);
+        const score = Math.round(Number(rawScore) || 0);
         return {
           module: 'technical',
-          id: s.submissionId,
-          title: q.title || 'Coding Challenge',
-          score: s.score ?? 0,
-          passed: s.status === 'Passed' || s.isCorrect === true,
+          id: s.submissionId || s.id,
+          title: q.title || s.questionTitle || 'Coding Challenge',
+          score,
+          passed: s.status === 'Passed' || s.isCorrect === true || score >= 60,
           meta: { language: s.language, type: s.code ? 'code' : 'mcq', status: s.status, passCount: s.passCount, totalTests: s.totalTests },
-          completedAt: s.completedAt
+          completedAt: s.completedAt || s.submittedAt || s.createdAt
         };
       });
 
     const ats = atsHistory
-      .filter(a => isInPeriod(a.analyzedAt || a.createdAt))
-      .sort((a, b) => new Date(b.analyzedAt || b.createdAt) - new Date(a.analyzedAt || a.createdAt))
-      .map(a => ({
-        module: 'ats',
-        id: a.id || a.analysisId,
-        title: `ATS Analysis${a.jobTitle ? ` — ${a.jobTitle}` : ''}`,
-        score: a.score ?? a.atsScore ?? 0,
-        passed: (a.score ?? a.atsScore ?? 0) >= 60,
-        meta: { suggestions: a.suggestions?.length || 0 },
-        completedAt: a.analyzedAt || a.createdAt
-      }));
+      .filter(a => isInPeriod(a.completedAt || a.analyzedAt || a.createdAt))
+      .sort((a, b) => new Date(b.completedAt || b.analyzedAt || b.createdAt) - new Date(a.completedAt || a.analyzedAt || a.createdAt))
+      .map(a => {
+        const rawScore = a.report?.overallScore ?? a.report?.score ?? a.report?.atsScore ?? a.score ?? a.atsScore ?? 0;
+        const score = Math.round(Number(rawScore) || 0);
+        const role = a.targetRole || a.report?.targetRole || a.jobTitle || '';
+        return {
+          module: 'ats',
+          id: a.reportId || a.analysisId || a.id,
+          title: `ATS Analysis${role ? ` — ${role}` : ''}`,
+          score,
+          passed: typeof a.passed === 'boolean' ? a.passed : score >= 60,
+          meta: { suggestions: a.report?.suggestions?.length || a.suggestions?.length || 0 },
+          completedAt: a.completedAt || a.analyzedAt || a.createdAt
+        };
+      });
 
     // Combined timeline sorted by date
     const timeline = [...aptitude, ...hr, ...technical, ...ats]
@@ -180,10 +195,33 @@ export const getProgressInsights = async (req, res, next) => {
       };
     };
 
-    const aptSummary = summarize(aptTests);
-    const hrSummary = summarize(hrInterviews);
-    const techSummary = summarize(techSubmissions);
-    const atsSummary = summarize(atsHistory.map(a => ({ ...a, completedAt: a.analyzedAt || a.createdAt })));
+    const aptSummary = summarize(aptTests.map(t => ({
+      ...t,
+      score: Math.round(Number(t.accuracy ?? t.score ?? 0)),
+      passed: typeof t.passed === 'boolean' ? t.passed : (t.accuracy ?? t.score ?? 0) >= 60,
+      completedAt: t.completedAt || t.submittedAt || t.createdAt
+    })));
+    const hrSummary = summarize(hrInterviews.map(iv => ({
+      ...iv,
+      score: Math.round(Number(iv.evaluation?.overallScore ?? iv.score ?? 0)),
+      passed: (iv.evaluation?.overallScore ?? iv.score ?? 0) >= 60,
+      completedAt: iv.completedAt || iv.createdAt
+    })));
+    const techSummary = summarize(techSubmissions.map(s => ({
+      ...s,
+      score: Math.round(Number(s.score ?? (s.status === 'Passed' || s.isCorrect ? 100 : 0))),
+      passed: s.status === 'Passed' || s.isCorrect === true,
+      completedAt: s.completedAt || s.submittedAt || s.createdAt
+    })));
+    const atsSummary = summarize(atsHistory.map(a => {
+      const score = Math.round(Number(a.report?.overallScore ?? a.report?.score ?? a.report?.atsScore ?? a.score ?? a.atsScore ?? 0));
+      return {
+        ...a,
+        score,
+        passed: score >= 60,
+        completedAt: a.completedAt || a.analyzedAt || a.createdAt
+      };
+    }));
     const totalActivities = aptSummary.count + hrSummary.count + techSummary.count + atsSummary.count;
 
     if (totalActivities === 0) {

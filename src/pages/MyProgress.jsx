@@ -10,10 +10,50 @@ import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../routes/paths';
 
 const MODULE_CONFIG = {
-  aptitude:  { label: 'Aptitude',     color: 'purple',   icon: BookOpen, link: ROUTES.aptitude },
-  hr:        { label: 'HR Interview', color: 'pink',     icon: Mic,      link: ROUTES.hrInterview },
-  technical: { label: 'Technical',    color: 'indigo',   icon: Code2,    link: ROUTES.technical },
-  ats:       { label: 'ATS Resume',   color: 'amber',    icon: FileText, link: ROUTES.atsChecker }
+  aptitude: {
+    label: 'Aptitude',
+    color: 'purple',
+    badgeClass: 'bg-purple-50 text-purple-700 border border-purple-200/60',
+    iconClass: 'text-purple-600',
+    iconBgClass: 'bg-purple-100',
+    barColor: 'bg-purple-500',
+    textColor: 'text-purple-600',
+    icon: BookOpen,
+    link: ROUTES.aptitude
+  },
+  hr: {
+    label: 'HR Interview',
+    color: 'pink',
+    badgeClass: 'bg-pink-50 text-pink-700 border border-pink-200/60',
+    iconClass: 'text-pink-600',
+    iconBgClass: 'bg-pink-100',
+    barColor: 'bg-pink-500',
+    textColor: 'text-pink-600',
+    icon: Mic,
+    link: ROUTES.hrInterview
+  },
+  technical: {
+    label: 'Technical',
+    color: 'indigo',
+    badgeClass: 'bg-indigo-50 text-indigo-700 border border-indigo-200/60',
+    iconClass: 'text-indigo-600',
+    iconBgClass: 'bg-indigo-100',
+    barColor: 'bg-indigo-500',
+    textColor: 'text-indigo-600',
+    icon: Code2,
+    link: ROUTES.technical
+  },
+  ats: {
+    label: 'ATS Resume',
+    color: 'amber',
+    badgeClass: 'bg-amber-50 text-amber-700 border border-amber-200/60',
+    iconClass: 'text-amber-600',
+    iconBgClass: 'bg-amber-100',
+    barColor: 'bg-amber-500',
+    textColor: 'text-amber-600',
+    icon: FileText,
+    link: ROUTES.atsChecker
+  }
 };
 
 const PERIOD_OPTIONS = [
@@ -60,9 +100,13 @@ function Pagination({ page, total, pageSize, onChange }) {
 }
 
 function ScoreBadge({ score, passed }) {
-  const color = passed ? 'emerald' : score >= 40 ? 'amber' : 'rose';
+  const badgeStyle = passed
+    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+    : score >= 40
+      ? 'bg-amber-50 text-amber-700 border border-amber-200/60'
+      : 'bg-rose-50 text-rose-700 border border-rose-200/60';
   return (
-    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full bg-${color}-100 text-${color}-700`}>
+    <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full inline-flex items-center justify-center ${badgeStyle}`}>
       {score}%
     </span>
   );
@@ -367,15 +411,15 @@ export default function MyProgress() {
                       <div key={key} className="p-4 bg-[#F8F9FE] rounded-2xl space-y-3 border border-[#EAEBF4]">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <Icon className={`w-4 h-4 text-${cfg.color}-600`} />
+                            <Icon className={`w-4 h-4 ${cfg.iconClass || 'text-purple-600'}`} />
                             <span className="text-xs font-bold text-slate-700">{cfg.label}</span>
                           </div>
-                          <span className={`text-xs font-black text-${cfg.color}-600`}>
+                          <span className={`text-xs font-black ${cfg.textColor || 'text-purple-600'}`}>
                             {s.count > 0 ? `${s.avgScore}%` : '—'}
                           </span>
                         </div>
                         <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                          <div className={`h-full bg-${cfg.color}-500 rounded-full`} style={{ width: `${s.avgScore||0}%` }} />
+                          <div className={`h-full ${cfg.barColor || 'bg-purple-500'} rounded-full`} style={{ width: `${s.avgScore||0}%` }} />
                         </div>
                         <div className="text-[11px] text-slate-500 space-y-0.5">
                           {s.count > 0 ? (
@@ -412,16 +456,26 @@ export default function MyProgress() {
                         className="pl-8 pr-3 py-1.5 border border-[#EAEBF4] rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#7C3AED] w-40 bg-[#F8F9FE] text-slate-800"
                       />
                     </div>
-                    <div className="flex items-center gap-1 p-1 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl">
+                    <div className="flex items-center gap-1.5 p-1 bg-[#F8F9FE] border border-[#EAEBF4] rounded-xl">
                       <button
-                        onClick={() => setTimelineModuleFilter('all')}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${timelineModuleFilter === 'all' ? 'bg-[#7C3AED] text-white shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
-                      >All</button>
+                        onClick={() => { setTimelineModuleFilter('all'); setTimelinePage(1); }}
+                        className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition shadow-xs ${
+                          timelineModuleFilter === 'all'
+                            ? 'bg-[#7C3AED] text-white shadow-purple-500/20'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                        }`}
+                      >
+                        All
+                      </button>
                       {Object.entries(MODULE_CONFIG).map(([k, cfg]) => (
                         <button
                           key={k}
-                          onClick={() => setTimelineModuleFilter(k)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${timelineModuleFilter === k ? `bg-${cfg.color}-600 text-white shadow-xs` : 'text-slate-500 hover:text-slate-700'}`}
+                          onClick={() => { setTimelineModuleFilter(k); setTimelinePage(1); }}
+                          className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition shadow-xs ${
+                            timelineModuleFilter === k
+                              ? 'bg-[#7C3AED] text-white shadow-purple-500/20'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                          }`}
                         >
                           {cfg.label}
                         </button>
@@ -473,12 +527,12 @@ export default function MyProgress() {
                               <tr key={idx} className="hover:bg-purple-50/30 transition">
                                 <td className="py-3 px-3 font-bold text-slate-800">
                                   <div className="flex items-center gap-2 min-w-0">
-                                    <Icon className={`w-3.5 h-3.5 text-${cfg.color||'slate'}-500 shrink-0`} />
+                                    <Icon className={`w-3.5 h-3.5 ${cfg.iconClass || 'text-slate-500'} shrink-0`} />
                                     <span className="truncate max-w-[200px]">{item.title}</span>
                                   </div>
                                 </td>
                                 <td className="py-3 px-3">
-                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold bg-${cfg.color||'slate'}-50 text-${cfg.color||'slate'}-700`}>
+                                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${cfg.badgeClass || 'bg-slate-50 text-slate-700'}`}>
                                     {cfg.label || item.module}
                                   </span>
                                 </td>
@@ -486,7 +540,11 @@ export default function MyProgress() {
                                   <ScoreBadge score={item.score} passed={item.passed} />
                                 </td>
                                 <td className="py-3 px-3">
-                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${item.passed ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                    item.passed
+                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                                      : 'bg-rose-50 text-rose-700 border border-rose-200/60'
+                                  }`}>
                                     {item.passed ? 'Passed' : 'Attempted'}
                                   </span>
                                 </td>
@@ -527,8 +585,8 @@ export default function MyProgress() {
                         className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition"
                       >
                         <div className="flex items-center gap-3">
-                          <div className={`w-9 h-9 rounded-2xl bg-${cfg.color}-100 flex items-center justify-center`}>
-                            <Icon className={`w-4 h-4 text-${cfg.color}-600`} />
+                          <div className={`w-9 h-9 rounded-2xl ${cfg.iconBgClass || 'bg-purple-100'} flex items-center justify-center`}>
+                            <Icon className={`w-4 h-4 ${cfg.iconClass || 'text-purple-600'}`} />
                           </div>
                           <div className="text-left">
                             <div className="text-sm font-bold text-slate-800">{cfg.label}</div>
@@ -541,7 +599,7 @@ export default function MyProgress() {
                           </div>
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
-                          {s.count > 0 && <span className={`text-sm font-black text-${cfg.color}-600 font-outfit`}>{s.avgScore}%</span>}
+                          {s.count > 0 && <span className={`text-sm font-black ${cfg.textColor || 'text-purple-600'} font-outfit`}>{s.avgScore}%</span>}
                           <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                         </div>
                       </button>
