@@ -1,436 +1,191 @@
 # 🚀 PlacementAI – AI Resume Builder & Placement Preparation System
 
-PlacementAI is an AI-powered Progressive Web Application (PWA) designed to help students build professional resumes, improve ATS scores, prepare for placement interviews, and track their placement readiness—all from a single platform.
-
-The platform combines AI-assisted resume generation, ATS analysis, aptitude practice, technical preparation, HR interview simulation, and performance analytics to provide a complete placement preparation experience.
-
----
-
-## 📌 Features
-
-### 🤖 AI Resume Builder
-- AI-generated professional resumes
-- Multiple ATS-friendly resume templates
-- Role-based resume generation
-- Resume preview before download
-- PDF download support
-
-### 📄 ATS Resume Analysis
-- Upload resume for ATS evaluation
-- ATS compatibility score
-- Keyword analysis
-- Missing keyword suggestions
-- Resume improvement recommendations
-
-### 🧠 Aptitude Preparation
-- Quantitative Aptitude
-- Logical Reasoning
-- English
-- Stage-wise practice
-- Timed mock tests
-- Automatic scoring
-
-### 💻 Technical Preparation
-- Programming MCQs
-- Coding Questions
-- Java
-- Python
-- C++
-- React
-- Flutter
-- SQL
-- Topic-wise learning
-
-### 🎤 AI HR Interview
-- Common HR Questions
-- AI-generated role-specific questions
-- AI feedback
-- Communication analysis
-- Grammar evaluation
-- Confidence score
-
-### 📊 Dashboard
-- Resume Score
-- ATS Score
-- Aptitude Progress
-- Technical Progress
-- HR Progress
-- Placement Readiness Score
-- Recent Activities
-
-### 👤 User Profile
-- Personal Information
-- Education
-- Skills
-- Projects
-- Certificates
-- Resume Statistics
-
-### 📈 Progress Tracking
-- Weekly Progress
-- Test History
-- Performance Analytics
-- Placement Readiness Graph
-
-### 📱 Progressive Web App
-- Installable on Mobile
-- Responsive Design
-- Fast Loading
-- Cached application shell and previously loaded assets; live account and AI data require a connection
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://placement-ai-nu.vercel.app)
+[![Backend API](https://img.shields.io/badge/Backend%20API-Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://placementai-backend.onrender.com)
+[![GitHub Repository](https://img.shields.io/badge/GitHub-Repository-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/namya0504/PlacementAI)
+[![React](https://img.shields.io/badge/React%2018-Vite-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
+[![Node.js](https://img.shields.io/badge/Node.js-Express-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%26%20Auth-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com/)
 
 ---
 
-# 🛠 Tech Stack
+## 🌟 Overview
 
-## Frontend
+**PlacementAI** is an intelligent, full-stack placement preparation platform engineered to empower students and job seekers throughout their recruitment journey. From crafting ATS-optimized resumes and running real-time coding evaluations to practicing adaptive aptitude tests and AI-powered HR interviews, PlacementAI unifies all placement preparation into a single cohesive ecosystem.
 
-- React.js
-- Vite
-- React Router
-- CSS
-- JavaScript
-
-## Backend
-
-- Node.js
-- Express.js
-
-## Database
-
-- Firebase Firestore
-- Supabase Storage
-
-## Authentication
-
-- Firebase Authentication
-- Email & Password Login
-- Google Authentication
-
-## Storage
-
-- Supabase Storage
-
-## AI Integration
-
-- GrokAI API
-
-## Deployment
-
-- Firebase Hosting
+🔗 **Live Application:** [https://placement-ai-nu.vercel.app](https://placement-ai-nu.vercel.app)  
+📦 **Repository:** [https://github.com/namya0504/PlacementAI](https://github.com/namya0504/PlacementAI)
 
 ---
 
-# 📂 Project Structure
+## 📌 Core Modules & Features
+
+### 📄 1. AI Resume Builder
+- **Plug-in Template Registry:** Multiple ATS-compliant, modern layouts (Minimal, Developer, Executive, Creative, Sidebar).
+- **Interactive Customizer:** Real-time font scaling, accent palette picker, section ordering, and visibility toggles.
+- **A4 Vector PDF Export:** High-fidelity print-to-PDF engine with selectable vector text, clickable links, and precise pagination.
+- **AI Bullet Point Polish:** Instant role-specific bullet enhancement and grammar corrections powered by AI.
+
+### 🎯 2. ATS Resume Analyzer
+- **Direct PDF/DOCX Parsing:** Client and backend parsing extracting structured skills, experience, and education.
+- **Job Description Matcher:** Paste target job descriptions to analyze keyword match rate and ATS compatibility score (0–100%).
+- **Actionable Gap Analysis:** Highlights missing industry keywords, formatting errors, and actionable recommendations.
+
+### 💻 3. Technical Preparation Workspace
+- **LeetCode-Style Split IDE:** Problem description tab, sample test cases tab, and real-time execution results console.
+- **Deterministic Code Runner:** Native multi-language evaluation engine (Python 3 and Node.js VM) with sub-second execution.
+- **AI Verification Fallback:** Intelligent evaluation for complex or non-deterministic test cases with detailed failure traces.
+- **Progression Logic:** Unlocks next challenges dynamically upon passing all test cases.
+
+### 🧠 4. Aptitude & Reasoning Tests
+- **Category-Wise Question Bank:** Quantitative Aptitude, Logical Reasoning, and Verbal Ability.
+- **Timed Mock Tests:** Exam-simulated timed tests with instant scoring and detailed step-by-step explanations.
+- **Adaptive Difficulty:** Dynamic question sets calibrated to target student proficiency.
+
+### 🎤 5. AI HR Mock Interviews
+- **Real-Time Interactive Chat & Speech:** Interactive interview simulations with customizable behavioral and situational tracks.
+- **Speech & Sentiment Analysis:** Evaluates answer structure (STAR method), grammar, vocabulary, clarity, and confidence.
+- **Comprehensive Interview Reports:** Detailed feedback reports with strengths, weaknesses, and improvement roadmaps.
+
+### 🏢 6. Company-Specific Preparation
+- **Top Tech Curations:** Targeted preparation tracks tailored for leading tech companies (FAANG, Tier-1 Product & Service giants).
+- **Role Alignment:** Synchronized preparation tracks aligned with student target roles (Software Developer, Data Scientist, Full Stack, DevOps).
+
+### 📊 7. Placement Readiness Analytics
+- **Live Readiness Score:** Holistic readiness algorithm weighing resume quality, aptitude test history, coding accuracy, and mock interview performance.
+- **Streak & Activity Heatmap:** Real-time tracking of student preparation streaks and daily milestones.
+
+---
+
+## 🛠 Tech Stack
+
+| Layer | Technologies |
+|---|---|
+| **Frontend** | React 18, Vite, Tailwind CSS, Lucide React, Framer Motion, HTML2PDF |
+| **Backend** | Node.js, Express.js, JWT, Bcrypt, Multer, Helmet, CORS |
+| **Database & Auth** | Google Firebase Firestore, Firebase Authentication, Firebase Admin SDK |
+| **File Storage** | Supabase Storage & Google Cloud Storage |
+| **AI Engines** | Groq AI (`openai/gpt-oss-120b`, `openai/gpt-oss-20b`), xAI Grok API |
+| **Deployment** | Vercel (Frontend Client), Render (Express Backend API) |
+
+---
+
+## 📂 Project Architecture
 
 ```
 PlacementAI/
-│
 ├── backend/
-│   ├── config/
-│   ├── controllers/
-│   ├── firebase/
-│   ├── middlewares/
-│   ├── routes/
-│   ├── services/
-│   ├── utils/
-│   ├── .env
-│   ├── package.json
-│   └── server.js
+│   ├── config/            # Environment and AI configuration
+│   ├── controllers/       # Route controllers (Auth, Profile, Technical, HR, ATS, Resume)
+│   ├── firebase/          # Firebase Admin SDK & Firestore helper
+│   ├── middlewares/       # JWT Auth, CSRF, rate limiters, file upload
+│   ├── python/            # Python speech analysis & resume extraction services
+│   ├── routes/            # REST API endpoint definitions
+│   ├── services/          # Groq AI, code runner, email, and storage services
+│   └── server.js          # Express server entry point
 │
-├── public/
+├── public/                # Static assets, PWA manifest, service worker
 │
 ├── src/
-│   ├── assets/
-│   ├── components/
-│   ├── context/
-│   ├── pages/
-│   ├── routes/
-│   ├── services/
-│   ├── App.jsx
-│   ├── main.jsx
-│   └── index.css
+│   ├── assets/            # Client graphics and brand assets
+│   ├── components/        # Reusable UI components (Navbar, Footer, Modals)
+│   ├── context/           # AuthContext & global state providers
+│   ├── features/          # Domain-specific feature modules (Resume, Interview)
+│   ├── pages/             # Route pages (Dashboard, Technical, ATS, Profile, Login, Signup)
+│   ├── routes/            # React Router paths & protected route guards
+│   ├── services/          # Client API caller layer & Firebase client SDK
+│   ├── App.jsx            # Application root
+│   └── main.jsx           # Vite client mount point
 │
-├── firebase.json
-├── firestore.rules
-├── package.json
-└── README.md
+├── vercel.json            # Vercel deployment & cache-control headers
+├── package.json           # Frontend dependencies and build scripts
+└── README.md              # Project documentation
 ```
 
 ---
 
-# 📄 Main Pages
+## 🚀 Getting Started
 
-- Home
-- About
-- Contact
-- Login
-- Signup
-- Dashboard
-- Resume Builder
-- Resume Templates
-- ATS Checker
-- Aptitude
-- Technical
-- HR Interview
-- Company Preparation
-- My Progress
-- Profile
-- Settings
+### Prerequisites
+- **Node.js** (v18.x or v20.x+)
+- **npm** or **pnpm**
+- **Git**
+- Firebase & Supabase accounts (for database, authentication, and file storage)
 
----
-
-# 🔥 Firebase Services Used
-
-- Firebase Authentication
-- Firestore Database
-- Firebase Storage
-- Firebase Hosting
-
----
-
-# 📁 Firestore Collections
-
-```
-users
-profiles
-resumes
-skills
-projects
-certificates
-mock_tests
-technical_practice
-hr_interviews
-placement_readiness
-download_history
-```
-
----
-
-# 🤖 AI Features
-
-- AI Resume Generation
-- AI Professional Summary
-- AI Career Objective
-- AI Resume Improvement Suggestions
-- AI ATS Analysis
-- AI HR Interview Questions
-- AI HR Feedback
-- AI Placement Readiness Evaluation
-
----
-
-# 🚀 Installation
-
-## Clone Repository
-
+### 1. Clone the Repository
 ```bash
-git clone https://github.com/your-username/placementai.git
+git clone https://github.com/namya0504/PlacementAI.git
+cd PlacementAI
 ```
 
----
+### 2. Configure Environment Variables
 
-## Install Frontend Dependencies
-
-```bash
-npm install
+#### Frontend `.env` (Project Root)
+```env
+VITE_API_BASE_URL=http://localhost:5000
+VITE_FIREBASE_API_KEY=your_firebase_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
 ```
 
----
+#### Backend `.env` (`backend/.env`)
+```env
+PORT=5000
+NODE_ENV=development
+JWT_SECRET=your_super_secret_jwt_key
 
-## Install Backend Dependencies
+# Firebase Admin SDK Credentials
+FIREBASE_PROJECT_ID=your_project_id
+FIREBASE_CLIENT_EMAIL=your_firebase_admin_client_email
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 
+# AI Service Keys (Groq / xAI)
+XAI_API_KEY=your_groq_or_xai_api_key
+GROK_API_KEY=your_groq_or_xai_api_key
+
+# Supabase Storage (Optional)
+SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_key
+```
+
+### 3. Install Dependencies & Run
+
+#### Terminal 1 — Backend:
 ```bash
 cd backend
 npm install
-```
-
----
-
-## Start Frontend
-
-```bash
 npm run dev
 ```
 
----
-
-## Start Backend
-
+#### Terminal 2 — Frontend:
 ```bash
-cd backend
-npm start
+npm install
+npm run dev
 ```
 
----
-
-# 🔑 Environment Variables
-
-Create a `.env` file inside the backend folder.
-
-```env
-PORT=5000
-
-FIREBASE_API_KEY=
-FIREBASE_AUTH_DOMAIN=
-FIREBASE_PROJECT_ID=
-FIREBASE_STORAGE_BUCKET=
-FIREBASE_MESSAGING_SENDER_ID=
-FIREBASE_APP_ID=
-
-GEMINI_API_KEY=
-
-JWT_SECRET=
-```
+Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
-# 📸 Screens
+## 🔒 Security & Data Integrity
 
-- Landing Page
-- Authentication
-- Dashboard
-- Resume Builder
-- Resume Preview
-- ATS Analysis
-- Aptitude Test
-- Technical Practice
-- HR Interview
-- Company Preparation
-- Progress Analytics
-- User Profile
-- Settings
+- **Dual-Layer Authentication:** Seamlessly integrates Firebase Authentication with backend JWT cookie tokens for protected operations.
+- **CSRF & Rate Limiting:** Enforces strict anti-CSRF token verification and tiered rate limiters on AI and auth routes.
+- **Sanitized AI Prompts:** Rigorous input sanitization prevents prompt injections and delimiter breakouts.
+- **Deterministic Sandboxing:** Coding challenge executions run within isolated memory environments with execution timeouts.
 
 ---
 
-# 🔒 Security
+## 👥 Contributors
 
-- Firebase Authentication
-- Protected Routes
-- JWT Authentication
-- Firestore Security Rules
-- Secure File Storage
-- Input Validation
+- **Diya / Namya** ([@diya2405](https://github.com/diya2405) / [@namya0504](https://github.com/namya0504))
+- **PlacementAI Development Team**
 
 ---
 
-# 🎯 Project Objectives
+## 📄 License
 
-- Help students create professional resumes.
-- Improve resume ATS compatibility.
-- Prepare students for aptitude and technical rounds.
-- Simulate AI-based HR interviews.
-- Track placement readiness using analytics.
-- Provide an all-in-one placement preparation platform.
-
----
-
-# 🌟 Future Enhancements
-
-- Voice-based AI HR Interview
-- AI Resume Optimization
-- Real-time Coding Compiler
-- Company-wise Placement Roadmaps
-- AI Career Recommendations
-- Interview Scheduling
-- Push Notifications
-- Multi-language Support
-- Dark Mode
-
----
-
-# 👨‍💻 Developed By
-
-**PlacementAI Development Team**
-
-Bachelor of Engineering (Information Technology)
-
-Minor Project
-
----
-
-# 📄 License
-
-This project is developed for educational purposes as a Minor Project.
-
----
-
-# ⭐ Acknowledgements
-
-- React
-- Vite
-- Firebase
-- Google Gemini API
-- Express.js
-- Node.js
-- Open Source Community
-
----
-
-## 🎨 How to Add a New Resume Template
-
-Adding a new resume template to PlacementAI takes just **two simple steps** thanks to the plug-in registry architecture:
-
-### 1. Create the Layout Component
-Create a layout component in `src/features/resume/templates/layouts/` (or reuse an existing layout family). Every template component receives two standardized props:
-- `data`: The resume data object (`personalInfo`, `role`, `summary`, `education`, `skills`, `projects`, `experience`, `certificates`).
-- `options`: User customization tokens (`accentColor`, `spacing`, `fontScale`, `hiddenSections`, `sectionOrder`).
-
-```jsx
-import React from 'react';
-import { resolveTokens } from '../tokens';
-import { SectionTitle, ContactRow, SkillList, ExperienceItem, ProjectItem, EducationItem } from '../components/SharedComponents';
-
-export function MyCustomLayout({ data = {}, options = {} }) {
-  const { theme, spacing, fonts, hiddenSections } = resolveTokens('navy', options);
-  const { personalInfo = {}, role = '', experience = [], education = [], skills = [], projects = [] } = data;
-
-  return (
-    <div className={`w-full bg-white text-slate-800 ${spacing.pagePadding}`}>
-      {/* Header */}
-      <h1 className={`${fonts.name} font-bold`}>{personalInfo.fullName}</h1>
-      <p style={{ color: theme.accent }}>{role}</p>
-      <ContactRow personal={personalInfo} accentColor={theme.accent} />
-
-      {/* Sections */}
-      {!hiddenSections.includes('experience') && experience.length > 0 && (
-        <div>
-          <SectionTitle title="Experience" accentColor={theme.accent} />
-          {experience.map(exp => (
-            <ExperienceItem key={exp.id} exp={exp} accentColor={theme.accent} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-```
-
-### 2. Register Entry in `TEMPLATES_REGISTRY`
-Open `src/features/resume/templates/index.js` and add an entry:
-
-```javascript
-{
-  id: 'my_custom_template',
-  name: 'My Custom Template',
-  description: 'Clean modern layout with customized accent highlights.',
-  category: 'Creative', // 'ATS-Friendly' | 'Fresher' | 'Developer' | 'Sidebar' | 'Banner' | 'Minimal' | 'Creative'
-  tags: ['Creative', 'Two-column'],
-  atsFriendly: true,
-  columns: 2,
-  supportsPhoto: true,
-  accentPresets: ['#1e3a8a', '#0f766e', '#be123c', '#7c3aed'],
-  component: MyCustomLayout
-}
-```
-
-That's it! The new template will automatically:
-- Appear in the Canva-style Template Picker with a live scaled preview thumbnail.
-- Support interactive color dots and the full preview modal.
-- Be selectable in Step 1 and switchable in the Step 3 Customizer Panel without losing user data.
-- Print with exact vector selectable text and clickable hyperlinks.
-- Fallback gracefully to default if an unknown ID is provided.
-
----
-
-**PlacementAI — Build Smart. Prepare Better. Get Hired.**
-
+This project is licensed under the [MIT License](LICENSE).
