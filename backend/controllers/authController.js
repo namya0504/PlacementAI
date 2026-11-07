@@ -557,6 +557,26 @@ export const loginUser = async (req, res, next) => {
       (user.targetRole?.trim() || user.role?.trim())
     );
 
+    // Sync emailVerified from Firebase Auth → Firestore if currently marked unverified
+    let verificationLink = undefined;
+    if (!user.emailVerified) {
+      try {
+        const { auth } = await import('../firebase/firebaseAdmin.js');
+        if (auth) {
+          const fbUser = await auth.getUser(user.userId).catch(() => null);
+          if (fbUser?.emailVerified) {
+            await FirestoreHelper.setDoc('users', user.userId, { emailVerified: true }, true);
+            user.emailVerified = true;
+            console.log(`✅ Email verified synced from Firebase Auth for user ${user.userId}`);
+          } else if (fbUser) {
+            verificationLink = await auth.generateEmailVerificationLink(user.email).catch(() => null);
+          }
+        }
+      } catch (syncErr) {
+        console.warn('Firebase email verified sync notice in login:', syncErr.message);
+      }
+    }
+
     const userResponse = {
       uid: user.userId,
       name: user.name,
