@@ -24,6 +24,7 @@ import githubRoutes from './routes/githubRoutes.js';
 import progressRoutes from './routes/progressRoutes.js';
 
 const app = express();
+app.set('trust proxy', 1);
 
 // Security & Middleware Configuration: parse comma-separated FRONTEND_URL and include localhost dev origins
 const configuredOrigins = (process.env.FRONTEND_URL || '')

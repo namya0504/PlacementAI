@@ -48,7 +48,7 @@ router.post('/forgot-password', authLimiter, forgotPassword);
 router.post('/resend-verification', authLimiter, optionalProtectRoute, resendVerificationEmail);
 router.post('/complete-profile', protectRoute, completeProfile);
 router.post('/verify-email', protectRoute, confirmEmailVerification);
-router.post('/logout', logoutUser);
+router.post('/logout', optionalProtectRoute, logoutUser);
 router.get('/me', protectRoute, getCurrentUser);
 router.post('/deactivate', protectRoute, deactivateAccount);
 

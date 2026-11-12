@@ -7,12 +7,13 @@ import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import { calculatePlacementReadiness } from '../utils/scoring.js';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../services/emailService.js';
 import { getFileUrl } from '../services/storageService.js';
+import { revokeToken } from '../middlewares/authMiddleware.js';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9\s]).{8,}$/;
 
 const generateToken = (userId, email, role) => {
-  return jwt.sign({ userId, email, role }, config.jwtSecret, { expiresIn: '7d' });
+  return jwt.sign({ userId, email, role }, config.jwtSecret, { algorithm: 'HS256', expiresIn: '7d' });
 };
 
 const setAuthCookie = (res, token) => {
@@ -23,6 +24,38 @@ const setAuthCookie = (res, token) => {
     sameSite: isProd ? 'none' : 'lax', // 'none' allows cross-site cookie on Vercel→Render
     maxAge: 7 * 24 * 60 * 60 * 1000   // 7 days
   });
+};
+
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
+/**
+ * Records an immutable security audit event into Firestore admin_audit_logs collection.
+ * Non-blocking: logs asynchronously so main request is never slowed or failed.
+ */
+export const recordAuthAuditLog = async ({
+  userId = null,
+  email = '',
+  action,
+  ip = '',
+  userAgent = '',
+  details = {}
+}) => {
+  try {
+    const logId = 'log_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+    await FirestoreHelper.setDoc('admin_audit_logs', logId, {
+      logId,
+      userId: userId || null,
+      email: email ? String(email).toLowerCase() : null,
+      action,
+      ip: ip || 'unknown',
+      userAgent: (userAgent || '').slice(0, 255),
+      details: details || {},
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    console.warn('Security audit log notice:', err?.message);
+  }
 };
 
 export const getCleanFirebaseApiKey = () => {
@@ -428,13 +461,52 @@ export const registerUser = async (req, res, next) => {
 export const loginUser = async (req, res, next) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) {
+    const clientIp = (req.headers['x-forwarded-for']?.split(',')[0] || req.ip || req.socket?.remoteAddress || 'unknown').trim();
+    const userAgent = req.headers['user-agent'] || '';
+
+    if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
       return sendError(res, 'Email and password are required', 400);
     }
 
+    if (email.length > 128 || password.length > 128) {
+      return sendError(res, 'Credentials exceed maximum permitted length', 400);
+    }
+
     const sanitizedEmail = email.trim().toLowerCase();
+    if (!EMAIL_REGEX.test(sanitizedEmail)) {
+      return sendError(res, 'Please provide a valid email format', 400);
+    }
+
     const users = await FirestoreHelper.queryCollection('users', 'email', sanitizedEmail);
     let user = users[0];
+
+    // Security Rule 1: Account Lockout Enforcement
+    // Check if account is temporarily locked before verifying password
+    if (user && user.lockUntil) {
+      const lockExpiry = new Date(user.lockUntil).getTime();
+      const now = Date.now();
+      if (lockExpiry > now) {
+        const remainingMs = lockExpiry - now;
+        const remainingMinutes = Math.max(1, Math.ceil(remainingMs / 60000));
+        const remainingSeconds = Math.ceil(remainingMs / 1000);
+        await recordAuthAuditLog({
+          userId: user.userId,
+          email: sanitizedEmail,
+          action: 'LOGIN_BLOCKED_ACCOUNT_LOCKED',
+          ip: clientIp,
+          userAgent,
+          details: { remainingSeconds }
+        });
+        return sendError(
+          res,
+          `Account is temporarily locked for security due to multiple failed login attempts. Please try again in ${remainingMinutes} minute${remainingMinutes !== 1 ? 's' : ''} or reset your password.`,
+          429,
+          null,
+          'ACCOUNT_LOCKED',
+          { lockUntil: user.lockUntil, remainingSeconds }
+        );
+      }
+    }
 
     if (!user) {
       // Check if account exists in Firebase Auth
@@ -459,6 +531,10 @@ export const loginUser = async (req, res, next) => {
           passingYear: '',
           photoURL: avatar,
           emailVerified: true,
+          failedLoginAttempts: 0,
+          lockUntil: null,
+          lastLoginAt: new Date().toISOString(),
+          lastLoginIp: clientIp,
           onboarding: {
             status: 'not_started',
             currentStep: 1,
@@ -487,14 +563,37 @@ export const loginUser = async (req, res, next) => {
           skills: []
         });
 
+        await recordAuthAuditLog({
+          userId,
+          email: sanitizedEmail,
+          action: 'LOGIN_SUCCESS',
+          ip: clientIp,
+          userAgent,
+          details: { method: 'firebase_autoprovision' }
+        });
+
         console.log(`✅ Auto-provisioned Firestore profile from Firebase Auth for ${sanitizedEmail}`);
       } else {
+        await recordAuthAuditLog({
+          email: sanitizedEmail,
+          action: 'LOGIN_FAILURE',
+          ip: clientIp,
+          userAgent,
+          details: { reason: 'EMAIL_NOT_FOUND' }
+        });
         return sendError(res, 'Invalid email or password', 401, null, 'EMAIL_NOT_FOUND');
       }
     }
 
-    // Deactivated account — block login
+    // Security Rule 2: Deactivated account protection
     if (user.deactivated) {
+      await recordAuthAuditLog({
+        userId: user.userId,
+        email: sanitizedEmail,
+        action: 'LOGIN_BLOCKED_DEACTIVATED',
+        ip: clientIp,
+        userAgent
+      });
       const deactivatedAt = user.deactivatedAt ? new Date(user.deactivatedAt) : null;
       const daysSince = deactivatedAt ? Math.floor((Date.now() - deactivatedAt.getTime()) / (1000 * 60 * 60 * 24)) : 999;
       const daysRemaining = Math.max(0, 30 - daysSince);
@@ -504,6 +603,7 @@ export const loginUser = async (req, res, next) => {
       return sendError(res, message, 403, null, 'ACCOUNT_DEACTIVATED');
     }
 
+    // Security Rule 3: Password comparison & failed attempts counter
     let match = await bcrypt.compare(password, user.password || '');
     if (!match) {
       // User may have reset their password through Firebase Auth! Verify with Firebase Identity Toolkit
@@ -523,8 +623,75 @@ export const loginUser = async (req, res, next) => {
     }
 
     if (!match) {
-      return sendError(res, 'Invalid email or password', 401, null, 'WRONG_PASSWORD');
+      const currentAttempts = (Number(user.failedLoginAttempts) || 0) + 1;
+      const isLockingNow = currentAttempts >= MAX_LOGIN_ATTEMPTS;
+      const lockUntil = isLockingNow ? new Date(Date.now() + LOCKOUT_DURATION_MS).toISOString() : null;
+      const remainingAttempts = Math.max(0, MAX_LOGIN_ATTEMPTS - currentAttempts);
+
+      await FirestoreHelper.setDoc('users', user.userId, {
+        failedLoginAttempts: isLockingNow ? MAX_LOGIN_ATTEMPTS : currentAttempts,
+        lastFailedLoginAt: new Date().toISOString(),
+        lastFailedIp: clientIp,
+        ...(lockUntil ? { lockUntil } : {})
+      }, true);
+
+      if (isLockingNow) {
+        await recordAuthAuditLog({
+          userId: user.userId,
+          email: sanitizedEmail,
+          action: 'ACCOUNT_LOCKED',
+          ip: clientIp,
+          userAgent,
+          details: { attempts: currentAttempts, lockDurationMinutes: 15 }
+        });
+        return sendError(
+          res,
+          'Account has been temporarily locked for 15 minutes due to 5 consecutive failed login attempts. Please reset your password or try again later.',
+          429,
+          null,
+          'ACCOUNT_LOCKED',
+          { lockUntil, remainingSeconds: 15 * 60 }
+        );
+      }
+
+      await recordAuthAuditLog({
+        userId: user.userId,
+        email: sanitizedEmail,
+        action: 'LOGIN_FAILURE',
+        ip: clientIp,
+        userAgent,
+        details: { attempts: currentAttempts, remainingAttempts }
+      });
+
+      return sendError(
+        res,
+        `Invalid email or password. ${remainingAttempts} attempt${remainingAttempts !== 1 ? 's' : ''} remaining before account lockout.`,
+        401,
+        null,
+        'WRONG_PASSWORD',
+        { remainingAttempts }
+      );
     }
+
+    // Security Rule 4: Successful login clears lockout and resets failed attempts
+    const loginUpdates = {
+      failedLoginAttempts: 0,
+      lockUntil: null,
+      lastLoginAt: new Date().toISOString(),
+      lastLoginIp: clientIp
+    };
+    await FirestoreHelper.setDoc('users', user.userId, loginUpdates, true);
+    user.failedLoginAttempts = 0;
+    user.lockUntil = null;
+
+    await recordAuthAuditLog({
+      userId: user.userId,
+      email: sanitizedEmail,
+      action: 'LOGIN_SUCCESS',
+      ip: clientIp,
+      userAgent,
+      details: { method: 'password' }
+    });
 
     const token = generateToken(user.userId, user.email, user.role);
     setAuthCookie(res, token);
@@ -607,6 +774,8 @@ export const loginUser = async (req, res, next) => {
 export const googleLogin = async (req, res, next) => {
   try {
     const { idToken, name, photoURL } = req.body;
+    const clientIp = (req.headers['x-forwarded-for']?.split(',')[0] || req.ip || req.socket?.remoteAddress || 'unknown').trim();
+    const userAgent = req.headers['user-agent'] || '';
     const { auth, isMockFirebase } = await import('../firebase/firebaseAdmin.js');
 
     let userEmail = null;
@@ -730,7 +899,24 @@ export const googleLogin = async (req, res, next) => {
         ...initialStats
       });
     } else {
-      const updates = {};
+      // Deactivated account protection
+      if (user.deactivated) {
+        await recordAuthAuditLog({
+          userId: user.userId,
+          email: userEmail,
+          action: 'LOGIN_BLOCKED_DEACTIVATED',
+          ip: clientIp,
+          userAgent
+        });
+        return sendError(res, 'This account has been deactivated.', 403, null, 'ACCOUNT_DEACTIVATED');
+      }
+
+      const updates = {
+        failedLoginAttempts: 0,
+        lockUntil: null,
+        lastLoginAt: new Date().toISOString(),
+        lastLoginIp: clientIp
+      };
       if (avatar && (!user.photoURL || user.photoURL.includes('dicebear'))) {
         updates.photoURL = avatar;
         user.photoURL = avatar;
@@ -739,10 +925,17 @@ export const googleLogin = async (req, res, next) => {
         updates.name = displayName;
         user.name = displayName;
       }
-      if (Object.keys(updates).length > 0) {
-        await FirestoreHelper.setDoc('users', user.userId, updates, true);
-      }
+      await FirestoreHelper.setDoc('users', user.userId, updates, true);
     }
+
+    await recordAuthAuditLog({
+      userId: user.userId,
+      email: user.email,
+      action: 'GOOGLE_LOGIN_SUCCESS',
+      ip: clientIp,
+      userAgent,
+      details: { isNewUser }
+    });
 
     const token = generateToken(user.userId, user.email, user.role);
     setAuthCookie(res, token);
@@ -820,6 +1013,22 @@ export const forgotPassword = async (req, res, next) => {
       return sendSuccess(res, { email: sanitizedEmail }, genericMessage);
     }
 
+    // Reset lockout counters on password reset request
+    await FirestoreHelper.setDoc('users', users[0].userId, {
+      lockUntil: null,
+      failedLoginAttempts: 0
+    }, true);
+
+    const clientIp = (req.headers['x-forwarded-for']?.split(',')[0] || req.ip || req.socket?.remoteAddress || 'unknown').trim();
+    const userAgent = req.headers['user-agent'] || '';
+    await recordAuthAuditLog({
+      userId: users[0].userId,
+      email: sanitizedEmail,
+      action: 'PASSWORD_RESET_REQUESTED',
+      ip: clientIp,
+      userAgent
+    });
+
     const { auth } = await import('../firebase/firebaseAdmin.js');
     let resetLink = null;
     if (auth) {
@@ -883,6 +1092,24 @@ export const forgotPassword = async (req, res, next) => {
 
 export const logoutUser = async (req, res, next) => {
   try {
+    const clientIp = (req.headers['x-forwarded-for']?.split(',')[0] || req.ip || req.socket?.remoteAddress || 'unknown').trim();
+    const userAgent = req.headers['user-agent'] || '';
+
+    const tokenToRevoke = req.token || req.headers.authorization?.replace(/^Bearer\s+/i, '') || req.cookies?.token;
+    if (tokenToRevoke) {
+      revokeToken(tokenToRevoke);
+    }
+
+    if (req.user?.userId || req.user?.email) {
+      await recordAuthAuditLog({
+        userId: req.user?.userId || null,
+        email: req.user?.email || null,
+        action: 'LOGOUT',
+        ip: clientIp,
+        userAgent
+      });
+    }
+
     const isProd = process.env.NODE_ENV === 'production' || Boolean(process.env.RENDER || process.env.VERCEL || process.env.RAILWAY_ENVIRONMENT);
     const cookieOptions = {
       path: '/',

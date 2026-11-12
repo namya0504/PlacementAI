@@ -3,6 +3,34 @@ import { config } from '../config/env.js';
 import { auth } from '../firebase/firebaseAdmin.js';
 import { hasValidCsrfToken, isSafeCsrfMethod } from './csrfMiddleware.js';
 
+const REVOKED_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const revokedTokens = new Map();
+
+/**
+ * Adds an authenticated JWT or ID token to the server revocation list until its expiry.
+ */
+export const revokeToken = (token) => {
+  if (!token || typeof token !== 'string') return;
+  const now = Date.now();
+  if (revokedTokens.size > 5000) {
+    for (const [key, exp] of revokedTokens.entries()) {
+      if (exp <= now) revokedTokens.delete(key);
+    }
+  }
+  revokedTokens.set(token, now + REVOKED_TOKEN_TTL_MS);
+};
+
+export const isTokenRevoked = (token) => {
+  if (!token) return false;
+  const exp = revokedTokens.get(token);
+  if (!exp) return false;
+  if (Date.now() > exp) {
+    revokedTokens.delete(token);
+    return false;
+  }
+  return true;
+};
+
 export const protectRoute = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -24,9 +52,13 @@ export const protectRoute = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Unauthorized: No token provided' });
     }
 
-    // 1. Verify custom JWT
+    if (isTokenRevoked(token)) {
+      return res.status(401).json({ success: false, message: 'Unauthorized: Session has been logged out' });
+    }
+
+    // 1. Verify custom JWT (explicit HS256 algorithm enforcement prevents alg:none attacks)
     try {
-      const decoded = jwt.verify(token, config.jwtSecret);
+      const decoded = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
       req.user = decoded;
       req.token = token;
       return next();

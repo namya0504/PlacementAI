@@ -216,6 +216,7 @@ export const apiCall = async (endpoint, method = 'GET', body = null, isFormData 
         : `Request failed with status ${response.status}`;
       const apiError = new Error(result?.message || defaultMessage);
       if (result?.errorCode) apiError.errorCode = result.errorCode;
+      if (result?.data) apiError.data = result.data;
       throw apiError;
     }
 

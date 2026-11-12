@@ -11,7 +11,9 @@ import {
   GraduationCap,
   Sparkles,
   Laptop,
-  BookOpen
+  BookOpen,
+  ShieldAlert,
+  KeyRound
 } from 'lucide-react';
 import { FaGoogle } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
@@ -29,16 +31,40 @@ export default function Login() {
   const [infoMessage, setInfoMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
+  const [lockRemainingSeconds, setLockRemainingSeconds] = useState(0);
   const { currentUser, loading: authLoading, login, loginWithSocial } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
 
-  // Helper to resolve the correct destination after login
+  useEffect(() => {
+    if (lockRemainingSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setLockRemainingSeconds(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setError('');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lockRemainingSeconds]);
+
+  const formatLockoutTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}m ${secs < 10 ? '0' : ''}${secs}s`;
+  };
+
+  // Helper to resolve the correct destination after login (with open-redirect protection)
   const getRedirectPath = (userObj) => {
-    const fromPath = location.state?.from?.pathname
+    const rawFrom = location.state?.from?.pathname
       ? `${location.state.from.pathname}${location.state.from.search || ''}`
       : null;
+    const isSafeInternalPath = typeof rawFrom === 'string' && rawFrom.startsWith('/') && !rawFrom.startsWith('//') && !rawFrom.includes('://');
+    const fromPath = isSafeInternalPath ? rawFrom : null;
 
     if (userObj?.emailVerified === false) {
       return ROUTES.verifyEmail;
@@ -78,6 +104,8 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (lockRemainingSeconds > 0) return;
+
     setError('');
     setInfoMessage('');
 
@@ -97,10 +125,14 @@ export default function Login() {
       const dest = getRedirectPath(user);
       navigate(dest, { replace: true });
     } catch (err) {
-      if (err.errorCode === 'EMAIL_NOT_FOUND') {
-        setError('No account found with this email. Check for typos or sign up for a new account.');
+      if (err.errorCode === 'ACCOUNT_LOCKED') {
+        const secs = err.data?.remainingSeconds || 900;
+        setLockRemainingSeconds(secs);
+        setError(err.message || 'Account temporarily locked due to multiple failed attempts.');
       } else if (err.errorCode === 'WRONG_PASSWORD') {
-        setError("Incorrect password. Try again, or use 'Forgot Password' to reset it.");
+        setError(err.message || "Invalid email or password. Please verify your credentials.");
+      } else if (err.errorCode === 'EMAIL_NOT_FOUND') {
+        setError('Invalid email or password. Please verify your credentials or register for an account.');
       } else if (err.errorCode === 'ACCOUNT_DEACTIVATED') {
         setError(err.message || 'This account has been deactivated.');
       } else {
@@ -224,9 +256,35 @@ export default function Login() {
           </div>
 
           {error && (
-            <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
-              <span>{error}</span>
+            <div className={`p-4 rounded-2xl border text-xs flex items-start gap-3 ${
+              lockRemainingSeconds > 0
+                ? 'bg-amber-50/90 border-amber-300 text-amber-900 shadow-sm'
+                : 'bg-red-50 border-red-200 text-red-700'
+            }`}>
+              {lockRemainingSeconds > 0 ? (
+                <ShieldAlert className="w-5 h-5 shrink-0 text-amber-600 mt-0.5" />
+              ) : (
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-600 mt-0.5" />
+              )}
+              <div className="flex-1 space-y-1">
+                <div className="font-bold">
+                  {lockRemainingSeconds > 0 ? 'Account Locked for Security' : 'Login Failed'}
+                </div>
+                <p className="leading-relaxed">{error}</p>
+                {lockRemainingSeconds > 0 && (
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={handleForgotPassword}
+                      disabled={forgotLoading}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] shadow-sm transition disabled:opacity-50"
+                    >
+                      <KeyRound className="w-3.5 h-3.5" />
+                      {forgotLoading ? 'Sending Instructions...' : 'Reset Password Immediately'}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -250,7 +308,9 @@ export default function Login() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent text-sm transition"
+                  maxLength={128}
+                  disabled={lockRemainingSeconds > 0}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent text-sm transition disabled:bg-slate-100 disabled:cursor-not-allowed"
                   placeholder="name@college.edu or candidate@domain.com"
                   required
                 />
@@ -268,7 +328,9 @@ export default function Login() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent text-sm transition"
+                  maxLength={128}
+                  disabled={lockRemainingSeconds > 0}
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent text-sm transition disabled:bg-slate-100 disabled:cursor-not-allowed"
                   placeholder="Enter your password"
                   required
                 />
@@ -290,6 +352,7 @@ export default function Login() {
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
+                  disabled={lockRemainingSeconds > 0}
                   className="w-4 h-4 text-[#7C3AED] border-slate-300 rounded focus:ring-[#7C3AED]"
                 />
                 <span>Remember me</span>
@@ -304,14 +367,23 @@ export default function Login() {
               </button>
             </div>
 
-            {/* Solid Purple Login Button */}
+            {/* Solid Purple Login Button with Security Lockout indicator */}
             <button
               type="submit"
-              disabled={loading}
-              className="w-full py-3 rounded-xl bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-sm shadow-md shadow-purple-500/20 hover:shadow-lg hover:shadow-purple-500/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              disabled={loading || lockRemainingSeconds > 0}
+              className={`w-full py-3 rounded-xl text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 ${
+                lockRemainingSeconds > 0
+                  ? 'bg-slate-400 cursor-not-allowed shadow-none'
+                  : 'bg-[#7C3AED] hover:bg-[#6D28D9] shadow-purple-500/20 hover:shadow-lg hover:shadow-purple-500/30 disabled:opacity-50'
+              }`}
             >
               {loading ? (
                 'Logging in...'
+              ) : lockRemainingSeconds > 0 ? (
+                <>
+                  <ShieldAlert className="w-4 h-4" />
+                  <span>Temporarily Locked ({formatLockoutTime(lockRemainingSeconds)})</span>
+                </>
               ) : (
                 <>
                   <span>Login</span>
