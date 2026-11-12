@@ -729,6 +729,7 @@ export default function Onboarding() {
                   onChange={(e) => setTargetRole(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-600 outline-none"
                 >
+                  <option value="">Select Target Role</option>
                   {TARGET_ROLES.map((r) => (
                     <option key={r} value={r}>{r}</option>
                   ))}

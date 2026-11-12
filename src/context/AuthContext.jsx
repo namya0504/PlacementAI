@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { API, clearApiCache, getStoredToken, setStoredToken, clearStoredToken } from '../services/api';
+import { API, clearApiCache, getStoredToken, setStoredToken, clearStoredToken, warmUpBackend } from '../services/api';
 
 const AuthContext = createContext();
 const LEGACY_AUTH_CACHE_KEY = 'placement_ai_user';
@@ -46,6 +46,14 @@ export const AuthProvider = ({ children }) => {
               token = fbIdToken;
             }
           } catch {}
+        }
+
+        const isLocalDev = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+        if (!token && !authService.clientAuth?.currentUser && !redirectResult?.success && !isLocalDev) {
+          // Wake Render backend in background without stalling public pages behind /auth/me cold-start timeouts
+          warmUpBackend();
+          if (active) setCurrentUser(null);
+          return;
         }
 
         const user = await API.getCurrentUser();

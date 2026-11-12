@@ -4,6 +4,12 @@ const API_BASE_URL = rawApiBase.endsWith('/api')
   ? rawApiBase
   : (rawApiBase ? `${rawApiBase}/api` : '/api');
 
+export const warmUpBackend = () => {
+  try {
+    fetch(`${API_BASE_URL}/health`, { method: 'GET' }).catch(() => {});
+  } catch {}
+};
+
 let csrfToken = null;
 let csrfTokenRequest = null;
 
@@ -157,7 +163,8 @@ export const apiCall = async (endpoint, method = 'GET', body = null, isFormData 
 
   const headers = getAuthHeaders();
   if (body && !isFormData) headers['Content-Type'] = 'application/json';
-  if (!['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase())) {
+  const isPublicAuthPost = ['/auth/login', '/auth/register', '/auth/google-login', '/auth/google', '/auth/forgot-password', '/auth/logout'].includes(endpoint);
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase()) && !headers.Authorization && !isPublicAuthPost) {
     try {
       const csrf = await getCsrfToken();
       if (csrf) headers['X-CSRF-Token'] = csrf;
@@ -166,9 +173,9 @@ export const apiCall = async (endpoint, method = 'GET', body = null, isFormData 
     }
   }
 
-  // Dynamic timeout: AI & heavy generation routes get 45s, normal requests get 25s
+  // Dynamic timeout: AI & heavy generation routes get 75s, normal requests get 55s (allows Render cold start)
   const isHeavyAI = /aptitude|ats|resume|recommendations|study-plan|code-eval|hr-eval/i.test(endpoint);
-  const timeoutMs = customTimeout || (isHeavyAI ? 45000 : 25000);
+  const timeoutMs = customTimeout || (isHeavyAI ? 75000 : 55000);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);

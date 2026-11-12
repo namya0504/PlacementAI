@@ -44,54 +44,7 @@ const PASSING_YEARS = [
 
 export default function CompleteProfileModal() {
   const { currentUser, completeProfile, logout } = useAuth();
-  const navigate = useNavigate();
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login', { replace: true });
-  };
-
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [location, setLocation] = useState('');
-  const [college, setCollege] = useState('');
-  const [branch, setBranch] = useState('');
-  const [passingYear, setPassingYear] = useState('');
-  const [customPassingYear, setCustomPassingYear] = useState('');
-  const [targetRole, setTargetRole] = useState('');
-  const [customRole, setCustomRole] = useState('');
-
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-
-  // Sync initial data from currentUser (e.g. from Google login)
-  useEffect(() => {
-    if (currentUser) {
-      if (currentUser.name) setName(currentUser.name);
-      if (currentUser.phone) setPhone(currentUser.phone);
-      if (currentUser.location) setLocation(currentUser.location);
-      if (currentUser.college) setCollege(currentUser.college);
-      if (currentUser.branch) setBranch(currentUser.branch);
-      if (currentUser.passingYear) {
-        if (PASSING_YEARS.includes(currentUser.passingYear)) {
-          setPassingYear(currentUser.passingYear);
-        } else {
-          setPassingYear('Custom');
-          setCustomPassingYear(currentUser.passingYear);
-        }
-      }
-      if (currentUser.targetRole || currentUser.role) {
-        const r = currentUser.targetRole || currentUser.role;
-        if (TARGET_ROLES.includes(r)) {
-          setTargetRole(r);
-        } else {
-          setTargetRole('Custom');
-          setCustomRole(r);
-        }
-      }
-    }
-  }, [currentUser]);
+  const routeLocation = useLocation();
 
   // Determine if compulsory profile data is missing
   const hasExistingCompulsory = Boolean(
@@ -102,8 +55,7 @@ export default function CompleteProfileModal() {
     (currentUser?.targetRole?.trim() || currentUser?.role?.trim())
   );
 
-  const routeLocation = useLocation();
-  const isAuthOrOnboardingRoute = ['/login', '/signup', '/onboarding', '/'].includes(routeLocation.pathname);
+  const isAuthOrOnboardingRoute = ['/login', '/signup', '/onboarding', '/', '/verify-email-pending'].includes(routeLocation.pathname);
 
   const shouldShow = Boolean(
     currentUser &&
@@ -112,6 +64,83 @@ export default function CompleteProfileModal() {
   );
 
   if (!shouldShow) return null;
+
+  return (
+    <CompleteProfileModalForm
+      key={currentUser.uid || currentUser.email || 'user'}
+      currentUser={currentUser}
+      completeProfile={completeProfile}
+      logout={logout}
+    />
+  );
+}
+
+function CompleteProfileModalForm({ currentUser, completeProfile, logout }) {
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login', { replace: true });
+  };
+
+  const initialYear = currentUser?.passingYear?.trim() || '';
+  const initialRole = (currentUser?.targetRole || currentUser?.role || '').trim();
+
+  const [name, setName] = useState(currentUser?.name || '');
+  const [phone, setPhone] = useState(currentUser?.phone || '');
+  const [location, setLocation] = useState(currentUser?.location || '');
+  const [college, setCollege] = useState(currentUser?.college || '');
+  const [branch, setBranch] = useState(currentUser?.branch || '');
+  const [passingYear, setPassingYear] = useState(
+    !initialYear ? '' : PASSING_YEARS.includes(initialYear) ? initialYear : 'Custom'
+  );
+  const [customPassingYear, setCustomPassingYear] = useState(
+    initialYear && !PASSING_YEARS.includes(initialYear) ? initialYear : ''
+  );
+  const [targetRole, setTargetRole] = useState(
+    !initialRole ? '' : TARGET_ROLES.includes(initialRole) ? initialRole : 'Custom'
+  );
+  const [customRole, setCustomRole] = useState(
+    initialRole && !TARGET_ROLES.includes(initialRole) ? initialRole : ''
+  );
+
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  // Sync unconditionally when currentUser changes so empty fields always reset cleanly
+  useEffect(() => {
+    const yr = currentUser?.passingYear?.trim() || '';
+    const roleVal = (currentUser?.targetRole || currentUser?.role || '').trim();
+
+    setName(currentUser?.name || '');
+    setPhone(currentUser?.phone || '');
+    setLocation(currentUser?.location || '');
+    setCollege(currentUser?.college || '');
+    setBranch(currentUser?.branch || '');
+
+    if (!yr) {
+      setPassingYear('');
+      setCustomPassingYear('');
+    } else if (PASSING_YEARS.includes(yr)) {
+      setPassingYear(yr);
+      setCustomPassingYear('');
+    } else {
+      setPassingYear('Custom');
+      setCustomPassingYear(yr);
+    }
+
+    if (!roleVal) {
+      setTargetRole('');
+      setCustomRole('');
+    } else if (TARGET_ROLES.includes(roleVal)) {
+      setTargetRole(roleVal);
+      setCustomRole('');
+    } else {
+      setTargetRole('Custom');
+      setCustomRole(roleVal);
+    }
+  }, [currentUser?.uid, currentUser?.name, currentUser?.phone, currentUser?.location, currentUser?.college, currentUser?.branch, currentUser?.passingYear, currentUser?.targetRole, currentUser?.role]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -231,7 +260,7 @@ export default function CompleteProfileModal() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+        <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4 text-xs">
           {/* Full Name & Email */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -242,6 +271,8 @@ export default function CompleteProfileModal() {
                 <User className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                 <input
                   type="text"
+                  name="setup_full_name"
+                  autoComplete="off"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-600 text-sm"
@@ -258,6 +289,8 @@ export default function CompleteProfileModal() {
               <div className="relative">
                 <input
                   type="email"
+                  name="setup_email"
+                  autoComplete="off"
                   value={currentUser?.email || ''}
                   disabled
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-500 text-sm cursor-not-allowed"
@@ -285,6 +318,8 @@ export default function CompleteProfileModal() {
                 <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                 <input
                   type="tel"
+                  name="setup_phone_number"
+                  autoComplete="off"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-600 text-sm"
@@ -302,6 +337,8 @@ export default function CompleteProfileModal() {
                 <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                 <input
                   type="text"
+                  name="setup_city_location"
+                  autoComplete="off"
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-600 text-sm"
@@ -321,6 +358,8 @@ export default function CompleteProfileModal() {
                 <GraduationCap className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                 <input
                   type="text"
+                  name="setup_college_name"
+                  autoComplete="off"
                   value={college}
                   onChange={(e) => setCollege(e.target.value)}
                   className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-600 text-sm"
@@ -338,6 +377,8 @@ export default function CompleteProfileModal() {
                 <BookOpen className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                 <input
                   type="text"
+                  name="setup_branch_stream"
+                  autoComplete="off"
                   value={branch}
                   onChange={(e) => setBranch(e.target.value)}
                   className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-600 text-sm"
@@ -357,6 +398,8 @@ export default function CompleteProfileModal() {
               <div className="relative">
                 <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
                 <select
+                  name="setup_passing_year"
+                  autoComplete="off"
                   value={passingYear}
                   onChange={(e) => setPassingYear(e.target.value)}
                   className="w-full pl-9 pr-8 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-600 text-sm bg-white"
@@ -371,6 +414,8 @@ export default function CompleteProfileModal() {
               {passingYear === 'Custom' && (
                 <input
                   type="text"
+                  name="setup_custom_passing_year"
+                  autoComplete="off"
                   value={customPassingYear}
                   onChange={(e) => setCustomPassingYear(e.target.value)}
                   className="w-full mt-2 px-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-purple-600 focus:outline-none"
@@ -387,6 +432,8 @@ export default function CompleteProfileModal() {
               <div className="relative">
                 <Briefcase className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
                 <select
+                  name="setup_target_role"
+                  autoComplete="off"
                   value={targetRole}
                   onChange={(e) => setTargetRole(e.target.value)}
                   className="w-full pl-9 pr-8 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-600 text-sm bg-white"
@@ -401,6 +448,8 @@ export default function CompleteProfileModal() {
               {targetRole === 'Custom' && (
                 <input
                   type="text"
+                  name="setup_custom_target_role"
+                  autoComplete="off"
                   value={customRole}
                   onChange={(e) => setCustomRole(e.target.value)}
                   className="w-full mt-2 px-3 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-purple-600 focus:outline-none"
