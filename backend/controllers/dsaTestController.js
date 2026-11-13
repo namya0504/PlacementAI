@@ -106,13 +106,39 @@ export const getTopicTest = async (req, res, next) => {
     const medPool = approvedProblems.filter(p => p.difficulty === 'Medium');
     const hardPool = approvedProblems.filter(p => p.difficulty === 'Hard');
 
-    // Select 3 problems: 1 Easy, 1 Medium, 1 Hard (or 2 Medium if Hard unavailable)
+    // Select 3 random problems: 1 Easy, 1 Medium, 1 Hard (randomized per assessment session)
     const selected = [];
-    if (easyPool.length > 0) selected.push(easyPool[0]);
-    if (medPool.length > 0) selected.push(medPool[0]);
-    if (hardPool.length > 0) selected.push(hardPool[0]);
-    else if (medPool.length > 1) selected.push(medPool[1]);
-    else if (easyPool.length > 1) selected.push(easyPool[1]);
+    const pickedIds = new Set();
+
+    // 1. Random Easy problem
+    if (easyPool.length > 0) {
+      const randomEasy = easyPool[Math.floor(Math.random() * easyPool.length)];
+      selected.push(randomEasy);
+      pickedIds.add(randomEasy.problemId);
+    }
+
+    // 2. Random Medium problem
+    const availableMed = medPool.filter(p => !pickedIds.has(p.problemId));
+    if (availableMed.length > 0) {
+      const randomMed = availableMed[Math.floor(Math.random() * availableMed.length)];
+      selected.push(randomMed);
+      pickedIds.add(randomMed.problemId);
+    }
+
+    // 3. Random Hard problem (or fallback to remaining problems)
+    const availableHard = hardPool.filter(p => !pickedIds.has(p.problemId));
+    if (availableHard.length > 0) {
+      const randomHard = availableHard[Math.floor(Math.random() * availableHard.length)];
+      selected.push(randomHard);
+      pickedIds.add(randomHard.problemId);
+    } else {
+      const remainingPool = approvedProblems.filter(p => !pickedIds.has(p.problemId));
+      if (remainingPool.length > 0) {
+        const fallback = remainingPool[Math.floor(Math.random() * remainingPool.length)];
+        selected.push(fallback);
+        pickedIds.add(fallback.problemId);
+      }
+    }
 
     // Calculate dynamic time limit in minutes based on selected problem difficulties
     let totalMinutes = 0;

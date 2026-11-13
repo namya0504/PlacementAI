@@ -332,7 +332,11 @@ export default function TopicTestWorkspace({
           </div>
 
           <div className="flex-1 overflow-y-auto pr-1">
-            <ProblemDescription problem={activeQuestion} />
+            <ProblemDescription
+              problem={activeQuestion}
+              isAssessment={true}
+              theme="dark"
+            />
           </div>
         </div>
 
