@@ -232,8 +232,19 @@ Return valid JSON with this exact schema:
  * Resume Parsing Prompt (Section 10.2).
  */
 export function buildResumeIngestionPrompt(rawResumeText) {
-  return `You are an expert technical recruiter parsing a candidate resume.
-Extract structured details according to this exact JSON schema. Do not invent any facts not in the text.
+  return `You are an expert technical recruiter and resume parser.
+Extract structured details from this resume according to this exact JSON schema.
+Do not invent facts not in the text, but thoroughly scan for all technical, practical, and academic projects.
+
+CRITICAL INSTRUCTIONS FOR PROJECTS:
+- Thoroughly search the ENTIRE document for any project, application, tool, system, website, or technical work (commonly found under headings like "Projects", "Academic Projects", "Personal Projects", "Key Projects", "Selected Projects", "Capstone", "Portfolio", or bullet points).
+- For each project found:
+  * "name": project title or application name
+  * "description": concise summary of what the project does and key features built
+  * "tech": array of technologies, languages, libraries, databases, or frameworks used
+  * "role": role/title if mentioned or "Developer"
+  * "outcomes": metrics, results, or key deliverables achieved (if any)
+- Do not leave "projects" empty if any practical systems, apps, or projects are described in the resume.
 
 RAW RESUME TEXT:
 <<<START>>>
@@ -275,7 +286,7 @@ Return JSON only:
   },
   "certifications": [string],
   "claims_to_verify": [
-    "Specific high-impact claim, metric, or leadership title to question during interview (e.g. 'Improved performance by 40%')"
+    "Specific high-impact claim, metric, or architectural decision to question during interview"
   ],
   "interview_probes": [
     "Detected gap, short tenure, skill listed but not used in projects, or vague claim"

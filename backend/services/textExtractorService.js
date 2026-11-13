@@ -118,15 +118,18 @@ export const TextExtractorService = {
   /**
    * Extracts clean text from either PDF or DOCX based on MIME type or magic bytes.
    * @param {Buffer} fileBuffer
-   * @param {string} mimeType
+   * @param {string} mimeTypeOrFilename
    * @returns {Promise<string>}
    */
-  async extractTextFromFile(fileBuffer, mimeType = 'application/pdf') {
-    if (
-      mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-      mimeType === 'application/msword' ||
-      (fileBuffer && fileBuffer[0] === 0x50 && fileBuffer[1] === 0x4B)
-    ) {
+  async extractTextFromFile(fileBuffer, mimeTypeOrFilename = 'application/pdf') {
+    const hint = String(mimeTypeOrFilename || '').toLowerCase();
+    const isDocx =
+      hint.includes('word') ||
+      hint.endsWith('.docx') ||
+      hint.endsWith('.doc') ||
+      (fileBuffer && fileBuffer.length >= 2 && fileBuffer[0] === 0x50 && fileBuffer[1] === 0x4B);
+
+    if (isDocx) {
       return this.extractTextFromDOCX(fileBuffer);
     }
     return this.extractTextFromPDF(fileBuffer);

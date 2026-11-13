@@ -226,12 +226,7 @@ export const PythonBridge = {
     // Node fallback using existing textExtractorService
     try {
       const { TextExtractorService } = await import('./textExtractorService.js');
-      const ext = path.extname(originalFilename).toLowerCase();
-      if (ext === '.pdf') {
-        return await TextExtractorService.extractTextFromPDF(fileBuffer);
-      } else if (ext === '.docx' || ext === '.doc') {
-        return await TextExtractorService.extractTextFromDocx(fileBuffer);
-      }
+      return await TextExtractorService.extractTextFromFile(fileBuffer, originalFilename);
     } catch {}
 
     return '';

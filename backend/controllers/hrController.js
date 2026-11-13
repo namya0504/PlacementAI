@@ -5,6 +5,7 @@ import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import { calculatePlacementReadiness } from '../utils/scoring.js';
 import { InterviewService } from '../services/interviewService.js';
 import { PythonBridge } from '../services/pythonBridge.js';
+import { TextExtractorService } from '../services/textExtractorService.js';
 import { SocialProfileService } from '../services/socialProfileService.js';
 import {
   buildResumeIngestionPrompt,
@@ -194,8 +195,80 @@ export const transcribeInterviewVoice = async (req, res, next) => {
 };
 
 /**
+ * Heuristically extracts technical projects and stacks directly from resume text
+ * when LLM extraction returns empty or is bypassed.
+ */
+function extractProjectsFromText(text) {
+  if (!text || typeof text !== 'string') return [];
+  const projects = [];
+
+  const projectSectionMatch = text.match(
+    /(?:^|\n)\s*(?:[#*=-]*\s*)?(?:Academic Projects|Personal Projects|Key Projects|Project Work|Selected Projects|Projects|Major Projects|Mini Projects|Technical Projects|Notable Projects)(?:[\s:*=-]*\n)([\s\S]*?)(?=(?:\n\s*(?:[#*=-]*\s*)?(?:Technical Skills|Skills|Education|Experience|Work Experience|Employment|Certifications|Achievements|Activities|Strengths|Honors|Languages|Declaration|Interests)[\s:*=-]*\n)|$)/i
+  );
+
+  const sectionText = projectSectionMatch ? projectSectionMatch[1].trim() : text;
+  const lines = sectionText.split('\n').map(l => l.trim()).filter(Boolean);
+  let currentProject = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i];
+    const stripped = rawLine.replace(/^[•●*–-]\s*/, '').replace(/^[0-9]+[.)]\s*/, '').replace(/\*+/g, '').trim();
+    if (!stripped || stripped.length < 3) continue;
+
+    // Check if this line looks like a project header
+    const hasDelimiter = /^[A-Za-z0-9][^|—–:(\n]{2,45}\s*(?:[|—–:]|\([A-Za-z0-9\s,./+#-]+\))\s*/.test(stripped);
+    const isShortHeader = stripped.length <= 50 && (i + 1 < lines.length) && /^[•●*–-]/.test(lines[i + 1]);
+    const isNumbered = /^[0-9]+[.)]\s+/.test(rawLine);
+
+    if (hasDelimiter || isShortHeader || isNumbered) {
+      if (currentProject && currentProject.name) {
+        projects.push(currentProject);
+      }
+      let title = stripped;
+      let tech = [];
+
+      // Extract tech from parentheses e.g. 'Project (React, Node.js)'
+      const parenMatch = stripped.match(/^(.*?)\s*\(([^)]+)\)\s*(?::(.*))?$/);
+      if (parenMatch) {
+        title = parenMatch[1].trim();
+        tech = parenMatch[2].split(/[,•·|/]/).map(t => t.trim()).filter(t => t.length > 1 && !/live|github|http/i.test(t));
+      } else {
+        const parts = stripped.split(/[|—–:]/).map(p => p.trim());
+        title = parts[0];
+        if (parts.length > 1 && parts[1].length < 60) {
+          tech = parts[1].split(/[,•·|/]/).map(t => t.trim()).filter(t => t.length > 1 && !/live|github|http/i.test(t));
+        }
+      }
+
+      currentProject = {
+        name: title.replace(/^[#*=-]+\s*/, '').slice(0, 50).trim(),
+        description: '',
+        tech,
+        role: 'Developer',
+        outcomes: []
+      };
+    } else if (currentProject) {
+      const cleanLine = rawLine.replace(/^[•●*–-]\s*/, '').trim();
+      if (!/^(github|live|link|http)/i.test(cleanLine)) {
+        currentProject.description = currentProject.description
+          ? `${currentProject.description} ${cleanLine}`
+          : cleanLine;
+      }
+    }
+  }
+
+  if (currentProject && currentProject.name) {
+    projects.push(currentProject);
+  }
+
+  return projects
+    .filter(p => p.name.length >= 3 && !/^(projects|skills|education|experience|summary|certifications)$/i.test(p.name))
+    .slice(0, 6);
+}
+
+/**
  * POST /api/hr/resume/parse
- * Multipart resume upload -> Python text extraction -> structured candidate profile.
+ * Multipart resume upload -> Text extraction -> structured candidate profile.
  */
 export const parseInterviewResume = async (req, res, next) => {
   try {
@@ -204,47 +277,70 @@ export const parseInterviewResume = async (req, res, next) => {
     }
 
     const userId = req.user?.userId;
+    const isNewUpload = req.body?.isNewUpload === 'true' || req.query?.isNewUpload === 'true';
+
+    // 1. Text extraction: Try Node.js TextExtractorService (pdf-parse / mammoth) first, fallback to Python
     let rawText = '';
     try {
-      rawText = await PythonBridge.extractResumeText(req.file.buffer, req.file.originalname);
+      rawText = await TextExtractorService.extractTextFromFile(req.file.buffer, req.file.mimetype || req.file.originalname);
     } catch (e) {
-      console.warn('[parseInterviewResume] Python extraction warning:', e.message);
+      console.warn('[parseInterviewResume] TextExtractorService notice:', e.message);
     }
 
-    // Fallback: If uploaded file couldn't be extracted, check stored parsedText from user resumes
-    if ((!rawText || rawText.trim().length < 30) && userId) {
+    if (!rawText || rawText.trim().length < 20) {
+      try {
+        rawText = await PythonBridge.extractResumeText(req.file.buffer, req.file.originalname);
+      } catch (e) {
+        console.warn('[parseInterviewResume] PythonBridge notice:', e.message);
+      }
+    }
+
+    // Fallback: ONLY when auto-loading on file for the user profile, NEVER when uploading a new file!
+    if ((!rawText || rawText.trim().length < 20) && !isNewUpload && userId) {
       const userResumes = await FirestoreHelper.queryCollection('resumes', 'userId', userId).catch(() => []);
       const match = userResumes.find(r => r.parsedText && r.parsedText.trim().length > 30);
       if (match) {
         rawText = match.parsedText;
-        console.log(`[parseInterviewResume] Reusing stored parsedText (${rawText.length} chars) from resume ${match.id}`);
+        console.log(`[parseInterviewResume] Auto-load reusing stored parsedText (${rawText.length} chars)`);
       }
     }
 
-    if (!rawText || rawText.trim().length < 30) {
-      return sendError(res, 'Could not extract readable text from resume. Please verify the document is not an image-only scan.', 400);
+    if (!rawText || rawText.trim().length < 20) {
+      return sendError(
+        res,
+        `Could not extract readable text from "${req.file.originalname}". Please verify the file is not an image-only scan and contains selectable text.`,
+        400
+      );
     }
 
-    // Attempt full structured parse; fall back to simple extraction on JSON validation error
+    // 2. Structured parse via GrokService
     let profile = null;
     try {
       const prompt = buildResumeIngestionPrompt(rawText);
-      profile = await GrokService.generateJSON(prompt);
+      profile = await GrokService.generateJSON(prompt, { featureType: 'profileExtraction' });
     } catch (parseErr) {
-      // xAI json_validate_failed or JSON parse error — retry with a simpler prompt
       console.warn('[parseInterviewResume] Full parse failed, trying simplified prompt:', parseErr.message);
-      const simplePrompt = `Extract from this resume into compact JSON with keys: name, summary, skills (object with languages/frameworks/tools arrays), projects (array of {name,description,tech,role}), experience (array of {company,title,duration}), claims_to_verify (array of strings).
-Resume: ${rawText.slice(0, 5000)}
+      const simplePrompt = `You are a resume parser. Extract ALL technical projects, skills, education, and experience from this resume into JSON.
+CRITICAL: Do NOT leave "projects" empty if any projects, websites, apps, or practical works are mentioned!
+Schema:
+{
+  "name": string or null,
+  "summary": string or null,
+  "skills": { "languages": [string], "frameworks": [string], "tools": [string], "soft": [string] },
+  "projects": [ { "name": string, "description": string, "tech": [string], "role": string } ],
+  "experience": [ { "company": string, "title": string, "duration": string } ],
+  "claims_to_verify": [string]
+}
+Resume Text:
+${rawText.slice(0, 7000)}
 Return JSON only.`;
       try {
-        profile = await GrokService.generateJSON(simplePrompt);
+        profile = await GrokService.generateJSON(simplePrompt, { featureType: 'profileExtraction' });
       } catch (fallbackErr) {
-        // Last resort: return a minimal synthesized profile from raw text so the interview still starts
         console.warn('[parseInterviewResume] Simplified parse also failed:', fallbackErr.message);
-        const lines = rawText.split('\n').filter(l => l.trim().length > 3).slice(0, 30);
         profile = {
           name: null,
-          summary: lines.slice(0, 3).join(' '),
+          summary: '',
           skills: { languages: [], frameworks: [], tools: [], soft: [] },
           projects: [],
           experience: [],
@@ -255,8 +351,33 @@ Return JSON only.`;
       }
     }
 
-    // Ensure projects are populated from user's projects collection if extraction yielded 0 projects
-    if (userId && (!Array.isArray(profile.projects) || profile.projects.length === 0)) {
+    // 3. Heuristic project extraction from raw text if LLM extracted 0 projects from this uploaded resume
+    if (!Array.isArray(profile.projects) || profile.projects.length === 0) {
+      const heuristicProjects = extractProjectsFromText(rawText);
+      if (heuristicProjects.length > 0) {
+        profile.projects = heuristicProjects;
+        console.log(`[parseInterviewResume] Extracted ${heuristicProjects.length} projects via heuristic text scanner`);
+      }
+    }
+
+    // Check if project entries were classified into experience
+    if ((!profile.projects || profile.projects.length === 0) && Array.isArray(profile.experience)) {
+      const projectLikeExp = profile.experience.filter(e =>
+        /project|app|portal|system|clone|website|dashboard/i.test(e.company || e.title || '')
+      );
+      if (projectLikeExp.length > 0) {
+        profile.projects = projectLikeExp.map(e => ({
+          name: e.title || e.company || 'Project',
+          description: Array.isArray(e.responsibilities) ? e.responsibilities.join(' ') : (e.duration || ''),
+          tech: Array.isArray(e.tech) ? e.tech : [],
+          role: e.title || 'Developer',
+          outcomes: []
+        }));
+      }
+    }
+
+    // 4. Fallback to profile database projects ONLY for auto-load, NEVER when candidate uploads a custom resume
+    if (!isNewUpload && userId && (!Array.isArray(profile.projects) || profile.projects.length === 0)) {
       const savedProjects = await FirestoreHelper.queryCollection('projects', 'userId', userId).catch(() => []);
       if (savedProjects.length > 0) {
         profile.projects = savedProjects.map(p => ({
@@ -269,7 +390,7 @@ Return JSON only.`;
       }
     }
 
-    // Ensure claims_to_verify are populated from real work so Sarah can ask concrete questions
+    // 5. Generate claims_to_verify dynamically based on THIS resume's detected projects
     if (!Array.isArray(profile.claims_to_verify) || profile.claims_to_verify.length === 0) {
       const claims = [];
       if (Array.isArray(profile.projects) && profile.projects.length > 0) {

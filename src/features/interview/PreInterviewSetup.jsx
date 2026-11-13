@@ -297,23 +297,107 @@ export default function PreInterviewSetup({
 
     const formData = new FormData();
     formData.append('resume', file);
+    formData.append('isNewUpload', 'true');
 
     setIsUploadingResume(true);
     try {
       const res = await API.parseInterviewResume(formData);
       if (res?.candidateProfile) {
+        const detectedProjects = Array.isArray(res.candidateProfile.projects) ? res.candidateProfile.projects : [];
+        const detectedClaims = Array.isArray(res.candidateProfile.claims_to_verify) ? res.candidateProfile.claims_to_verify : [];
+
         setResumeData({
           filename: file.name,
-          profile: res.candidateProfile,
-          previewText: res.previewText
+          profile: {
+            ...res.candidateProfile,
+            projects: detectedProjects,
+            claims_to_verify: detectedClaims
+          },
+          previewText: res.previewText || '',
+          autoLoaded: false
         });
-        toast.success(`Resume "${file.name}" parsed and personalized!`);
+
+        // Add any detected languages/tools to skills list if sparse
+        const detectedSkills = [
+          ...(res.candidateProfile.skills?.languages || []),
+          ...(res.candidateProfile.skills?.frameworks || []),
+          ...(res.candidateProfile.skills?.tools || [])
+        ].filter(Boolean);
+        if (detectedSkills.length > 0 && skillsList.length <= 4) {
+          setSkillsList(prev => Array.from(new Set([...prev, ...detectedSkills])).slice(0, 8));
+        }
+
+        if (detectedProjects.length > 0) {
+          toast.success(`Resume "${file.name}" loaded! Detected ${detectedProjects.length} project${detectedProjects.length !== 1 ? 's' : ''}.`);
+        } else {
+          toast.info(`Resume "${file.name}" parsed.`);
+        }
       }
     } catch (err) {
       console.error('Resume parse error:', err.message);
       toast.error(err.message || 'Could not parse resume. Continuing with profile skills.');
     } finally {
       setIsUploadingResume(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Revert back to account profile resume
+  const handleRevertToProfileResume = async () => {
+    if (!hasExistingProfileResume) return;
+    setIsAutoParsingResume(true);
+    try {
+      const res = await API.getProfileResume();
+      if (res?.hasResume) {
+        let initialProfile = {
+          projects: Array.isArray(res.projects) ? res.projects : [],
+          claims_to_verify: (res.projects || []).map(p => `Architecture and implementation decisions in ${p.name || 'project'}`),
+          skills: { languages: [], frameworks: [], tools: [] }
+        };
+
+        if (res.resumeDownloadUrl) {
+          const blob = await fetch(res.resumeDownloadUrl).then(r => r.blob());
+          const file = new File([blob], res.resumeFileName, { type: res.resumeFileType || 'application/pdf' });
+          const formData = new FormData();
+          formData.append('resume', file);
+          const parseRes = await API.parseInterviewResume(formData);
+          if (parseRes?.candidateProfile) {
+            const mergedProjects = (parseRes.candidateProfile.projects?.length > 0)
+              ? parseRes.candidateProfile.projects
+              : (res.projects || []);
+            const mergedClaims = (parseRes.candidateProfile.claims_to_verify?.length > 0)
+              ? parseRes.candidateProfile.claims_to_verify
+              : mergedProjects.map(p => `Architecture and implementation decisions in ${p.name || 'project'}`);
+
+            setResumeData({
+              filename: res.resumeFileName,
+              profile: {
+                ...parseRes.candidateProfile,
+                projects: mergedProjects,
+                claims_to_verify: mergedClaims
+              },
+              previewText: parseRes.previewText || (res.parsedText ? res.parsedText.slice(0, 300) : ''),
+              autoLoaded: true
+            });
+            toast.info(`Switched back to profile resume "${res.resumeFileName}".`);
+            return;
+          }
+        }
+
+        setResumeData({
+          filename: res.resumeFileName,
+          profile: initialProfile,
+          previewText: res.parsedText ? res.parsedText.slice(0, 300) : '',
+          autoLoaded: true
+        });
+        toast.info(`Switched back to profile resume "${res.resumeFileName}".`);
+      }
+    } catch (err) {
+      toast.error('Could not reload profile resume: ' + err.message);
+    } finally {
+      setIsAutoParsingResume(false);
     }
   };
 
@@ -616,7 +700,7 @@ export default function PreInterviewSetup({
                 ) : resumeData?.profile ? (
                   <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" />
-                    {resumeData.autoLoaded ? 'Auto-loaded' : 'Parsed'}
+                    {resumeData.autoLoaded ? 'Auto-loaded' : 'Custom Upload'}
                   </span>
                 ) : null}
               </div>
@@ -625,19 +709,43 @@ export default function PreInterviewSetup({
                 {isAutoParsingResume
                   ? `Reading "${existingResumeName}" to personalize your interview...`
                   : resumeData
-                  ? `${resumeData.autoLoaded ? 'Profile resume' : 'Uploaded'}: "${resumeData.filename}"`
+                  ? `${resumeData.autoLoaded ? 'Profile resume' : 'Uploaded resume'}: "${resumeData.filename}"`
                   : hasExistingProfileResume
                   ? `Profile resume on file: "${existingResumeName}"`
                   : 'Upload your resume so Sarah asks about your actual projects.'}
               </p>
 
               {resumeData?.profile && (
-                <div className="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-100 text-[11px] text-slate-700 space-y-1">
-                  <div className="font-semibold text-emerald-700">
-                    Sarah will ask about your real work:
+                <div className="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-100 text-[11px] text-slate-700 space-y-1.5">
+                  <div className="font-semibold text-emerald-700 flex items-center justify-between">
+                    <span>Sarah will ask about your real work:</span>
+                    {!resumeData.autoLoaded && hasExistingProfileResume && (
+                      <button
+                        type="button"
+                        onClick={handleRevertToProfileResume}
+                        disabled={isAutoParsingResume}
+                        className="text-[10px] text-[#7C3AED] hover:underline font-semibold"
+                      >
+                        Reset to profile
+                      </button>
+                    )}
                   </div>
                   <div>· <strong>{resumeData.profile.projects?.length || 0}</strong> projects detected</div>
                   <div>· <strong>{resumeData.profile.claims_to_verify?.length || 0}</strong> claims to probe</div>
+                  {resumeData.profile.projects?.length > 0 && (
+                    <div className="pt-1 flex flex-wrap gap-1">
+                      {resumeData.profile.projects.map((p, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-emerald-200 text-emerald-800 font-medium text-[10px]"
+                          title={p.tech?.length ? `Tech: ${Array.isArray(p.tech) ? p.tech.join(', ') : p.tech}` : p.name}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                          {p.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   {resumeData.profile.experience?.length > 0 && (
                     <div>· <strong>{resumeData.profile.experience.length}</strong> work experience entries</div>
                   )}
@@ -645,7 +753,7 @@ export default function PreInterviewSetup({
               )}
             </div>
 
-            <div>
+            <div className="space-y-2">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -666,6 +774,16 @@ export default function PreInterviewSetup({
                 )}
                 <span>{resumeData ? 'Replace with Different Resume' : hasExistingProfileResume ? 'Upload Different Resume' : 'Upload Resume (PDF/DOCX)'}</span>
               </button>
+              {!resumeData?.autoLoaded && hasExistingProfileResume && (
+                <button
+                  type="button"
+                  onClick={handleRevertToProfileResume}
+                  disabled={isAutoParsingResume}
+                  className="w-full text-center text-[11px] text-[#7C3AED] hover:underline font-semibold"
+                >
+                  ← Use profile resume ("{existingResumeName}")
+                </button>
+              )}
             </div>
           </div>
 
