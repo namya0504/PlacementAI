@@ -22,11 +22,36 @@ export const getDashboardStats = async (req, res, next) => {
         mockInterviews: 0,
         streakDays: 1
       };
-      readiness.overallReadiness = 0;
-      await FirestoreHelper.setDoc('placement_readiness', 'readiness_' + userId, readiness);
-    } else {
-      readiness.overallReadiness = calculatePlacementReadiness(readiness);
     }
+
+    // Sync live metrics from primary database collections so Dashboard is never out of sync
+    const [userResumes, userTests, userInterviews, userAts] = await Promise.all([
+      FirestoreHelper.queryCollection('resumes', 'userId', userId).catch(() => []),
+      FirestoreHelper.queryCollection('mock_tests', 'userId', userId).catch(() => []),
+      FirestoreHelper.queryCollection('hr_interviews', 'userId', userId).catch(() => []),
+      FirestoreHelper.queryCollection('ats_results', 'userId', userId).catch(() => [])
+    ]);
+
+    const actualResumesCount = Array.isArray(userResumes) ? userResumes.length : 0;
+    const actualTestsCount = Array.isArray(userTests) ? userTests.filter(t => t.status === 'completed' || t.submittedAt).length : 0;
+    const actualInterviewsCount = Array.isArray(userInterviews) ? userInterviews.filter(i => i.status === 'completed' || i.cleared !== undefined).length : 0;
+
+    readiness.resumesCreated = Math.max(readiness.resumesCreated || 0, actualResumesCount);
+    readiness.resumesCount = readiness.resumesCreated;
+    readiness.testsCompleted = Math.max(readiness.testsCompleted || 0, actualTestsCount);
+    readiness.mockInterviews = Math.max(readiness.mockInterviews || 0, actualInterviewsCount);
+
+    if ((!readiness.atsScore || readiness.atsScore === 0) && Array.isArray(userAts) && userAts.length > 0) {
+      const validScores = userAts
+        .map(a => a.overallScore ?? a.report?.overallScore ?? a.score ?? 0)
+        .filter(s => s > 0);
+      if (validScores.length > 0) {
+        readiness.atsScore = Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length);
+      }
+    }
+
+    readiness.overallReadiness = calculatePlacementReadiness(readiness);
+    await FirestoreHelper.setDoc('placement_readiness', 'readiness_' + userId, readiness, true);
 
     const activities = await FirestoreHelper.queryCollection('activities', 'userId', userId);
     activities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));

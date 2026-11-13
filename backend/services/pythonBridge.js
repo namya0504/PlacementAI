@@ -178,8 +178,9 @@ export const PythonBridge = {
       await fs.promises.writeFile(tempFile, fileBuffer);
       const pythonScript = path.resolve(process.cwd(), 'backend/python/resume_extractor.py');
 
+      const pyCmd = process.platform === 'win32' ? 'python' : (process.env.PYTHON_BIN || 'python3');
       const result = await new Promise((resolve) => {
-        const py = spawn('python', [pythonScript, tempFile]);
+        const py = spawn(pyCmd, [pythonScript, tempFile]);
         let stdout = '';
         py.stdout.on('data', d => { stdout += d.toString(); });
         py.on('close', code => {
@@ -191,7 +192,24 @@ export const PythonBridge = {
           }
           resolve(null);
         });
-        py.on('error', () => resolve(null));
+        py.on('error', () => {
+          if (pyCmd === 'python3') {
+            try {
+              const py2 = spawn('python', [pythonScript, tempFile]);
+              let stdout2 = '';
+              py2.stdout.on('data', d => { stdout2 += d.toString(); });
+              py2.on('close', c2 => {
+                if (c2 === 0 && stdout2.trim()) {
+                  try { resolve(JSON.parse(stdout2)); return; } catch {}
+                }
+                resolve(null);
+              });
+              py2.on('error', () => resolve(null));
+              return;
+            } catch {}
+          }
+          resolve(null);
+        });
       });
 
       if (result && result.text) {

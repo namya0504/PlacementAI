@@ -665,13 +665,26 @@ export const getProfileResume = async (req, res, next) => {
       }
     }
 
+    const [userResumes, userProjects] = await Promise.all([
+      FirestoreHelper.queryCollection('resumes', 'userId', userId).catch(() => []),
+      FirestoreHelper.queryCollection('projects', 'userId', userId).catch(() => [])
+    ]);
+    const primaryResume = userResumes.find(r => r.isPrimary) || userResumes.find(r => r.parsedText) || userResumes[0];
+
     return sendSuccess(res, {
       hasResume: true,
       resumeDownloadUrl: downloadUrl,
       resumeFileName: userDoc.resumeFileName || 'resume.pdf',
       resumeFileType: userDoc.resumeFileType || 'application/pdf',
       resumeFileSize: userDoc.resumeFileSize || 0,
-      resumeUploadedAt: userDoc.resumeUploadedAt || null
+      resumeUploadedAt: userDoc.resumeUploadedAt || null,
+      parsedText: primaryResume?.parsedText || '',
+      projects: userProjects.map(p => ({
+        name: p.title || p.name || 'Project',
+        description: p.description || '',
+        tech: typeof p.tech === 'string' ? p.tech.split(',').map(t => t.trim()) : (Array.isArray(p.tech) ? p.tech : []),
+        role: p.role || 'Developer'
+      }))
     }, 'Profile resume retrieved');
   } catch (err) {
     next(err);

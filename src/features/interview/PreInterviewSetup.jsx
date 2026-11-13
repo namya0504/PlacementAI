@@ -113,6 +113,20 @@ export default function PreInterviewSetup({
           setHasExistingProfileResume(true);
           setExistingResumeName(res.resumeFileName);
 
+          // Immediately seed resumeData with user's stored profile projects if available
+          if (!resumeData && Array.isArray(res.projects) && res.projects.length > 0) {
+            setResumeData({
+              filename: res.resumeFileName,
+              profile: {
+                projects: res.projects,
+                claims_to_verify: res.projects.map(p => `Architecture and implementation decisions in ${p.name || 'project'}`),
+                skills: { languages: [], frameworks: [], tools: [] }
+              },
+              previewText: res.parsedText ? res.parsedText.slice(0, 300) : '',
+              autoLoaded: true
+            });
+          }
+
           // Auto-parse the profile resume into candidateProfile if not already done manually
           if (!resumeData && res.resumeDownloadUrl) {
             setIsAutoParsingResume(true);
@@ -123,10 +137,21 @@ export default function PreInterviewSetup({
               formData.append('resume', file);
               const parseRes = await API.parseInterviewResume(formData);
               if (parseRes?.candidateProfile) {
+                const mergedProjects = (parseRes.candidateProfile.projects?.length > 0)
+                  ? parseRes.candidateProfile.projects
+                  : (res.projects || []);
+                const mergedClaims = (parseRes.candidateProfile.claims_to_verify?.length > 0)
+                  ? parseRes.candidateProfile.claims_to_verify
+                  : mergedProjects.map(p => `Architecture and implementation decisions in ${p.name || 'project'}`);
+
                 setResumeData({
                   filename: res.resumeFileName,
-                  profile: parseRes.candidateProfile,
-                  previewText: parseRes.previewText,
+                  profile: {
+                    ...parseRes.candidateProfile,
+                    projects: mergedProjects,
+                    claims_to_verify: mergedClaims
+                  },
+                  previewText: parseRes.previewText || (res.parsedText ? res.parsedText.slice(0, 300) : ''),
                   autoLoaded: true
                 });
                 // Update skills from parsed resume if we have nothing meaningful
@@ -306,15 +331,20 @@ export default function PreInterviewSetup({
         setGithubConnected(true);
 
         // Auto-select top 3 repos with stars or recent activity
-        const topRepos = res.repositories
-          .filter(r => !r.fork)
-          .sort((a, b) => (b.stargazers_count || 0) - (a.stargazers_count || 0))
+        const nonForks = res.repositories.filter(r => !r.fork);
+        const candidates = nonForks.length > 0 ? nonForks : res.repositories;
+        const topRepos = candidates
+          .sort((a, b) => (b.stargazers_count || b.stars || 0) - (a.stargazers_count || a.stars || 0))
           .slice(0, 3)
           .map(r => r.name);
-        setSelectedRepoNames(topRepos);
+        setSelectedRepoNames(topRepos.length > 0 ? topRepos : res.repositories.slice(0, 3).map(r => r.name));
 
         if (!silent) {
-          toast.success(`Found ${res.repositories.length} public repos! Top repos selected.`);
+          if (res.repositories.length > 0) {
+            toast.success(`Found ${res.repositories.length} public repo${res.repositories.length !== 1 ? 's' : ''}! Top repos selected.`);
+          } else {
+            toast.info(`Connected to GitHub. No public repositories found.`);
+          }
           setIsEditingGithub(false);
         }
       } else if (res?.profile) {

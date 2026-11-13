@@ -32,6 +32,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
   const [lockRemainingSeconds, setLockRemainingSeconds] = useState(0);
+  const [remainingAttempts, setRemainingAttempts] = useState(null);
   const { currentUser, loading: authLoading, login, loginWithSocial } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -108,6 +109,7 @@ export default function Login() {
 
     setError('');
     setInfoMessage('');
+    setRemainingAttempts(null);
 
     if (!email || !password) {
       setError('Please fill in both email and password');
@@ -130,6 +132,13 @@ export default function Login() {
         setLockRemainingSeconds(secs);
         setError(err.message || 'Account temporarily locked due to multiple failed attempts.');
       } else if (err.errorCode === 'WRONG_PASSWORD') {
+        const remaining = typeof err.data?.remainingAttempts === 'number'
+          ? err.data.remainingAttempts
+          : (() => {
+              const match = String(err.message || '').match(/(\d+)\s+attempt/i);
+              return match ? parseInt(match[1], 10) : null;
+            })();
+        setRemainingAttempts(remaining);
         setError(err.message || "Invalid email or password. Please verify your credentials.");
       } else if (err.errorCode === 'EMAIL_NOT_FOUND') {
         setError('Invalid email or password. Please verify your credentials or register for an account.');
@@ -152,6 +161,7 @@ export default function Login() {
     e.preventDefault();
     setError('');
     setInfoMessage('');
+    setRemainingAttempts(null);
 
     if (!email.trim() || !isEmailValid) {
       setError('Please enter your email address first to receive password reset instructions.');
@@ -271,6 +281,22 @@ export default function Login() {
                   {lockRemainingSeconds > 0 ? 'Account Locked for Security' : 'Login Failed'}
                 </div>
                 <p className="leading-relaxed">{error}</p>
+                {remainingAttempts !== null && remainingAttempts > 0 && lockRemainingSeconds <= 0 && (
+                  <div className="pt-2 flex items-center gap-1.5">
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-bold text-[11px] shadow-2xs ${
+                      remainingAttempts === 1
+                        ? 'bg-rose-100 text-rose-900 border border-rose-300 animate-pulse'
+                        : 'bg-amber-100 text-amber-900 border border-amber-300'
+                    }`}>
+                      <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+                      <span>
+                        {remainingAttempts === 1
+                          ? 'Final attempt remaining before 15-minute account lockout'
+                          : `${remainingAttempts} attempts remaining before temporary account lockout`}
+                      </span>
+                    </span>
+                  </div>
+                )}
                 {lockRemainingSeconds > 0 && (
                   <div className="pt-2">
                     <button

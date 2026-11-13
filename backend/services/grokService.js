@@ -13,7 +13,7 @@ const FEATURE_CONFIG = {
   resumeSummary:      { temperature: 0.7, maxTokens: 1500 },
   projectBullets:     { temperature: 0.7, maxTokens: 1500 },
   skillSuggestions:   { temperature: 0.5, maxTokens: 1200 },
-  atsAnalysis:        { temperature: 0.2, maxTokens: 1200 },
+  atsAnalysis:        { temperature: 0.0, maxTokens: 1200 },
   aptitudeQuestions:  { temperature: 0.7, maxTokens: 4096 },
   technicalQuestions: { temperature: 0.7, maxTokens: 2500 },
   codeEvaluation:     { temperature: 0.0, maxTokens: 1500 },
@@ -100,8 +100,9 @@ async function callAI(messages, options = {}) {
   const payload = {
     model: targetModel,
     messages,
-    temperature: featureCfg.temperature,
-    max_tokens: featureCfg.maxTokens
+    temperature: options.temperature !== undefined ? options.temperature : featureCfg.temperature,
+    max_tokens: featureCfg.maxTokens,
+    seed: options.seed !== undefined ? options.seed : 42
   };
 
   // Only apply JSON response_format for Groq (not xAI — xAI's strict validator
@@ -421,17 +422,25 @@ Evaluate ATS compliance and industry match accurately. Return a JSON object with
 
     const parsed = await generateJSON(prompt, { 
       featureType: 'atsAnalysis',
-      systemInstruction: systemPrompt 
+      systemInstruction: systemPrompt,
+      seed: 42
     });
 
     if (parsed && typeof parsed.overallScore === 'number') {
-      parsed.overallScore = Math.min(100, Math.max(0, Math.round(parsed.overallScore)));
       if (parsed.metrics) {
         for (const [key, val] of Object.entries(parsed.metrics)) {
           if (typeof val === 'number') {
             parsed.metrics[key] = Math.min(100, Math.max(0, Math.round(val)));
           }
         }
+        // Enforce deterministic reproducible weighted formula
+        const km = parsed.metrics.keywordMatch ?? 75;
+        const cq = parsed.metrics.contentQuality ?? 75;
+        const fmt = parsed.metrics.formatting ?? 75;
+        const rd = parsed.metrics.readability ?? 75;
+        parsed.overallScore = Math.min(100, Math.max(0, Math.round(km * 0.40 + cq * 0.30 + fmt * 0.15 + rd * 0.15)));
+      } else {
+        parsed.overallScore = Math.min(100, Math.max(0, Math.round(parsed.overallScore)));
       }
       return parsed;
     }

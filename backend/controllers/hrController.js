@@ -203,7 +203,24 @@ export const parseInterviewResume = async (req, res, next) => {
       return sendError(res, 'No resume file uploaded.', 400);
     }
 
-    const rawText = await PythonBridge.extractResumeText(req.file.buffer, req.file.originalname);
+    const userId = req.user?.userId;
+    let rawText = '';
+    try {
+      rawText = await PythonBridge.extractResumeText(req.file.buffer, req.file.originalname);
+    } catch (e) {
+      console.warn('[parseInterviewResume] Python extraction warning:', e.message);
+    }
+
+    // Fallback: If uploaded file couldn't be extracted, check stored parsedText from user resumes
+    if ((!rawText || rawText.trim().length < 30) && userId) {
+      const userResumes = await FirestoreHelper.queryCollection('resumes', 'userId', userId).catch(() => []);
+      const match = userResumes.find(r => r.parsedText && r.parsedText.trim().length > 30);
+      if (match) {
+        rawText = match.parsedText;
+        console.log(`[parseInterviewResume] Reusing stored parsedText (${rawText.length} chars) from resume ${match.id}`);
+      }
+    }
+
     if (!rawText || rawText.trim().length < 30) {
       return sendError(res, 'Could not extract readable text from resume. Please verify the document is not an image-only scan.', 400);
     }
@@ -238,6 +255,44 @@ Return JSON only.`;
       }
     }
 
+    // Ensure projects are populated from user's projects collection if extraction yielded 0 projects
+    if (userId && (!Array.isArray(profile.projects) || profile.projects.length === 0)) {
+      const savedProjects = await FirestoreHelper.queryCollection('projects', 'userId', userId).catch(() => []);
+      if (savedProjects.length > 0) {
+        profile.projects = savedProjects.map(p => ({
+          name: p.title || p.name || 'Project',
+          description: p.description || '',
+          tech: typeof p.tech === 'string' ? p.tech.split(',').map(t => t.trim()) : (Array.isArray(p.tech) ? p.tech : []),
+          role: p.role || 'Developer',
+          outcomes: []
+        }));
+      }
+    }
+
+    // Ensure claims_to_verify are populated from real work so Sarah can ask concrete questions
+    if (!Array.isArray(profile.claims_to_verify) || profile.claims_to_verify.length === 0) {
+      const claims = [];
+      if (Array.isArray(profile.projects) && profile.projects.length > 0) {
+        profile.projects.forEach(p => {
+          if (p.name) {
+            claims.push(`Architectural design, component hierarchy, and workflows in ${p.name}`);
+            if (p.tech && p.tech.length > 0) {
+              const stackStr = Array.isArray(p.tech) ? p.tech.slice(0, 3).join(', ') : String(p.tech);
+              claims.push(`Implementation trade-offs and error handling using ${stackStr}`);
+            }
+          }
+        });
+      }
+      if (Array.isArray(profile.experience) && profile.experience.length > 0) {
+        profile.experience.forEach(e => {
+          if (e.company || e.title) {
+            claims.push(`Engineering responsibilities and deliverables at ${e.company || e.title}`);
+          }
+        });
+      }
+      profile.claims_to_verify = claims.slice(0, 4);
+    }
+
     return sendSuccess(res, {
       filename: req.file.originalname,
       candidateProfile: profile,
@@ -265,10 +320,14 @@ export const inspectCandidateGitHub = async (req, res, next) => {
       return sendError(res, `Could not find public GitHub profile for "${input}".`, 404);
     }
 
+    const reposList = (ghData.repositories && ghData.repositories.length > 0)
+      ? ghData.repositories
+      : (ghData.featuredProjects || []);
+
     // Generate repo insights via LLM
     let repoInsights = [];
-    if (ghData.repositories && ghData.repositories.length > 0) {
-      const prompt = buildGitHubInsightsPrompt(ghData.repositories);
+    if (reposList.length > 0) {
+      const prompt = buildGitHubInsightsPrompt(reposList);
       repoInsights = await GrokService.generateJSON(prompt).catch(() => []);
     }
 
@@ -278,9 +337,9 @@ export const inspectCandidateGitHub = async (req, res, next) => {
         name: ghData.name,
         avatarUrl: ghData.avatarUrl,
         bio: ghData.bio,
-        publicRepos: ghData.publicRepos
+        publicRepos: ghData.publicReposCount || ghData.publicRepos || 0
       },
-      repositories: ghData.repositories || [],
+      repositories: reposList,
       repoInsights: Array.isArray(repoInsights) ? repoInsights : []
     }, 'GitHub profile inspected.');
   } catch (err) {

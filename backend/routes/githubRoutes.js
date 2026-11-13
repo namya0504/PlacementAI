@@ -56,9 +56,9 @@ router.get('/repos', protectRoute, githubLimiter, async (req, res, next) => {
       if (reposRes.ok) {
         const raw = await reposRes.json();
         if (Array.isArray(raw)) {
-          repos = raw
-            .filter(r => !r.fork && r.name.toLowerCase() !== username.toLowerCase())
-            .map(r => ({
+          const nonForks = raw.filter(r => !r.fork && r.name.toLowerCase() !== username.toLowerCase());
+          const sourceList = nonForks.length > 0 ? nonForks : raw.filter(r => r.name.toLowerCase() !== username.toLowerCase());
+          repos = sourceList.map(r => ({
               id: String(r.id),
               name: r.name,
               fullName: r.full_name,
@@ -66,6 +66,7 @@ router.get('/repos', protectRoute, githubLimiter, async (req, res, next) => {
               language: r.language || '',
               topics: Array.isArray(r.topics) ? r.topics.slice(0, 8) : [],
               stars: r.stargazers_count || 0,
+              stargazers_count: r.stargazers_count || 0,
               htmlUrl: r.html_url,
               homepage: r.homepage || '',
               updatedAt: r.updated_at,

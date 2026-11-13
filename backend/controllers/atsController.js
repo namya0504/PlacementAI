@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { FirestoreHelper } from '../firebase/firestoreHelper.js';
 import { TextExtractorService } from '../services/textExtractorService.js';
 import { GrokService } from '../services/grokService.js';
@@ -147,6 +148,29 @@ export const analyzeResume = async (req, res, next) => {
       );
     }
 
+    // Generate deterministic signature for resume text + target role
+    const normalizedText = resumeText.trim().toLowerCase().replace(/\s+/g, ' ');
+    const normalizedRole = targetRole.trim().toLowerCase();
+    const textSignature = crypto
+      .createHash('sha256')
+      .update(`${normalizedText}:::${normalizedRole}`)
+      .digest('hex');
+
+    // Return consistent report if this identical resume was analyzed for the same role
+    const existingResults = await FirestoreHelper.queryCollection('ats_results', 'userId', userId).catch(() => []);
+    const cachedMatch = existingResults.find(r => r.textSignature === textSignature);
+    if (cachedMatch && (cachedMatch.report || cachedMatch.overallScore)) {
+      const finalCachedReport = cachedMatch.report || {
+        overallScore: cachedMatch.overallScore,
+        metrics: cachedMatch.metrics,
+        summary: cachedMatch.summary,
+        missingKeywords: cachedMatch.missingKeywords,
+        actionableSuggestions: cachedMatch.actionableSuggestions
+      };
+      console.log(`[ATS] Re-using deterministic consistent score (${finalCachedReport.overallScore}%) for signature ${textSignature.slice(0, 8)}`);
+      return sendSuccess(res, finalCachedReport, 'ATS Analysis retrieved (deterministic match)');
+    }
+
     const studentContext = await getStudentContext(userId);
     const report = await GrokService.analyzeATS(resumeText, targetRole, studentContext);
 
@@ -155,6 +179,12 @@ export const analyzeResume = async (req, res, next) => {
       reportId,
       userId,
       targetRole,
+      textSignature,
+      overallScore: report.overallScore,
+      metrics: report.metrics,
+      summary: report.summary,
+      missingKeywords: report.missingKeywords,
+      actionableSuggestions: report.actionableSuggestions,
       report,
       createdAt: new Date().toISOString()
     };

@@ -75,10 +75,10 @@ export const SocialProfileService = {
     const username = this.extractGitHubUsername(githubUrlOrUsername);
     if (!username) return null;
 
-    // Check cache
+    // Check cache (require repositories array to be present)
     const cacheKey = `gh_${username.toLowerCase()}`;
     const cached = profileCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS && Array.isArray(cached.data?.repositories)) {
       console.log(`[SocialProfile] Using cached GitHub data for ${username}`);
       return cached.data;
     }
@@ -125,16 +125,21 @@ export const SocialProfileService = {
         if (reposRes.ok) {
           const repoData = await reposRes.json();
           if (Array.isArray(repoData)) {
-            repos = repoData
-              .filter(r => !r.fork && r.name.toLowerCase() !== username.toLowerCase())
-              .map(r => ({
-                name: r.name,
-                language: r.language || '',
-                description: (r.description || '').slice(0, 200),
-                topics: Array.isArray(r.topics) ? r.topics.slice(0, 5) : [],
-                stars: r.stargazers_count || 0,
-                updatedAt: r.updated_at
-              }));
+            const nonForks = repoData.filter(r => !r.fork && r.name.toLowerCase() !== username.toLowerCase());
+            const sourceList = nonForks.length > 0 ? nonForks : repoData.filter(r => r.name.toLowerCase() !== username.toLowerCase());
+            repos = sourceList.map(r => ({
+              id: String(r.id),
+              name: r.name,
+              fullName: r.full_name || `${username}/${r.name}`,
+              language: r.language || '',
+              description: (r.description || '').slice(0, 200),
+              topics: Array.isArray(r.topics) ? r.topics.slice(0, 5) : [],
+              stars: r.stargazers_count || 0,
+              stargazers_count: r.stargazers_count || 0,
+              html_url: r.html_url || `https://github.com/${username}/${r.name}`,
+              fork: Boolean(r.fork),
+              updatedAt: r.updated_at
+            }));
           }
         }
       } catch (repoErr) {
@@ -152,7 +157,8 @@ export const SocialProfileService = {
         publicReposCount: userData.public_repos || 0,
         languages,
         topics: allTopics.slice(0, 10),
-        featuredProjects: repos.slice(0, 6)
+        featuredProjects: repos.slice(0, 6),
+        repositories: repos
       };
 
       profileCache.set(cacheKey, { data: result, timestamp: Date.now() });

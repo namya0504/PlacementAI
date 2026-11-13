@@ -50,7 +50,8 @@ export default function Dashboard() {
       overallReadiness: 0,
       testsCompleted: 0,
       mockInterviews: 0,
-      resumesCount: 0
+      resumesCount: 0,
+      resumesCreated: 0
     },
     recentActivities: []
   });
@@ -382,8 +383,8 @@ export default function Dashboard() {
                       <FileText className="w-6 h-6" />
                     </div>
                     <div>
-                      {stats.resumesCount > 0 ? (
-                        <div className="text-2xl font-extrabold text-slate-900 font-outfit leading-none">{stats.resumesCount}</div>
+                      {(stats.resumesCount > 0 || stats.resumesCreated > 0) ? (
+                        <div className="text-2xl font-extrabold text-slate-900 font-outfit leading-none">{stats.resumesCount || stats.resumesCreated}</div>
                       ) : (
                         <div className="text-xs font-semibold text-slate-400 leading-snug">Not started yet</div>
                       )}
@@ -391,7 +392,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <div className="mt-4 pt-3 border-t border-slate-50">
-                    {stats.resumesCount > 0 ? (
+                    {(stats.resumesCount > 0 || stats.resumesCreated > 0) ? (
                       <Link to={ROUTES.resumeBuilder} className="text-xs font-bold text-[#7C3AED] hover:text-[#6D28D9] inline-flex items-center gap-1 transition">
                         <span>View all</span><span>→</span>
                       </Link>
