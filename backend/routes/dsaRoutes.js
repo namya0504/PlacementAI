@@ -8,6 +8,12 @@ import {
   submitDsaCode,
   getDsaSubmissions
 } from '../controllers/dsaController.js';
+import {
+  getTopicTest,
+  submitTopicTest,
+  getTopicTestReports,
+  getUserTopicBadges
+} from '../controllers/dsaTestController.js';
 import { protectRoute } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
@@ -19,6 +25,12 @@ router.post('/view-solution', protectRoute, markDsaSolutionViewed);
 router.post('/run', protectRoute, runDsaCode);
 router.post('/submit', protectRoute, submitDsaCode);
 router.get('/submissions', protectRoute, getDsaSubmissions);
+
+// Topic Assessment (Test), Evaluation & Badge endpoints
+router.get('/topic/:topicId/test', protectRoute, getTopicTest);
+router.post('/topic/:topicId/test/submit', protectRoute, submitTopicTest);
+router.get('/topic/:topicId/test/reports', protectRoute, getTopicTestReports);
+router.get('/badges', protectRoute, getUserTopicBadges);
 
 export default router;
 

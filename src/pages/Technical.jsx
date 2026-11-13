@@ -12,6 +12,8 @@ import ConceptTab from '../features/dsa/components/ConceptTab';
 import ProblemListTab from '../features/dsa/components/ProblemListTab';
 import SubmissionsTab from '../features/dsa/components/SubmissionsTab';
 import ProblemWorkspace from '../features/dsa/components/ProblemWorkspace';
+import TopicTestWorkspace from '../features/dsa/components/TopicTestWorkspace';
+import TopicTestReportModal from '../features/dsa/components/TopicTestReportModal';
 import { DSA_TOPICS_LIST } from '../features/dsa/constants/dsaTopics';
 
 export default function Technical() {
@@ -24,6 +26,7 @@ export default function Technical() {
   const [selectedTopicId, setSelectedTopicId] = useState('arrays');
   const [topicDetail, setTopicDetail] = useState(null);
   const [loadingTopic, setLoadingTopic] = useState(true);
+  const [userBadges, setUserBadges] = useState([]);
 
   // Active Topic Tab: 'concept' | 'problems' | 'submissions'
   const [activeTab, setActiveTab] = useState('problems');
@@ -31,19 +34,38 @@ export default function Technical() {
   // Active Problem ID (null = Topic Overview mode, string = Problem Workspace mode)
   const [activeProblemId, setActiveProblemId] = useState(null);
 
-  // Load all 21 topics
+  // Assessment / Topic Test State
+  const [activeTestSession, setActiveTestSession] = useState(null);
+  const [activeTestReport, setActiveTestReport] = useState(null);
+
+  // Load all 21 topics and earned badges
   const fetchTopics = useCallback(async () => {
     try {
-      const res = await API.getDsaTopics();
+      const [res, badgesRes] = await Promise.all([
+        API.getDsaTopics(),
+        API.getUserTopicBadges().catch(() => ({ badges: [] }))
+      ]);
+
+      const badges = badgesRes?.badges || [];
+      setUserBadges(badges);
+      const badgeTopicMap = new Map(badges.filter(b => b.hasStarBadge).map(b => [b.topicId, b]));
+
       if (res?.topics && res.topics.length > 0) {
-        setTopics(res.topics);
+        setTopics(res.topics.map(t => ({
+          ...t,
+          hasStarBadge: badgeTopicMap.has(t.topicId)
+        })));
       } else {
-        // Fallback to static list if database query returned empty
-        setTopics(DSA_TOPICS_LIST.map((t, i) => ({ ...t, solvedCount: 0, problemCount: 15 })));
+        setTopics(DSA_TOPICS_LIST.map((t) => ({
+          ...t,
+          solvedCount: 0,
+          problemCount: 20,
+          hasStarBadge: badgeTopicMap.has(t.topicId)
+        })));
       }
     } catch (err) {
       console.warn('Failed to load DSA topics:', err);
-      setTopics(DSA_TOPICS_LIST.map((t, i) => ({ ...t, solvedCount: 0, problemCount: 15 })));
+      setTopics(DSA_TOPICS_LIST.map((t) => ({ ...t, solvedCount: 0, problemCount: 20 })));
     }
   }, []);
 
@@ -104,6 +126,43 @@ export default function Technical() {
     }
   };
 
+  // Topic Test Handlers
+  const handleStartTest = async () => {
+    try {
+      setLoadingTopic(true);
+      const res = await API.getTopicTest(selectedTopicId);
+      if (res && res.questions && res.questions.length > 0) {
+        setActiveTestSession(res);
+      } else {
+        toast?.showToast?.('No test questions available for this topic.', 'error');
+      }
+    } catch (err) {
+      toast?.showToast?.(err.message || 'Failed to start test', 'error');
+    } finally {
+      setLoadingTopic(false);
+    }
+  };
+
+  const handleViewReport = async () => {
+    try {
+      const res = await API.getTopicTestReports(selectedTopicId);
+      if (res?.reports && res.reports.length > 0) {
+        setActiveTestReport(res.reports[0]);
+      } else {
+        toast?.showToast?.('No assessment reports found yet.', 'info');
+      }
+    } catch (err) {
+      toast?.showToast?.(err.message || 'Failed to load report', 'error');
+    }
+  };
+
+  const handleTestSubmitComplete = (report) => {
+    setActiveTestSession(null);
+    setActiveTestReport(report);
+    fetchTopics();
+    fetchTopicDetail(selectedTopicId);
+  };
+
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-100 transition-colors">
       {/* Sidebar */}
@@ -159,7 +218,14 @@ export default function Technical() {
 
         {/* Page Body */}
         <main className="flex-1 p-4 sm:p-6 max-w-7xl mx-auto w-full">
-          {activeProblemId ? (
+          {activeTestSession ? (
+            /* Topic Test Assessment Workspace */
+            <TopicTestWorkspace
+              testData={activeTestSession}
+              onCloseTest={() => setActiveTestSession(null)}
+              onSubmitComplete={handleTestSubmitComplete}
+            />
+          ) : activeProblemId ? (
             /* Problem Workspace View (Split Screen) */
             <ProblemWorkspace
               problemId={activeProblemId}
@@ -256,6 +322,9 @@ export default function Technical() {
                       problems={problemsList}
                       topicTitle={activeTopic.title}
                       onSelectProblem={(pId) => setActiveProblemId(pId)}
+                      badgeInfo={userBadges.find(b => b.topicId === selectedTopicId)}
+                      onStartTest={handleStartTest}
+                      onViewTestReport={handleViewReport}
                     />
                   )}
 
@@ -270,6 +339,18 @@ export default function Technical() {
             </div>
           )}
         </main>
+
+        {/* Topic Test Assessment Report Modal */}
+        {activeTestReport && (
+          <TopicTestReportModal
+            report={activeTestReport}
+            onClose={() => setActiveTestReport(null)}
+            onRetakeTest={() => {
+              setActiveTestReport(null);
+              handleStartTest();
+            }}
+          />
+        )}
       </div>
     </div>
   );

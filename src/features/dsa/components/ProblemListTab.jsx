@@ -1,14 +1,18 @@
 import React, { useState, useMemo } from 'react';
 import {
   Search, CheckCircle2, Clock, Circle, ArrowRight,
-  Filter, Trophy, Sparkles, AlertCircle, Code, Eye
+  Filter, Trophy, Sparkles, AlertCircle, Code, Eye,
+  Star, Award, Check, FileText
 } from 'lucide-react';
 import { DIFFICULTY_COLORS } from '../constants/dsaTopics';
 
 export default function ProblemListTab({
   problems = [],
   topicTitle = 'Topic',
-  onSelectProblem
+  onSelectProblem,
+  badgeInfo = null,
+  onStartTest,
+  onViewTestReport
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [difficultyFilter, setDifficultyFilter] = useState('All');
@@ -20,7 +24,7 @@ export default function ProblemListTab({
     return [...problems].sort((a, b) => (diffRank[a.difficulty] || 2) - (diffRank[b.difficulty] || 2));
   }, [problems]);
 
-  // Find the next unseen problem (or next unsolved if none are completely unseen)
+  // Find the next unseen problem
   const nextUnseenProblem = useMemo(() => {
     const unseen = sortedProblems.find(p => !p.userStatus || p.userStatus.state === 'unseen');
     if (unseen) return unseen;
@@ -32,19 +36,16 @@ export default function ProblemListTab({
   // Filtered list
   const filteredProblems = useMemo(() => {
     return sortedProblems.filter(p => {
-      // Search
       const matchesSearch =
         p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (Array.isArray(p.tags) && p.tags.some(t => t.toLowerCase().includes(searchTerm.toLowerCase())));
 
       if (!matchesSearch) return false;
 
-      // Difficulty
       if (difficultyFilter !== 'All' && p.difficulty !== difficultyFilter) {
         return false;
       }
 
-      // Status
       const state = p.userStatus?.state || 'unseen';
       if (statusFilter === 'Solved' && state !== 'solved') return false;
       if (statusFilter === 'Attempted' && state !== 'attempted') return false;
@@ -55,55 +56,143 @@ export default function ProblemListTab({
   }, [sortedProblems, searchTerm, difficultyFilter, statusFilter]);
 
   const solvedCount = sortedProblems.filter(p => p.userStatus?.state === 'solved').length;
-  const easyCount = sortedProblems.filter(p => p.difficulty === 'Easy').length;
-  const medCount = sortedProblems.filter(p => p.difficulty === 'Medium').length;
-  const hardCount = sortedProblems.filter(p => p.difficulty === 'Hard').length;
+  const easyProblems = sortedProblems.filter(p => p.difficulty === 'Easy');
+  const medProblems = sortedProblems.filter(p => p.difficulty === 'Medium');
+  const hardProblems = sortedProblems.filter(p => p.difficulty === 'Hard');
+
+  const easySolved = easyProblems.filter(p => p.userStatus?.state === 'solved').length;
+  const medSolved = medProblems.filter(p => p.userStatus?.state === 'solved').length;
+  const hardSolved = hardProblems.filter(p => p.userStatus?.state === 'solved').length;
+
+  const totalProgressPercent = sortedProblems.length > 0
+    ? Math.round((solvedCount / sortedProblems.length) * 100)
+    : 0;
+
+  const hasStar = Boolean(badgeInfo?.hasStarBadge);
 
   return (
     <div className="space-y-6 max-w-5xl">
-      {/* Top Banner: Progress & Next Problem Button */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <span>{topicTitle} Problems</span>
-            <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300">
-              {solvedCount} / {sortedProblems.length} Solved
-            </span>
-          </h2>
-          <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500">
-            <span className="flex items-center gap-1 text-emerald-600 font-medium">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" /> {easyCount} Easy
-            </span>
-            <span className="flex items-center gap-1 text-amber-600 font-medium">
-              <span className="w-2 h-2 rounded-full bg-amber-500" /> {medCount} Medium
-            </span>
-            <span className="flex items-center gap-1 text-rose-600 font-medium">
-              <span className="w-2 h-2 rounded-full bg-rose-500" /> {hardCount} Hard
-            </span>
+      {/* Top Banner: Progress Bar & Next Problem Action */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                {topicTitle} Practice Problems
+              </h2>
+              <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300">
+                {solvedCount} of {sortedProblems.length} Solved ({totalProgressPercent}%)
+              </span>
+              {hasStar && (
+                <span className="flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-bold bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                  <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                  Topic Mastered
+                </span>
+              )}
+            </div>
+
+            {/* Level breakdown */}
+            <div className="flex items-center gap-4 mt-2 text-xs text-slate-500 flex-wrap">
+              <span className="flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                Easy: {easySolved} / {easyProblems.length}
+              </span>
+              <span className="flex items-center gap-1.5 font-medium text-amber-600 dark:text-amber-400">
+                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                Medium: {medSolved} / {medProblems.length}
+              </span>
+              <span className="flex items-center gap-1.5 font-medium text-rose-600 dark:text-rose-400">
+                <span className="w-2 h-2 rounded-full bg-rose-500" />
+                Hard: {hardSolved} / {hardProblems.length}
+              </span>
+            </div>
+          </div>
+
+          {/* Next Problem / All Solved Button */}
+          <div>
+            {allProblemsSolved ? (
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 rounded-xl text-emerald-800 dark:text-emerald-300 font-bold text-xs shadow-sm">
+                <Trophy className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>All {sortedProblems.length} practice problems completed!</span>
+              </div>
+            ) : nextUnseenProblem ? (
+              <button
+                type="button"
+                onClick={() => onSelectProblem(nextUnseenProblem.problemId)}
+                className="flex items-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-semibold text-xs transition-all shadow-md hover:shadow-purple-500/20"
+              >
+                <span>Next: {nextUnseenProblem.title}</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-300 font-semibold text-xs">
+                <Sparkles className="w-4 h-4 text-purple-500" />
+                <span>All questions attempted</span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Next Problem or Topic Completed */}
-        <div>
-          {allProblemsSolved ? (
-            <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 rounded-xl text-emerald-800 dark:text-emerald-300 font-bold text-xs shadow-sm">
-              <Trophy className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span>Topic completed! Outstanding work.</span>
+        {/* Visual Progress Bar */}
+        <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
+          <div
+            className="h-full bg-purple-600 rounded-full transition-all duration-500"
+            style={{ width: `${totalProgressPercent}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Topic Assessment / Final Test Banner */}
+      <div className={`p-5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all shadow-sm ${
+        hasStar
+          ? 'bg-gradient-to-r from-amber-500/10 via-purple-500/10 to-transparent border-amber-300 dark:border-amber-700/60'
+          : 'bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-transparent border-purple-200 dark:border-purple-800/80'
+      }`}>
+        <div className="flex items-center gap-3.5">
+          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-white shadow-md shrink-0 ${
+            hasStar ? 'bg-gradient-to-br from-amber-400 to-amber-600 shadow-amber-500/30' : 'bg-purple-600 shadow-purple-500/20'
+          }`}>
+            {hasStar ? <Star className="w-6 h-6 fill-white" /> : <Award className="w-6 h-6" />}
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                {hasStar ? `⭐ ${topicTitle} Mastered` : `${topicTitle} Final Assessment`}
+              </h3>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                3 Problems • Dynamic Timer
+              </span>
             </div>
-          ) : nextUnseenProblem ? (
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xl">
+              {hasStar
+                ? `You earned the Mastery Star with a best score of ${badgeInfo?.bestScore || 85}%. You can retake the test anytime to practice under interview pressure.`
+                : `Test your skills under timed exam conditions. Each code is evaluated against 20 test cases. Score 80% or higher to earn the ⭐ ${topicTitle} Mastery Star!`}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {hasStar && onViewTestReport && (
             <button
               type="button"
-              onClick={() => onSelectProblem(nextUnseenProblem.problemId)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-semibold text-xs transition-all shadow-md hover:shadow-purple-500/20"
+              onClick={onViewTestReport}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 transition"
             >
-              <span>Next Problem: {nextUnseenProblem.title}</span>
-              <ArrowRight className="w-4 h-4" />
+              <FileText className="w-3.5 h-3.5" />
+              <span>View Report</span>
             </button>
-          ) : (
-            <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-300 font-semibold text-xs">
-              <Sparkles className="w-4 h-4 text-purple-500" />
-              <span>All available problems attempted</span>
-            </div>
+          )}
+
+          {onStartTest && (
+            <button
+              type="button"
+              onClick={onStartTest}
+              className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-600/20 transition hover:scale-105"
+            >
+              <span>{hasStar ? 'Retake Test' : 'Start Topic Test'}</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           )}
         </div>
       </div>
@@ -117,14 +206,13 @@ export default function ProblemListTab({
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search problems by title or concept tags..."
+            placeholder="Search 20 topic problems by title or tags..."
             className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
           />
         </div>
 
         {/* Filters */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Difficulty Dropdown / Pills */}
           <div className="flex items-center gap-1 p-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
             {['All', 'Easy', 'Medium', 'Hard'].map((diff) => (
               <button
@@ -142,7 +230,6 @@ export default function ProblemListTab({
             ))}
           </div>
 
-          {/* Status Pills */}
           <div className="flex items-center gap-1 p-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
             {['All', 'Unsolved', 'Solved', 'Attempted'].map((st) => (
               <button
@@ -184,7 +271,6 @@ export default function ProblemListTab({
                 className="group p-4 sm:p-5 flex items-center justify-between gap-4 hover:bg-purple-50/40 dark:hover:bg-slate-800/40 cursor-pointer transition-colors"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
-                  {/* Status Indicator */}
                   <div className="shrink-0">
                     {isSolved ? (
                       <CheckCircle2 className="w-5 h-5 text-emerald-500" />
@@ -195,7 +281,6 @@ export default function ProblemListTab({
                     )}
                   </div>
 
-                  {/* Title & Tags */}
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
@@ -226,7 +311,6 @@ export default function ProblemListTab({
                   </div>
                 </div>
 
-                {/* Right: Difficulty & Solve Action */}
                 <div className="flex items-center gap-3 shrink-0">
                   <span className={`text-xs px-2.5 py-1 rounded-lg font-semibold border ${diffStyle.bg} ${diffStyle.text} ${diffStyle.border}`}>
                     {problem.difficulty}
@@ -248,4 +332,3 @@ export default function ProblemListTab({
     </div>
   );
 }
-

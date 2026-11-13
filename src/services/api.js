@@ -346,6 +346,10 @@ export const API = {
   runDsaCode: (payload) => apiCall('/technical/dsa/run', 'POST', payload, false, 45000),
   submitDsaCode: (payload) => apiCall('/technical/dsa/submit', 'POST', payload, false, 60000),
   getDsaSubmissions: (params = '') => apiCall(`/technical/dsa/submissions${params ? `?${params}` : ''}`, 'GET'),
+  getTopicTest: (topicId) => apiCall(`/technical/dsa/topic/${topicId}/test`, 'GET'),
+  submitTopicTest: (topicId, payload) => apiCall(`/technical/dsa/topic/${topicId}/test/submit`, 'POST', payload, false, 90000),
+  getTopicTestReports: (topicId) => apiCall(`/technical/dsa/topic/${topicId}/test/reports`, 'GET'),
+  getUserTopicBadges: () => apiCall('/technical/dsa/badges', 'GET'),
 
   // HR Interview
   startInterviewSession: (payload) => apiCall('/hr/session/start', 'POST', payload),
