@@ -3,6 +3,7 @@ import {
   getDsaTopics,
   getDsaTopicDetail,
   getDsaProblemDetail,
+  getDsaAiVisualization,
   markDsaSolutionViewed,
   runDsaCode,
   submitDsaCode,
@@ -22,6 +23,7 @@ const router = express.Router();
 router.get('/topics', protectRoute, getDsaTopics);
 router.get('/topic/:topicId', protectRoute, getDsaTopicDetail);
 router.get('/problem/:problemId', protectRoute, getDsaProblemDetail);
+router.get('/problem/:problemId/ai-visualization', protectRoute, getDsaAiVisualization);
 router.post('/problem/:problemId/tutor-chat', protectRoute, askDsaTutorChat);
 router.post('/view-solution', protectRoute, markDsaSolutionViewed);
 router.post('/run', protectRoute, runDsaCode);

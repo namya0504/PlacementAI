@@ -367,10 +367,25 @@ export default function ProblemListTab({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                   <span className={`text-xs px-2.5 py-1 rounded-lg font-semibold border ${diffStyle.bg} ${diffStyle.text} ${diffStyle.border}`}>
                     {problem.difficulty}
                   </span>
+
+                  {/* Direct 1-Click Launch to Understand Step-by-Step in New Tab */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(`/placement-prep/technical/visualize/${problem.problemId}`, '_blank');
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-50 dark:bg-purple-950/70 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 shadow-sm transition-all hover:scale-105 active:scale-95"
+                    title="Understand this code step-by-step with animated visualization & AI coach"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 animate-pulse" />
+                    <span className="hidden md:inline">Understand Step-by-Step 🚀</span>
+                    <span className="md:hidden">Visualize</span>
+                  </button>
 
                   <button
                     type="button"

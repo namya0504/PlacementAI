@@ -49,20 +49,36 @@ export default function ProblemVisualizerPage() {
   const [chatLoading, setChatLoading] = useState(false);
   const chatBottomRef = useRef(null);
 
-  // Load problem details from API
+  // AI Visualization State
+  const [aiVisualization, setAiVisualization] = useState(null);
+  const [loadingAi, setLoadingAi] = useState(false);
+
+  // Load problem details and synthesized AI visualizer from API
   useEffect(() => {
     let isMounted = true;
     async function load() {
       try {
         setLoading(true);
-        const res = await API.getDsaProblemDetail(problemId);
-        if (isMounted && res?.problem) {
-          setProblem(res.problem);
+        setLoadingAi(true);
+
+        const [probRes, aiRes] = await Promise.allSettled([
+          API.getDsaProblemDetail(problemId),
+          API.getDsaAiVisualization(problemId)
+        ]);
+
+        if (isMounted && probRes.status === 'fulfilled' && probRes.value?.problem) {
+          setProblem(probRes.value.problem);
+        }
+        if (isMounted && aiRes.status === 'fulfilled' && aiRes.value?.visualization) {
+          setAiVisualization(aiRes.value.visualization);
         }
       } catch (err) {
         console.error('Failed to load problem for visualizer:', err);
       } finally {
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+          setLoadingAi(false);
+        }
       }
     }
     load();
@@ -274,6 +290,15 @@ export default function ProblemVisualizerPage() {
 
   // Non-coder real-world story analogy for every algorithm
   const beginnerAnalogy = useMemo(() => {
+    if (aiVisualization?.story) {
+      return {
+        analogyTitle: aiVisualization.analogyTitle || '🧩 AI Visual Algorithm Story',
+        story: aiVisualization.story,
+        whyBruteForceFails: aiVisualization.whyBruteForceFails || 'Checking all combinations takes quadratic O(N²) time. This algorithm reduces it to single pass O(N) or O(log N)!',
+        ahaMoment: aiVisualization.ahaMoment || 'Aha! Maintain an invariant and eliminate redundant calculations.',
+        interviewPitch: aiVisualization.interviewPitch
+      };
+    }
     if (archetype === 'stock') {
       return {
         analogyTitle: '👟 The Sneaker / Crypto Resale Analogy',
@@ -356,6 +381,21 @@ export default function ProblemVisualizerPage() {
 
   // Simulation Step Generator (Universal & Specialized)
   const simulationSteps = useMemo(() => {
+    // If AI visualization has custom synthesized steps and student isn't using custom sandbox input:
+    if (aiVisualization?.steps && aiVisualization.steps.length > 0 && !isCustomMode) {
+      return aiVisualization.steps.map((st, sIdx) => ({
+        ...st,
+        stepIndex: sIdx,
+        activeLine: st.activeLine || (sIdx + 1),
+        title: st.title || `Step ${sIdx + 1}`,
+        explanation: st.explanation,
+        formula: st.formula || `Step ${sIdx + 1} State Verification`,
+        decision: st.decision || 'Advancing pointer.',
+        outcomeStatus: st.outcomeStatus || (sIdx === aiVisualization.steps.length - 1 ? 'solution_found' : 'in_progress'),
+        isOptimalUpdate: st.isOptimalUpdate !== undefined ? st.isOptimalUpdate : (sIdx === aiVisualization.steps.length - 1)
+      }));
+    }
+
     // 1. Stock Simulation
     if (archetype === 'stock') {
       const prices = activeInput?.data || [7, 1, 5, 3, 6, 4];
@@ -1082,6 +1122,24 @@ export default function ProblemVisualizerPage() {
 
   // Code snippets by language
   const codeSnippets = useMemo(() => {
+    // 0. If AI has synthesized optimal multi-language code for this exact problem:
+    if (aiVisualization?.optimalCode) {
+      const result = {};
+      let hasCode = false;
+      ['python', 'javascript', 'java', 'cpp'].forEach((lang) => {
+        const rawCode = aiVisualization.optimalCode[lang];
+        if (rawCode && rawCode.trim().length > 0) {
+          hasCode = true;
+          result[lang] = rawCode
+            .split('\n')
+            .map((text, idx) => ({ line: idx + 1, text }));
+        }
+      });
+      if (hasCode && result.python && result.python.length > 2) {
+        return result;
+      }
+    }
+
     // 1. If problem has optimal approach code in database, extract and format it directly!
     const optimalApproach = problem?.approaches?.find(a => a.name?.toLowerCase().includes('optimal'))
       || problem?.approaches?.[problem?.approaches?.length - 1];
@@ -1303,9 +1361,16 @@ export default function ProblemVisualizerPage() {
                 <Sparkles className="w-3 h-3 text-purple-400" />
                 <span>Visualizer Studio</span>
               </span>
-              <span className="hidden md:inline-flex text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">
-                Non-Coder Friendly
-              </span>
+              {aiVisualization ? (
+                <span className="hidden md:inline-flex text-[10px] px-2 py-0.5 rounded-full font-bold bg-purple-950 text-purple-300 border border-purple-700/80 items-center gap-1 shadow-sm">
+                  <Sparkles className="w-2.5 h-2.5 text-purple-400 animate-pulse" />
+                  <span>AI Trace Synthesized ✨</span>
+                </span>
+              ) : (
+                <span className="hidden md:inline-flex text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">
+                  Non-Coder Friendly
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-400 hidden sm:block truncate">
               Step-by-step visual learning and interactive placement code walkthrough.
@@ -1419,6 +1484,19 @@ export default function ProblemVisualizerPage() {
                 </p>
               </div>
             </div>
+
+            {/* 60-Second Placement Interview Pitch */}
+            {beginnerAnalogy.interviewPitch && (
+              <div className="p-5 rounded-2xl bg-purple-950/40 border border-purple-800/80 space-y-2">
+                <div className="text-xs font-bold uppercase tracking-wider text-purple-300 flex items-center gap-1.5">
+                  <Award className="w-4 h-4 text-purple-400" />
+                  <span>60-Second Placement Interview Pitch:</span>
+                </div>
+                <p className="text-xs text-slate-200 leading-relaxed font-sans">
+                  {beginnerAnalogy.interviewPitch}
+                </p>
+              </div>
+            )}
 
             <div className="pt-2 flex justify-end">
               <button
