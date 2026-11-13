@@ -29,17 +29,23 @@ Output the two 0-based indices separated by a space in ascending order.`,
     examples: [
       {
         input: '4\n2 7 11 15\n9',
+        displayInput: 'nums = [2, 7, 11, 15], target = 9',
         output: '0 1',
+        displayOutput: '[0, 1]',
         explanation: 'Because nums[0] + nums[1] == 2 + 7 == 9, we print 0 1.'
       },
       {
         input: '3\n3 2 4\n6',
+        displayInput: 'nums = [3, 2, 4], target = 6',
         output: '1 2',
+        displayOutput: '[1, 2]',
         explanation: 'Because nums[1] + nums[2] == 2 + 4 == 6, we print 1 2.'
       },
       {
         input: '2\n3 3\n6',
+        displayInput: 'nums = [3, 3], target = 6',
         output: '0 1',
+        displayOutput: '[0, 1]',
         explanation: 'Because nums[0] + nums[1] == 3 + 3 == 6, we print 0 1.'
       }
     ],
@@ -514,11 +520,13 @@ Return the **maximum profit** you can achieve from this transaction. If you cann
     examples: [
       {
         input: '6\n7 1 5 3 6 4',
+        displayInput: 'prices = [7, 1, 5, 3, 6, 4]',
         output: '5',
         explanation: 'Buy on day 2 (price = 1) and sell on day 5 (price = 6), profit = 6 - 1 = 5.'
       },
       {
         input: '5\n7 6 4 3 1',
+        displayInput: 'prices = [7, 6, 4, 3, 1]',
         output: '0',
         explanation: 'In this case, no transactions are done and the max profit = 0.'
       }

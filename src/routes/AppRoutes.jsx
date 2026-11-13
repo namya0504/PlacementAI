@@ -15,6 +15,7 @@ const Templates = lazy(() => import('../pages/Templates'));
 const ATSChecker = lazy(() => import('../pages/ATSChecker'));
 const Aptitude = lazy(() => import('../pages/Aptitude'));
 const Technical = lazy(() => import('../pages/Technical'));
+const ProblemVisualizerPage = lazy(() => import('../pages/ProblemVisualizerPage'));
 const HRInterview = lazy(() => import('../pages/HRInterview'));
 const CompanyPrep = lazy(() => import('../pages/CompanyPrep'));
 const MyProgress = lazy(() => import('../pages/MyProgress'));
@@ -112,6 +113,7 @@ export default function AppRoutes() {
         <Route path={ROUTES.placementPrep} element={<ProtectedRoute><ErrorBoundary><Aptitude /></ErrorBoundary></ProtectedRoute>} />
         <Route path={ROUTES.aptitude}      element={<ProtectedRoute><ErrorBoundary><Aptitude /></ErrorBoundary></ProtectedRoute>} />
         <Route path={ROUTES.technical}     element={<ProtectedRoute><ErrorBoundary><Technical /></ErrorBoundary></ProtectedRoute>} />
+        <Route path={ROUTES.technicalVisualizer} element={<ProtectedRoute><ErrorBoundary><ProblemVisualizerPage /></ErrorBoundary></ProtectedRoute>} />
         <Route path={ROUTES.hrInterview}   element={<ProtectedRoute><ErrorBoundary><HRInterview /></ErrorBoundary></ProtectedRoute>} />
         <Route path={ROUTES.companyPrep}   element={<ProtectedRoute><ErrorBoundary><CompanyPrep /></ErrorBoundary></ProtectedRoute>} />
         <Route path={ROUTES.progress}      element={<ProtectedRoute><ErrorBoundary><MyProgress /></ErrorBoundary></ProtectedRoute>} />

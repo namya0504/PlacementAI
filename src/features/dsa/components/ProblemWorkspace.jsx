@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   ChevronLeft, Play, Send, CheckCircle2, AlertCircle,
   FileText, Lightbulb, Zap, Clock, Terminal, ChevronRight,
-  ShieldCheck, ArrowRight, Eye, Code2
+  ShieldCheck, ArrowRight, Eye, Code2, Sparkles, ExternalLink
 } from 'lucide-react';
 import { API } from '../../../services/api';
 import { useToast } from '../../../context/ToastContext';
@@ -253,34 +253,47 @@ export default function ProblemWorkspace({
         </div>
 
         {/* Right Nav Action: Next Problem or Next Topic */}
-        {hasNextProblem ? (
+        <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
           <button
             type="button"
-            onClick={onOpenNextProblem}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs shadow-sm transition-all shrink-0 self-end md:self-center"
+            onClick={() => window.open(`/placement-prep/technical/visualize/${problem.problemId}`, '_blank')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/70 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 font-bold text-xs shadow-sm transition"
+            title="Open interactive animated algorithm visualizer in a new tab"
           >
-            <span>Next Problem</span>
-            <ChevronRight className="w-4 h-4" />
+            <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+            <span className="hidden sm:inline">Understand Step-by-Step 🚀</span>
+            <ExternalLink className="w-3 h-3 text-purple-500 sm:hidden" />
           </button>
-        ) : hasNextTopic ? (
-          <button
-            type="button"
-            onClick={onOpenNextTopic}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-100 font-semibold text-xs transition-colors shrink-0 self-end md:self-center"
-          >
-            <span>Next Topic: {nextTopicTitle}</span>
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onBackToTopic}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-colors shrink-0 self-end md:self-center"
-          >
-            <span>Topic Problems</span>
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        )}
+
+          {hasNextProblem ? (
+            <button
+              type="button"
+              onClick={onOpenNextProblem}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs shadow-sm transition-all"
+            >
+              <span>Next Problem</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          ) : hasNextTopic ? (
+            <button
+              type="button"
+              onClick={onOpenNextTopic}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-100 font-semibold text-xs transition-colors"
+            >
+              <span>Next Topic: {nextTopicTitle}</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onBackToTopic}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-colors"
+            >
+              <span>Topic Problems</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Split-Screen Grid: Left = Tabs / Right = Monaco Editor + Result Panel */}

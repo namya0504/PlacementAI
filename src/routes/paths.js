@@ -11,6 +11,7 @@ export const ROUTES = Object.freeze({
   placementPrep: '/placement-prep',
   aptitude: '/placement-prep/aptitude',
   technical: '/placement-prep/technical',
+  technicalVisualizer: '/placement-prep/technical/visualize/:problemId',
   hrInterview: '/placement-prep/hr-interview',
   companyPrep: '/placement-prep/company',
   progress: '/my-progress',
