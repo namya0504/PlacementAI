@@ -82,96 +82,197 @@ export default function ProblemVisualizerPage() {
     const title = (problem?.title || '').toLowerCase();
     const topic = (problem?.topicId || '').toLowerCase();
 
-    if (slug.includes('buy_sell_stock') || title.includes('stock') || title.includes('buy and sell')) {
+    // 1. Stock problems
+    if (slug.includes('stock') || title.includes('stock') || title.includes('buy and sell')) {
       return 'stock';
     }
+    // 2. Two Sum / Hashing Pair problems
     if (slug.includes('two_sum') || title.includes('two sum') || title.includes('pair')) {
       return 'two_sum';
     }
-    if (slug.includes('palindrome') || title.includes('palindrome') || title.includes('reverse')) {
-      return 'palindrome';
+    // 3. Binary Search
+    if (slug.includes('binary_search') || title.includes('binary search') || topic === 'binary search' || topic === 'binary_search') {
+      return 'binary_search';
     }
+    // 4. Maximum Subarray / Kadane
     if (slug.includes('max_subarray') || title.includes('maximum subarray') || title.includes('kadane')) {
       return 'max_subarray';
     }
-    if (slug.includes('container') || title.includes('most water')) {
-      return 'container';
+    // 5. Sliding Window
+    if (slug.includes('sliding_window') || topic === 'sliding window' || topic === 'sliding_window' || title.includes('sliding window') || title.includes('window') || title.includes('longest substring')) {
+      return 'sliding_window';
     }
-    if (slug.includes('binary_search') || title.includes('binary search') || topic === 'binary search') {
-      return 'binary_search';
+    // 6. Prefix Sum
+    if (slug.includes('prefix_sum') || topic === 'prefix sum' || topic === 'prefix_sum' || title.includes('prefix sum') || title.includes('range sum')) {
+      return 'prefix_sum';
     }
-    if (slug.includes('parentheses') || title.includes('parentheses') || topic === 'stack') {
+    // 7. Stack / Parentheses
+    if (slug.includes('stack') || topic === 'stack' || title.includes('stack') || title.includes('parentheses') || title.includes('bracket')) {
       return 'stack';
     }
-    if (topic === 'sliding window' || title.includes('sliding window') || title.includes('window')) {
-      return 'sliding_window';
+    // 8. Linked List
+    if (slug.includes('linked_list') || topic === 'linked list' || topic === 'linked_list' || title.includes('linked list') || title.includes('list node')) {
+      return 'linked_list';
+    }
+    // 9. Two Pointers / Palindrome / Container
+    if (slug.includes('container') || title.includes('most water') || slug.includes('palindrome') || title.includes('palindrome') || topic === 'two pointers' || topic === 'two_pointers') {
+      return 'two_pointers';
+    }
+    // 10. Trees / BST
+    if (slug.includes('tree') || topic.includes('tree') || title.includes('tree') || title.includes('bst')) {
+      return 'tree';
+    }
+    // 11. Heap / Priority Queue
+    if (slug.includes('heap') || topic.includes('heap') || topic.includes('priority queue') || title.includes('kth')) {
+      return 'heap';
+    }
+    // 12. Dynamic Programming
+    if (slug.includes('dp') || topic.includes('dynamic programming') || topic === 'dp' || title.includes('climb') || title.includes('coin change')) {
+      return 'dp';
+    }
+    // 13. Bit Manipulation
+    if (slug.includes('bit') || topic.includes('bit') || title.includes('single number') || title.includes('bits')) {
+      return 'bit_manipulation';
     }
     return 'universal';
   }, [problem, problemId]);
 
-  // Input presets based on problem archetype
+  // Dynamic input presets based on actual problem examples or archetype fallbacks
   const inputPresets = useMemo(() => {
+    const list = [];
+
+    // Parse real problem examples from database
+    if (Array.isArray(problem?.examples) && problem.examples.length > 0) {
+      problem.examples.forEach((ex, idx) => {
+        const raw = String(ex.input || '').trim();
+        const rawOutput = String(ex.output || '').trim();
+        const tokens = raw.split(/\s+/).map(Number).filter(n => !isNaN(n));
+
+        if (archetype === 'two_sum' || archetype === 'binary_search') {
+          if (tokens.length >= 3) {
+            const n = tokens[0];
+            const nums = tokens.slice(1, n + 1);
+            const target = tokens[n + 1] !== undefined ? tokens[n + 1] : tokens[tokens.length - 1];
+            list.push({
+              label: `Example ${idx + 1}: Target = ${target}`,
+              nums: nums.length > 0 ? nums : [2, 7, 11, 15],
+              target: isNaN(target) ? 9 : target,
+              expectedOutput: rawOutput,
+              explanation: ex.explanation
+            });
+            return;
+          }
+        }
+
+        if (tokens.length > 1 && tokens[0] === tokens.length - 1) {
+          const arr = tokens.slice(1);
+          list.push({
+            label: `Example ${idx + 1}: [${arr.slice(0, 4).join(', ')}${arr.length > 4 ? '...' : ''}]`,
+            data: arr,
+            nums: arr,
+            target: arr[arr.length - 1],
+            expectedOutput: rawOutput,
+            explanation: ex.explanation
+          });
+          return;
+        }
+
+        if (tokens.length > 0) {
+          list.push({
+            label: `Example ${idx + 1}: [${tokens.slice(0, 4).join(', ')}${tokens.length > 4 ? '...' : ''}]`,
+            data: tokens,
+            nums: tokens,
+            target: tokens[tokens.length - 1],
+            expectedOutput: rawOutput,
+            explanation: ex.explanation
+          });
+          return;
+        }
+
+        list.push({
+          label: `Example ${idx + 1}: "${raw.slice(0, 24)}"`,
+          text: raw,
+          data: [1, 2, 3, 4, 5],
+          nums: [1, 2, 3, 4, 5],
+          expectedOutput: rawOutput,
+          explanation: ex.explanation
+        });
+      });
+    }
+
+    // Default presets and edge cases per archetype
     if (archetype === 'stock') {
-      return [
-        { label: 'Example 1: Peak & Valley', data: [7, 1, 5, 3, 6, 4] },
-        { label: 'Example 2: Strictly Decreasing (No Profit)', data: [7, 6, 4, 3, 1] },
-        { label: 'Example 3: Early Dip & Late Moon', data: [2, 4, 1, 8, 3, 9] },
-        { label: 'Example 4: Flat Prices', data: [3, 3, 3, 3, 3] }
-      ];
+      list.push(
+        { label: 'Example: Peak & Valley', data: [7, 1, 5, 3, 6, 4] },
+        { label: 'Example: Strictly Decreasing (₹0 Profit)', data: [7, 6, 4, 3, 1] },
+        { label: 'Example: Early Dip & Late High', data: [2, 4, 1, 8, 3, 9] }
+      );
+    } else if (archetype === 'two_sum') {
+      list.push(
+        { label: 'Example: Target = 9 (Found [0, 1])', nums: [2, 7, 11, 15], target: 9 },
+        { label: 'Example: Target = 100 (NOT Found ❌)', nums: [1, 4, 6, 12, 15], target: 100 }
+      );
+    } else if (archetype === 'binary_search') {
+      list.push(
+        { label: 'Example: Target = 9 (Found)', nums: [-1, 0, 3, 5, 9, 12], target: 9 },
+        { label: 'Example: Target = 2 (NOT Found ❌)', nums: [-1, 0, 3, 5, 9, 12], target: 2 }
+      );
+    } else if (archetype === 'two_pointers') {
+      list.push(
+        { label: 'Example: Inward Array', nums: [1, 8, 6, 2, 5, 4, 8, 3, 7], target: 49 },
+        { label: 'Example: Symmetric Palindrome', nums: [1, 2, 3, 2, 1], target: 1 }
+      );
+    } else if (archetype === 'sliding_window') {
+      list.push(
+        { label: 'Example: Sliding Subarray', nums: [2, 1, 5, 1, 3, 2], target: 7 },
+        { label: 'Example: Expanding Sequence', nums: [1, 4, 2, 10, 23, 3, 1, 0, 20], target: 4 }
+      );
+    } else if (archetype === 'prefix_sum') {
+      list.push(
+        { label: 'Example: Cumulative Values', nums: [1, 2, 3, 4, 5], target: 15 },
+        { label: 'Example: Mixed Positive/Negative', nums: [3, -1, 4, -2, 5], target: 9 }
+      );
+    } else if (archetype === 'stack') {
+      list.push(
+        { label: 'Example: Stack Items', nums: [10, 20, 30, 40], target: 40 },
+        { label: 'Example: Monotonic Series', nums: [73, 74, 75, 71, 69, 72, 76, 73], target: 76 }
+      );
+    } else if (archetype === 'linked_list') {
+      list.push(
+        { label: 'Example: Chained 5 Nodes', nums: [1, 2, 3, 4, 5], target: 5 },
+        { label: 'Example: Chained 4 Nodes', nums: [10, 20, 30, 40], target: 40 }
+      );
     }
-    if (archetype === 'two_sum') {
-      return [
-        { label: 'Example 1: Target = 9', nums: [2, 7, 11, 15], target: 9 },
-        { label: 'Example 2: Target = 6', nums: [3, 2, 4], target: 6 },
-        { label: 'Example 3: Duplicate Elements (Target = 6)', nums: [3, 3], target: 6 },
-        { label: 'Example 4: Target NOT Found (Target = 100)', nums: [1, 4, 6, 12, 15], target: 100 }
-      ];
+
+    if (list.length === 0) {
+      list.push(
+        { label: 'Sample Array 1: Linear Sequence', data: [1, 2, 3, 4, 5], nums: [1, 2, 3, 4, 5], target: 10 },
+        { label: 'Sample Array 2: Varied Data', data: [10, 4, 8, 15, 22], nums: [10, 4, 8, 15, 22], target: 25 },
+        { label: 'Sample Array 3: Unsolvable Target', data: [5, 10, 15, 20], nums: [5, 10, 15, 20], target: 99 }
+      );
     }
-    if (archetype === 'palindrome') {
-      return [
-        { label: 'Example 1: Panama Phrase', text: 'A man, a plan, a canal: Panama' },
-        { label: 'Example 2: Not a Palindrome', text: 'race a car' },
-        { label: 'Example 3: Empty / Whitespace', text: '   ' }
-      ];
-    }
-    if (archetype === 'max_subarray') {
-      return [
-        { label: 'Example 1: Standard Mixed Subarray', data: [-2, 1, -3, 4, -1, 2, 1, -5, 4] },
-        { label: 'Example 2: All Negative Elements', data: [-5, -2, -8, -1, -4] },
-        { label: 'Example 3: Single Positive Peak', data: [1, 2, 3, 4] }
-      ];
-    }
-    if (archetype === 'binary_search') {
-      return [
-        { label: 'Example 1: Target = 9 (Found)', nums: [-1, 0, 3, 5, 9, 12], target: 9 },
-        { label: 'Example 2: Target = 2 (NOT Found)', nums: [-1, 0, 3, 5, 9, 12], target: 2 }
-      ];
-    }
-    return [
-      { label: 'Sample Array 1: Linear Sequence', data: [1, 2, 3, 4, 5], target: 10 },
-      { label: 'Sample Array 2: Varied Data', data: [10, 4, 8, 15, 22], target: 25 },
-      { label: 'Sample Array 3: Unsolvable Target', data: [5, 10, 15, 20], target: 99 }
-    ];
-  }, [archetype]);
+
+    return list;
+  }, [problem, archetype]);
 
   // Resolve current active input
   const activeInput = useMemo(() => {
     if (isCustomMode && customArrayText.trim()) {
-      if (archetype === 'two_sum' || archetype === 'binary_search') {
+      if (archetype === 'two_sum' || archetype === 'binary_search' || archetype === 'two_pointers' || archetype === 'sliding_window' || archetype === 'prefix_sum' || archetype === 'stack' || archetype === 'linked_list') {
         const nums = customArrayText.split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
         const target = Number(customTargetText) || 9;
-        if (nums.length > 0) return { nums, target };
+        if (nums.length > 0) return { nums, data: nums, target };
       } else if (archetype === 'palindrome') {
         return { text: customArrayText };
       } else {
         const parsed = customArrayText.split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
-        if (parsed.length > 0) return { data: parsed };
+        if (parsed.length > 0) return { data: parsed, nums: parsed };
       }
     }
     return inputPresets[activePresetIndex] || inputPresets[0];
   }, [isCustomMode, customArrayText, customTargetText, activePresetIndex, inputPresets, archetype]);
 
-  // Non-coder real-world story analogy for the problem
+  // Non-coder real-world story analogy for every algorithm
   const beginnerAnalogy = useMemo(() => {
     if (archetype === 'stock') {
       return {
@@ -195,6 +296,46 @@ export default function ProblemVisualizerPage() {
         story: 'Imagine looking up a word in a 1,000-page dictionary. You do NOT flip page by page starting from page 1! Instead, you open right to page 500. If your word starts with "T", you instantly discard pages 1–500 and chop the dictionary in half! Then you check page 750. In just 10 checks, you can find any word out of 1,000 pages!',
         whyBruteForceFails: 'Linear scanning one by one takes O(N). If the dictionary has 1,000,000 pages, linear search takes up to 1,000,000 steps, while Binary Search takes only 20 steps!',
         ahaMoment: 'Aha! Because the list is sorted, every single check cuts the remaining work in half!'
+      };
+    }
+    if (archetype === 'two_pointers') {
+      return {
+        analogyTitle: '🚶‍♂️ The Two Friends Walking Inward from Both Ends',
+        story: 'Imagine two friends walking inward from opposite ends of a long hallway to find the optimal meeting spot or verify symmetry. Because the walls or numbers are bounded, at each step we only need to move the pointer that holds the limiting bottleneck. We eliminate an entire set of invalid combinations in a single step!',
+        whyBruteForceFails: 'Pairwise double loop checks N * (N - 1) / 2 combinations (O(N²)). With two pointers, we touch each element at most once: pure O(N) linear time!',
+        ahaMoment: 'Aha! By starting at opposite ends and moving the smaller bottleneck inward, we never miss the optimal configuration!'
+      };
+    }
+    if (archetype === 'sliding_window') {
+      return {
+        analogyTitle: '🪟 The Moving Camera Zoom / Train Window Panorama',
+        story: 'Imagine looking out of a moving train window at a panoramic landscape. Instead of repainting the entire view from scratch every second, you simply add what enters on the right side and drop what slides out on the left side! This continuous sliding frame keeps track of state dynamically without redundant calculations.',
+        whyBruteForceFails: 'Recomputing the sum or unique elements of every possible subsegment takes O(N²). A sliding window slides in O(1) per step, completing all checks in O(N)!',
+        ahaMoment: 'Aha! Add the new element entering the right side, subtract the old element exiting the left side!'
+      };
+    }
+    if (archetype === 'prefix_sum') {
+      return {
+        analogyTitle: '📊 The Bank Statement / Odometer Running Total',
+        story: 'Imagine looking at your car odometer or bank statement balance. If your odometer was 10,000 km at the start of March and 12,500 km at the end of March, you drove exactly 12,500 - 10,000 = 2,500 km in March! You did not have to sum up each individual 1-km trip. A prefix sum array stores cumulative totals so any range query is answered in 1 step!',
+        whyBruteForceFails: 'Iterating through range queries repeatedly takes O(N * Q) time. With prefix sums, after a one-time O(N) prep, every single query is answered in O(1) time!',
+        ahaMoment: 'Aha! Range sum from L to R is simply prefix[R + 1] - prefix[L]!'
+      };
+    }
+    if (archetype === 'stack') {
+      return {
+        analogyTitle: '🥞 The Spring-Loaded Cafeteria Tray Stack (LIFO)',
+        story: 'Imagine a spring-loaded stack of trays in a college dining hall. The last tray placed onto the stack is the first one taken by the next student (Last-In, First-Out). Stacks are the natural way to match pairs (like opening and closing parentheses `()`, `{}`) or trace back decisions cleanly.',
+        whyBruteForceFails: 'Searching backward without a stack requires repeated scanning O(N²). A stack gives instant O(1) access to the most recent context.',
+        ahaMoment: 'Aha! Push when opening context, pop and match when closing context!'
+      };
+    }
+    if (archetype === 'linked_list') {
+      return {
+        analogyTitle: '🚂 The Connected Train Wagons / Scavenger Hunt',
+        story: 'Imagine a scavenger hunt where each clue box contains an item and a note giving the exact address of the NEXT clue box. You cannot teleport to Clue #10; you must follow the trail from clue to clue (`curr = curr.next`). This dynamic connection makes adding or removing items take instant O(1) pointer adjustment without shifting an entire array!',
+        whyBruteForceFails: 'Arrays require shifting thousands of items when inserting at the front O(N). Linked lists simply update one pointer in O(1)!',
+        ahaMoment: 'Aha! Nodes are scattered in memory, connected like train couplers through `.next` pointers!'
       };
     }
     if (archetype === 'max_subarray') {
@@ -522,7 +663,312 @@ export default function ProblemVisualizerPage() {
       return steps;
     }
 
-    // 4. Universal Fallback Simulator (Works for any of the 420 problems)
+    // 4. Two Pointers Simulation (Inward Walk)
+    if (archetype === 'two_pointers') {
+      const nums = activeInput?.nums || [1, 8, 6, 2, 5, 4, 8, 3, 7];
+      const target = typeof activeInput?.target === 'number' ? activeInput.target : 49;
+      const steps = [];
+
+      let left = 0;
+      let right = nums.length - 1;
+      let maxArea = 0;
+      let bestPair = [0, right];
+
+      steps.push({
+        stepIndex: 0,
+        activeLine: 1,
+        title: `Step 0: Set Inward Pointers left = 0, right = ${right}`,
+        left: 0,
+        right,
+        nums,
+        explanation: `Initialize two pointers at opposite ends of the array: left = 0 (val: ${nums[0]}), right = ${right} (val: ${nums[right]}). In each step, we evaluate the pair and move the limiting bottleneck inward.`,
+        formula: `left = 0, right = ${right}, target = ${target}`,
+        decision: `Search space contains ${nums.length} elements.`,
+        outcomeStatus: 'ready'
+      });
+
+      while (left < right) {
+        const h = Math.min(nums[left], nums[right]);
+        const w = right - left;
+        const currentMetric = h * w;
+        const isNewBest = currentMetric > maxArea;
+        if (isNewBest) {
+          maxArea = currentMetric;
+          bestPair = [left, right];
+        }
+
+        const isMatch = currentMetric === target;
+        steps.push({
+          stepIndex: steps.length,
+          activeLine: 3,
+          title: isMatch
+            ? `Pair [${left}, ${right}]: ⭐ Target ${target} Reached!`
+            : `Pair [${left}, ${right}]: nums[${left}]=${nums[left]}, nums[${right}]=${nums[right]} ➔ Metric: ${currentMetric}`,
+          left,
+          right,
+          nums,
+          explanation: `At left index ${left} (${nums[left]}) and right index ${right} (${nums[right]}), width is ${w}. Metric = min(${nums[left]}, ${nums[right]}) * ${w} = ${currentMetric}. ${nums[left] < nums[right] ? `Left wall (${nums[left]}) is shorter: advance left to ${left + 1}.` : `Right wall (${nums[right]}) is shorter or equal: advance right to ${right - 1}.`}`,
+          formula: `min(${nums[left]}, ${nums[right]}) * ${w} = ${currentMetric}`,
+          decision: nums[left] < nums[right] ? `left++ ➔ ${left + 1}` : `right-- ➔ ${right - 1}`,
+          isOptimalUpdate: isNewBest,
+          outcomeStatus: isMatch ? 'solution_found' : 'in_progress'
+        });
+
+        if (isMatch) break;
+
+        if (nums[left] < nums[right]) {
+          left++;
+        } else {
+          right--;
+        }
+      }
+
+      steps.push({
+        stepIndex: steps.length,
+        activeLine: 6,
+        title: `🎉 Two Pointers Traversal Complete (Best: ${maxArea})`,
+        left: bestPair[0],
+        right: bestPair[1],
+        nums,
+        explanation: `Traversal completed in O(N) linear time. Optimal boundaries found at indices [${bestPair[0]}, ${bestPair[1]}].`,
+        formula: `return bestMetric = ${maxArea}`,
+        decision: `Done.`,
+        isOptimalUpdate: true,
+        outcomeStatus: 'solution_found'
+      });
+
+      return steps;
+    }
+
+    // 5. Sliding Window Simulation
+    if (archetype === 'sliding_window') {
+      const nums = activeInput?.nums || [2, 1, 5, 1, 3, 2];
+      const target = typeof activeInput?.target === 'number' ? activeInput.target : 7;
+      const steps = [];
+
+      let left = 0;
+      let windowSum = 0;
+
+      steps.push({
+        stepIndex: 0,
+        activeLine: 1,
+        title: `Step 0: Initialize Sliding Window (Target = ${target})`,
+        left: 0,
+        right: 0,
+        nums,
+        explanation: `Initialize sliding window pointers: left = 0, right = 0. Window expands rightward and contracts leftward to satisfy conditions.`,
+        formula: `left = 0, right = 0, target = ${target}`,
+        decision: 'Ready to expand window.',
+        outcomeStatus: 'ready'
+      });
+
+      for (let right = 0; right < nums.length; right++) {
+        windowSum += nums[right];
+        const isMatch = windowSum === target;
+
+        steps.push({
+          stepIndex: steps.length,
+          activeLine: 3,
+          title: isMatch
+            ? `Window [${left}...${right}]: ⭐ Target ${target} Formed!`
+            : `Window [${left}...${right}]: Added nums[${right}]=${nums[right]} ➔ Window Sum = ${windowSum}`,
+          left,
+          right,
+          nums,
+          explanation: `Right pointer at index ${right} adds ${nums[right]}. Current window [${nums.slice(left, right + 1).join(', ')}] sum is ${windowSum}.`,
+          formula: `window[${left}..${right}] = ${windowSum}`,
+          decision: `Window size: ${right - left + 1} items.`,
+          isOptimalUpdate: isMatch,
+          outcomeStatus: isMatch ? 'solution_found' : 'in_progress'
+        });
+
+        if (windowSum > target && left < right) {
+          windowSum -= nums[left];
+          left++;
+          steps.push({
+            stepIndex: steps.length,
+            activeLine: 5,
+            title: `Window Over Target: Shrink Left ➔ New left = ${left}`,
+            left,
+            right,
+            nums,
+            explanation: `Window sum exceeded target. Shrunk left boundary to ${left}, subtracting previous element. New window sum is ${windowSum}.`,
+            formula: `left++ ➔ window = [${nums.slice(left, right + 1).join(', ')}]`,
+            decision: 'Constraint restored.',
+            isOptimalUpdate: false,
+            outcomeStatus: 'in_progress'
+          });
+        }
+      }
+
+      steps.push({
+        stepIndex: steps.length,
+        activeLine: 8,
+        title: '🎉 Sliding Window Complete: Traversal Finished in O(N)',
+        left,
+        right: nums.length - 1,
+        nums,
+        explanation: 'All elements processed in linear O(N) time with O(1) auxiliary space.',
+        formula: 'return optimalWindow',
+        decision: 'Complete.',
+        isOptimalUpdate: true,
+        outcomeStatus: 'solution_found'
+      });
+
+      return steps;
+    }
+
+    // 6. Prefix Sum Simulation
+    if (archetype === 'prefix_sum') {
+      const nums = activeInput?.nums || [1, 2, 3, 4, 5];
+      const steps = [];
+      const prefix = [0];
+
+      steps.push({
+        stepIndex: 0,
+        activeLine: 1,
+        title: 'Step 0: Initialize Prefix Sum Array',
+        index: -1,
+        nums,
+        prefixArray: [0],
+        explanation: 'Initialize prefix array with base prefix[0] = 0. Prefix array allows answering any range sum query in O(1) time!',
+        formula: 'prefix = [0]',
+        decision: 'Ready to compute cumulative sums.',
+        outcomeStatus: 'ready'
+      });
+
+      for (let i = 0; i < nums.length; i++) {
+        const nextVal = prefix[prefix.length - 1] + nums[i];
+        prefix.push(nextVal);
+
+        steps.push({
+          stepIndex: steps.length,
+          activeLine: 3,
+          title: `Index ${i}: prefix[${i + 1}] = prefix[${i}] + nums[${i}] = ${nextVal}`,
+          index: i,
+          nums,
+          prefixArray: [...prefix],
+          explanation: `At index ${i}, element is ${nums[i]}. Add it to previous cumulative sum (${prefix[i]}): ${prefix[i]} + ${nums[i]} = ${nextVal}. Stored in prefix[${i + 1}].`,
+          formula: `prefix[${i + 1}] = ${prefix[i]} + ${nums[i]} = ${nextVal}`,
+          decision: `Cumulative balance updated to ${nextVal}.`,
+          isOptimalUpdate: true,
+          outcomeStatus: 'in_progress'
+        });
+      }
+
+      steps.push({
+        stepIndex: steps.length,
+        activeLine: 6,
+        title: '🎉 Prefix Sum Built: Query Any Subarray in O(1) Time!',
+        index: nums.length - 1,
+        nums,
+        prefixArray: [...prefix],
+        explanation: `Prefix sum array built: [${prefix.join(', ')}]. Now to get the sum between any index i and j, simply compute prefix[j+1] - prefix[i] in instant O(1) time!`,
+        formula: 'sum(i..j) = prefix[j+1] - prefix[i]',
+        decision: 'Ready for instant O(1) range queries.',
+        isOptimalUpdate: true,
+        outcomeStatus: 'solution_found'
+      });
+
+      return steps;
+    }
+
+    // 7. Stack Simulation
+    if (archetype === 'stack') {
+      const nums = activeInput?.nums || [10, 20, 30, 40];
+      const steps = [];
+      const stack = [];
+
+      steps.push({
+        stepIndex: 0,
+        activeLine: 1,
+        title: 'Step 0: Initialize Empty Stack []',
+        index: -1,
+        nums,
+        stackArray: [],
+        explanation: 'Initialize an empty stack: stack = []. Stack operates on LIFO (Last-In, First-Out).',
+        formula: 'stack = []',
+        decision: 'Ready to process elements.',
+        outcomeStatus: 'ready'
+      });
+
+      for (let i = 0; i < nums.length; i++) {
+        const item = nums[i];
+        stack.push(item);
+
+        steps.push({
+          stepIndex: steps.length,
+          activeLine: 3,
+          title: `Index ${i}: Push ${item} onto Stack ➔ Top is now ${item}`,
+          index: i,
+          nums,
+          stackArray: [...stack],
+          explanation: `Pushed element ${item} onto the top of the stack. Stack depth is now ${stack.length}.`,
+          formula: `stack.push(${item}) ➔ [${stack.join(', ')}]`,
+          decision: `Top of stack = ${item}.`,
+          isOptimalUpdate: true,
+          outcomeStatus: 'in_progress'
+        });
+      }
+
+      steps.push({
+        stepIndex: steps.length,
+        activeLine: 6,
+        title: '🎉 Stack Operations Complete: Verified LIFO Order',
+        index: nums.length - 1,
+        nums,
+        stackArray: [...stack],
+        explanation: `All items processed. Top item is ${stack[stack.length - 1]}. Pops happen in reverse order.`,
+        formula: `stack.length = ${stack.length}`,
+        decision: 'Stack invariant verified.',
+        isOptimalUpdate: true,
+        outcomeStatus: 'solution_found'
+      });
+
+      return steps;
+    }
+
+    // 8. Linked List Simulation
+    if (archetype === 'linked_list') {
+      const nums = activeInput?.nums || [1, 2, 3, 4, 5];
+      const steps = [];
+
+      steps.push({
+        stepIndex: 0,
+        activeLine: 1,
+        title: 'Step 0: Head Pointer set to Node(1)',
+        index: 0,
+        nums,
+        explanation: 'Initialize head pointer at first node. Linked list nodes are connected via .next pointers.',
+        formula: 'curr = head',
+        decision: 'At list head.',
+        outcomeStatus: 'ready'
+      });
+
+      for (let i = 0; i < nums.length; i++) {
+        const isTail = i === nums.length - 1;
+        steps.push({
+          stepIndex: steps.length,
+          activeLine: 3,
+          title: isTail
+            ? `Node ${i + 1} (Val: ${nums[i]}): Reached Tail Node (next = null)`
+            : `Node ${i + 1} (Val: ${nums[i]}): Pointer curr ➔ next Node(Val: ${nums[i + 1]})`,
+          index: i,
+          nums,
+          explanation: isTail
+            ? `Node ${i + 1} has value ${nums[i]} and points to null. We have reached the end of the linked list.`
+            : `Visiting Node with value ${nums[i]}. Following pointer to next node with value ${nums[i + 1]}.`,
+          formula: `curr.val = ${nums[i]}, curr.next = ${isTail ? 'null' : `Node(${nums[i + 1]})`}`,
+          decision: isTail ? 'Tail reached.' : 'Advance curr = curr.next.',
+          isOptimalUpdate: isTail,
+          outcomeStatus: isTail ? 'solution_found' : 'in_progress'
+        });
+      }
+
+      return steps;
+    }
+
+    // 9. Universal Fallback Simulator (Works for any problem)
     const rawList = activeInput?.data || (Array.isArray(activeInput) ? activeInput : [10, 20, 30, 40, 50]);
     const list = Array.isArray(rawList) ? rawList : [10, 20, 30, 40, 50];
     const targetVal = typeof activeInput?.target === 'number' ? activeInput.target : 30;
@@ -636,6 +1082,27 @@ export default function ProblemVisualizerPage() {
 
   // Code snippets by language
   const codeSnippets = useMemo(() => {
+    // 1. If problem has optimal approach code in database, extract and format it directly!
+    const optimalApproach = problem?.approaches?.find(a => a.name?.toLowerCase().includes('optimal'))
+      || problem?.approaches?.[problem?.approaches?.length - 1];
+
+    if (optimalApproach?.code) {
+      const result = {};
+      let hasValid = false;
+      ['python', 'javascript', 'java', 'cpp'].forEach((lang) => {
+        const rawCode = optimalApproach.code[lang] || problem?.starterCode?.[lang] || '';
+        if (rawCode && rawCode.trim().length > 0) {
+          hasValid = true;
+          result[lang] = rawCode
+            .split('\n')
+            .map((text, idx) => ({ line: idx + 1, text }));
+        }
+      });
+      if (hasValid && result.python && result.python.length > 2) {
+        return result;
+      }
+    }
+
     if (archetype === 'stock') {
       return {
         python: [
@@ -1315,46 +1782,114 @@ export default function ProblemVisualizerPage() {
                       })}
                     </div>
                   ) : (
-                    /* Two Sum / Binary Search / Universal Memory Blocks */
-                    <div className="py-6 flex items-center justify-center gap-3 flex-wrap">
-                      {(activeInput?.nums || [2, 7, 11, 15]).map((val, idx) => {
-                        const isCurrent = currentStepData.index === idx || currentStepData.mid === idx;
-                        const isMatched = Array.isArray(currentStepData.foundPair) && currentStepData.foundPair.includes(idx);
-                        const isLeft = currentStepData.left === idx;
-                        const isRight = currentStepData.right === idx;
+                    /* Two Sum / Binary Search / Two Pointers / Sliding Window / Universal Memory Blocks */
+                    <div className="space-y-4">
+                      <div className="py-6 flex items-center justify-center gap-3 flex-wrap">
+                        {(activeInput?.nums || [2, 7, 11, 15]).map((val, idx) => {
+                          const isCurrent = currentStepData.index === idx || currentStepData.mid === idx;
+                          const isMatched = (Array.isArray(currentStepData.foundPair) && currentStepData.foundPair.includes(idx)) || (archetype === 'two_pointers' && currentStepData.isOptimalUpdate && (currentStepData.left === idx || currentStepData.right === idx));
+                          const isLeft = currentStepData.left === idx;
+                          const isRight = currentStepData.right === idx;
+                          const inWindow = archetype === 'sliding_window' && typeof currentStepData.left === 'number' && typeof currentStepData.right === 'number' && idx >= currentStepData.left && idx <= currentStepData.right;
 
-                        return (
-                          <div key={idx} className="flex flex-col items-center">
-                            {/* Pointer labels */}
-                            <div className="h-6 flex items-center justify-center text-[10px] font-bold">
-                              {isMatched ? (
-                                <span className="text-emerald-400 font-black animate-bounce">Match!</span>
-                              ) : isCurrent ? (
-                                <span className="text-purple-400">Pointer</span>
-                              ) : isLeft ? (
-                                <span className="text-blue-400">Left</span>
-                              ) : isRight ? (
-                                <span className="text-amber-400">Right</span>
-                              ) : null}
-                            </div>
+                          return (
+                            <React.Fragment key={idx}>
+                              <div className="flex flex-col items-center">
+                                {/* Pointer labels */}
+                                <div className="h-6 flex items-center justify-center text-[10px] font-bold">
+                                  {isMatched ? (
+                                    <span className="text-emerald-400 font-black animate-bounce">Match!</span>
+                                  ) : isCurrent ? (
+                                    <span className="text-purple-400">Pointer</span>
+                                  ) : isLeft ? (
+                                    <span className="text-blue-400 font-bold">Left</span>
+                                  ) : isRight ? (
+                                    <span className="text-amber-400 font-bold">Right</span>
+                                  ) : inWindow ? (
+                                    <span className="text-indigo-400 font-semibold">Window</span>
+                                  ) : null}
+                                </div>
 
-                            <div
-                              className={`w-16 h-20 rounded-2xl border flex flex-col items-center justify-center transition-all duration-300 ${
-                                isMatched
-                                  ? 'bg-emerald-600 text-white border-emerald-400 ring-4 ring-emerald-500/40 scale-110 shadow-xl'
-                                  : isCurrent
-                                    ? 'bg-purple-600 text-white border-purple-400 ring-2 ring-purple-400 scale-105 shadow-lg'
-                                    : isLeft || isRight
-                                      ? 'bg-slate-800 border-purple-500 text-white'
-                                      : 'bg-slate-800 border-slate-700 text-slate-200'
-                              }`}
-                            >
-                              <span className="text-xs font-mono text-slate-400">[{idx}]</span>
-                              <span className="text-lg font-black">{val}</span>
-                            </div>
+                                <div
+                                  className={`w-16 h-20 rounded-2xl border flex flex-col items-center justify-center transition-all duration-300 ${
+                                    isMatched
+                                      ? 'bg-emerald-600 text-white border-emerald-400 ring-4 ring-emerald-500/40 scale-110 shadow-xl'
+                                      : isCurrent
+                                        ? 'bg-purple-600 text-white border-purple-400 ring-2 ring-purple-400 scale-105 shadow-lg'
+                                        : isLeft || isRight
+                                          ? 'bg-slate-800 border-purple-500 text-white shadow-md'
+                                          : inWindow
+                                            ? 'bg-indigo-950/70 border-indigo-500/80 text-indigo-100 ring-1 ring-indigo-400'
+                                            : 'bg-slate-800 border-slate-700 text-slate-200'
+                                  }`}
+                                >
+                                  <span className="text-xs font-mono text-slate-400">[{idx}]</span>
+                                  <span className="text-lg font-black">{val}</span>
+                                </div>
+                              </div>
+
+                              {/* Linked List pointer arrows between nodes */}
+                              {archetype === 'linked_list' && idx < (activeInput?.nums || []).length - 1 && (
+                                <div className="flex items-center text-purple-400 font-extrabold text-base pt-6 px-0.5">
+                                  ➔
+                                </div>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+
+                      {/* Prefix Sum live accumulator tray */}
+                      {archetype === 'prefix_sum' && currentStepData.prefixArray && (
+                        <div className="mt-2 pt-3 border-t border-slate-800">
+                          <div className="text-[11px] font-bold text-purple-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+                            <span>Prefix Sum Array (prefix[i] = prefix[i-1] + arr[i]):</span>
+                            <span className="text-[10px] text-slate-400 font-mono">Answers Range Sums in O(1)</span>
                           </div>
-                        );
-                      })}
+                          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                            {currentStepData.prefixArray.map((pVal, pIdx) => (
+                              <div
+                                key={pIdx}
+                                className={`px-3 py-1.5 rounded-xl border text-xs font-mono font-bold transition-all ${
+                                  pIdx === currentStepData.prefixArray.length - 1
+                                    ? 'bg-purple-600 text-white border-purple-400 ring-2 ring-purple-400/40'
+                                    : 'bg-slate-950 border-slate-800 text-purple-300'
+                                }`}
+                              >
+                                <span className="text-[10px] text-slate-400 block font-normal">prefix[{pIdx}]</span>
+                                <span>{pVal}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Stack state tray */}
+                      {archetype === 'stack' && (
+                        <div className="mt-2 pt-3 border-t border-slate-800 flex items-center justify-between flex-wrap gap-2">
+                          <div className="text-[11px] font-bold text-purple-400 uppercase tracking-wider">
+                            Stack Contents (LIFO Order):
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {currentStepData.stackArray && currentStepData.stackArray.length > 0 ? (
+                              currentStepData.stackArray.map((sVal, sIdx) => (
+                                <span
+                                  key={sIdx}
+                                  className={`px-3 py-1 rounded-xl text-xs font-mono font-bold border ${
+                                    sIdx === currentStepData.stackArray.length - 1
+                                      ? 'bg-purple-600 text-white border-purple-400 animate-pulse shadow-md'
+                                      : 'bg-slate-800 text-slate-200 border-slate-700'
+                                  }`}
+                                >
+                                  {sVal} {sIdx === currentStepData.stackArray.length - 1 ? '⭐ TOP' : ''}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-xs text-slate-500 italic">Empty Stack []</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
