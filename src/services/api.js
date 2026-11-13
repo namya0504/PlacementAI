@@ -85,6 +85,7 @@ const getAuthHeaders = () => {
 // In-memory GET cache with per-endpoint TTLs to eliminate duplicate calls during navigation.
 // Endpoints matching a prefix key use that TTL; all others fall back to 15s.
 const getCache = new Map();
+const inflightRequests = new Map(); // In-flight request deduplication map
 const CACHE_TTL_MAP = {
   '/profile':       60_000,  // 60s — profile data changes infrequently
   '/company':      300_000,  // 5 min — company lists rarely change
@@ -126,12 +127,15 @@ export const apiCall = async (endpoint, method = 'GET', body = null, isFormData 
     endpoint.includes('generate=true')
   );
 
-  // Serve from cache if available and fresh
+  // Serve from cache if available and fresh, or deduplicate in-flight requests
   if (isGet && !skipCache) {
     const cached = getCache.get(cacheKey);
     const ttl = getCacheTtl(endpoint);
     if (cached && Date.now() - cached.timestamp < ttl) {
       return cached.data;
+    }
+    if (inflightRequests.has(cacheKey)) {
+      return inflightRequests.get(cacheKey);
     }
   } else if (!isGet) {
     // Scoped cache invalidation on mutations — clear only the affected endpoint group
@@ -161,82 +165,93 @@ export const apiCall = async (endpoint, method = 'GET', body = null, isFormData 
     if (!cleared) getCache.clear();
   }
 
-  const headers = getAuthHeaders();
-  if (body && !isFormData) headers['Content-Type'] = 'application/json';
-  const isPublicAuthPost = ['/auth/login', '/auth/register', '/auth/google-login', '/auth/google', '/auth/forgot-password', '/auth/logout'].includes(endpoint);
-  if (!['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase()) && !headers.Authorization && !isPublicAuthPost) {
-    try {
-      const csrf = await getCsrfToken();
-      if (csrf) headers['X-CSRF-Token'] = csrf;
-    } catch {
-      // CSRF token is best-effort when Authorization header is present
+  const executeCall = async () => {
+    const headers = getAuthHeaders();
+    if (body && !isFormData) headers['Content-Type'] = 'application/json';
+    const isPublicAuthPost = ['/auth/login', '/auth/register', '/auth/google-login', '/auth/google', '/auth/forgot-password', '/auth/logout'].includes(endpoint);
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase()) && !headers.Authorization && !isPublicAuthPost) {
+      try {
+        const csrf = await getCsrfToken();
+        if (csrf) headers['X-CSRF-Token'] = csrf;
+      } catch {
+        // CSRF token is best-effort when Authorization header is present
+      }
     }
-  }
 
-  // Dynamic timeout: AI & heavy generation routes get 75s, normal requests get 55s (allows Render cold start)
-  const isHeavyAI = /aptitude|ats|resume|recommendations|study-plan|code-eval|hr-eval/i.test(endpoint);
-  const timeoutMs = customTimeout || (isHeavyAI ? 75000 : 55000);
+    // Dynamic timeout: AI & heavy generation routes get 75s, normal requests get 55s (allows Render cold start)
+    const isHeavyAI = /aptitude|ats|resume|recommendations|study-plan|code-eval|hr-eval/i.test(endpoint);
+    const timeoutMs = customTimeout || (isHeavyAI ? 75000 : 55000);
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  const config = {
-    method,
-    headers,
-    credentials: 'include',
-    signal: controller.signal,
-    ...(body ? { body: isFormData ? body : JSON.stringify(body) } : {})
+    const config = {
+      method,
+      headers,
+      credentials: 'include',
+      signal: controller.signal,
+      ...(body ? { body: isFormData ? body : JSON.stringify(body) } : {})
+    };
+
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+      clearTimeout(timeoutId);
+
+      const contentType = response.headers.get('content-type') || '';
+      let result = null;
+
+      if (contentType.includes('application/json')) {
+        try {
+          result = await response.json();
+        } catch {
+          result = null;
+        }
+      } else {
+        const text = await response.text();
+        try {
+          result = JSON.parse(text);
+        } catch {
+          result = { message: text || '' };
+        }
+      }
+
+      if (!response.ok) {
+        const defaultMessage = response.status === 502
+          ? 'Backend server is not running or unreachable (502 Bad Gateway). Please make sure the backend is started.'
+          : `Request failed with status ${response.status}`;
+        const apiError = new Error(result?.message || defaultMessage);
+        if (result?.errorCode) apiError.errorCode = result.errorCode;
+        if (result?.data) apiError.data = result.data;
+        throw apiError;
+      }
+
+      const outputData = result?.data ?? result;
+      if (isGet && !skipCache) {
+        getCache.set(cacheKey, { timestamp: Date.now(), data: outputData });
+      }
+      return outputData;
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        console.warn(`API Timeout (${endpoint}): Request timed out after ${timeoutMs / 1000}s`);
+        throw new Error('Server request timed out. Please check your network connection.');
+      }
+      console.warn(`API Call Error (${endpoint}):`, err.message);
+      if (err.message === 'Failed to fetch') {
+        throw new Error('Backend server is not running on port 5000. Please ensure both frontend and backend are running (npm run dev).');
+      }
+      throw err;
+    }
   };
 
-  try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-    clearTimeout(timeoutId);
-
-    const contentType = response.headers.get('content-type') || '';
-    let result = null;
-
-    if (contentType.includes('application/json')) {
-      try {
-        result = await response.json();
-      } catch {
-        result = null;
-      }
-    } else {
-      const text = await response.text();
-      try {
-        result = JSON.parse(text);
-      } catch {
-        result = { message: text || '' };
-      }
-    }
-
-    if (!response.ok) {
-      const defaultMessage = response.status === 502
-        ? 'Backend server is not running or unreachable (502 Bad Gateway). Please make sure the backend is started.'
-        : `Request failed with status ${response.status}`;
-      const apiError = new Error(result?.message || defaultMessage);
-      if (result?.errorCode) apiError.errorCode = result.errorCode;
-      if (result?.data) apiError.data = result.data;
-      throw apiError;
-    }
-
-    const outputData = result?.data ?? result;
-    if (isGet && !skipCache) {
-      getCache.set(cacheKey, { timestamp: Date.now(), data: outputData });
-    }
-    return outputData;
-  } catch (err) {
-    clearTimeout(timeoutId);
-    if (err.name === 'AbortError') {
-      console.warn(`API Timeout (${endpoint}): Request timed out after ${timeoutMs / 1000}s`);
-      throw new Error('Server request timed out. Please check your network connection.');
-    }
-    console.warn(`API Call Error (${endpoint}):`, err.message);
-    if (err.message === 'Failed to fetch') {
-      throw new Error('Backend server is not running on port 5000. Please ensure both frontend and backend are running (npm run dev).');
-    }
-    throw err;
+  if (isGet && !skipCache) {
+    const promise = executeCall();
+    inflightRequests.set(cacheKey, promise);
+    promise.finally(() => inflightRequests.delete(cacheKey));
+    return promise;
   }
+
+  return executeCall();
 };
 
 export const API = {

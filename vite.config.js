@@ -18,18 +18,32 @@ export default defineConfig({
     }
   },
   build: {
+    target: 'es2020',
+    cssCodeSplit: true,
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/') || id.includes('node_modules/react-router-dom/')) {
             return 'react-vendor';
           }
-          if (id.includes('node_modules/lucide-react/')) {
-            return 'lucide-icons';
+          if (id.includes('node_modules/firebase/')) {
+            return 'firebase-vendor';
+          }
+          if (id.includes('node_modules/recharts/') || id.includes('node_modules/d3-')) {
+            return 'charts-vendor';
+          }
+          if (id.includes('node_modules/framer-motion/')) {
+            return 'motion-vendor';
+          }
+          if (id.includes('node_modules/html2pdf.js/')) {
+            return 'html2pdf';
+          }
+          if (id.includes('node_modules/lucide-react/') || id.includes('node_modules/react-icons/')) {
+            return 'ui-icons';
           }
         }
       }
     },
-    chunkSizeWarningLimit: 1000
+    chunkSizeWarningLimit: 1200
   }
 })

@@ -1130,35 +1130,35 @@ export const logoutUser = async (req, res, next) => {
 export const getCurrentUser = async (req, res, next) => {
   try {
     const userId = req.user?.userId;
-    let user = await FirestoreHelper.getDoc('users', userId);
+
+    // Fetch user and readiness in parallel
+    const [userDoc, readinessDoc] = await Promise.all([
+      FirestoreHelper.getDoc('users', userId),
+      FirestoreHelper.getDoc('placement_readiness', 'readiness_' + userId)
+    ]);
+
+    let user = userDoc;
     if (!user) {
       return sendError(res, 'User not found', 404);
     }
 
-    // Sync emailVerified from Firebase Auth → Firestore.
-    // When a user clicks the verification link, Firebase Auth marks them verified,
-    // but our Firestore `emailVerified` field won't know unless we check here.
-    let verificationLink = undefined;
+    // Sync emailVerified from Firebase Auth → Firestore with strict 2.5s timeout to prevent request hanging
     if (!user.emailVerified) {
       try {
         const { auth } = await import('../firebase/firebaseAdmin.js');
         if (auth) {
-          const fbUser = await auth.getUser(userId);
-          if (fbUser.emailVerified) {
-            await FirestoreHelper.setDoc('users', userId, { emailVerified: true }, true);
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Firebase sync timeout')), 2500));
+          const fbUser = await Promise.race([auth.getUser(userId), timeoutPromise]);
+          if (fbUser?.emailVerified) {
+            FirestoreHelper.setDoc('users', userId, { emailVerified: true }, true).catch(() => {});
             user.emailVerified = true;
-            console.log(`✅ Email verified synced from Firebase Auth for user ${userId}`);
-          } else {
-            verificationLink = await auth.generateEmailVerificationLink(user.email).catch(() => null);
           }
         }
       } catch (syncErr) {
         // Non-fatal — carry on with the stored Firestore value
-        console.warn('Firebase email verified sync notice:', syncErr.message);
       }
     }
 
-    let readinessDoc = await FirestoreHelper.getDoc('placement_readiness', 'readiness_' + userId);
     if (readinessDoc) {
       readinessDoc.overallReadiness = calculatePlacementReadiness(readinessDoc);
     }

@@ -1,3 +1,5 @@
+import rateLimit from 'express-rate-limit';
+
 /**
  * In-memory sliding window rate limiter for AI and critical endpoints.
  *
@@ -10,16 +12,19 @@
  * Map is pre-populated with a synthetic "restart" timestamp so at most
  * (maxRequests / 2) extra attempts are permitted in the first window after a restart,
  * rather than a full reset.
- *
- * For production multi-process deployments, replace this with a Redis-backed limiter
- * (e.g. `rate-limiter-flexible` with an `ioredis` store). This in-process
- * implementation is correct for single-process deployments.
  */
 const requestHistory = new Map();
-
-// Stagger the effective start of the rate-limit window by half the window on process
-// start so a restart does not grant a completely fresh window to all clients.
 const PROCESS_START = Date.now();
+
+const resolveClientIp = (req) => {
+  return (
+    req.headers['cf-connecting-ip'] ||
+    req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+    req.ip ||
+    req.socket?.remoteAddress ||
+    '127.0.0.1'
+  );
+};
 
 /**
  * Creates an Express rate limiter middleware.
@@ -36,7 +41,11 @@ export function rateLimiter(options = {}) {
   } = options;
 
   return (req, res, next) => {
-    const key = req.user?.userId || req.ip || 'anonymous';
+    // Skip OPTIONS preflight requests
+    if (req.method === 'OPTIONS') return next();
+
+    const clientIp = resolveClientIp(req);
+    const key = req.user?.userId ? `user_${req.user.userId}` : `ip_${clientIp}`;
     const now = Date.now();
 
     if (!requestHistory.has(key)) {
@@ -44,11 +53,6 @@ export function rateLimiter(options = {}) {
     }
 
     const timestamps = requestHistory.get(key);
-
-    // Sliding window: keep only timestamps within the current window.
-    // SEC-17: Prepend the process-start time as a synthetic "phantom" request so
-    // that immediately after a restart clients don't start with a completely clean
-    // slate. The phantom expires naturally after one window period.
     const timeSinceStart = now - PROCESS_START;
     const syntheticHistory =
       timeSinceStart < windowMs && timestamps.length === 0
@@ -68,9 +72,7 @@ export function rateLimiter(options = {}) {
       });
     }
 
-    // Record this request (only real timestamps — not synthetic ones)
     timestamps.push(now);
-    // Trim to window so the array doesn't grow without bound
     const trimmed = timestamps.filter(t => now - t < windowMs);
     requestHistory.set(key, trimmed);
 
@@ -86,3 +88,42 @@ export function rateLimiter(options = {}) {
     next();
   };
 }
+
+/**
+ * Express-rate-limit based global API rate limiter (600 requests / 15 minutes)
+ */
+export const generalApiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: resolveClientIp,
+  skip: (req) => {
+    return (
+      req.method === 'OPTIONS' ||
+      req.path === '/health' ||
+      req.path === '/api/health' ||
+      process.env.NODE_ENV === 'test'
+    );
+  },
+  message: {
+    success: false,
+    message: 'Too many requests from your IP address. Please slow down.'
+  }
+});
+
+/**
+ * Rate limiter for sensitive auth routes (login, register, forgot password)
+ */
+export const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: resolveClientIp,
+  skip: (req) => req.method === 'OPTIONS' || req.path === '/me' || req.path === '/csrf',
+  message: {
+    success: false,
+    message: 'Too many authentication attempts. Please try again in 15 minutes.'
+  }
+});

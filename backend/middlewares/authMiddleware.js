@@ -6,11 +6,16 @@ import { hasValidCsrfToken, isSafeCsrfMethod } from './csrfMiddleware.js';
 const REVOKED_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const revokedTokens = new Map();
 
+// In-memory cache for verified Firebase ID tokens (5-minute TTL) to eliminate repetitive network round-trips
+const verifiedFbTokenCache = new Map();
+const FB_TOKEN_CACHE_TTL_MS = 5 * 60 * 1000;
+
 /**
  * Adds an authenticated JWT or ID token to the server revocation list until its expiry.
  */
 export const revokeToken = (token) => {
   if (!token || typeof token !== 'string') return;
+  verifiedFbTokenCache.delete(token);
   const now = Date.now();
   if (revokedTokens.size > 5000) {
     for (const [key, exp] of revokedTokens.entries()) {
@@ -63,6 +68,14 @@ export const protectRoute = async (req, res, next) => {
       req.token = token;
       return next();
     } catch (jwtErr) {
+      // Check in-memory verified token cache first to save ~300-800ms per request
+      const cachedFb = verifiedFbTokenCache.get(token);
+      if (cachedFb && Date.now() < cachedFb.expiresAt) {
+        req.user = cachedFb.user;
+        req.token = token;
+        return next();
+      }
+
       // 2. Fallback to Firebase Admin SDK ID token verification
       if (auth) {
         try {
@@ -72,6 +85,8 @@ export const protectRoute = async (req, res, next) => {
             email: fbUser.email,
             role: fbUser.role || ''
           };
+          req.token = token;
+          verifiedFbTokenCache.set(token, { user: req.user, expiresAt: Date.now() + FB_TOKEN_CACHE_TTL_MS });
           return next();
         } catch (fbErr) {
           console.warn('Firebase ID token verification failed:', fbErr.message);

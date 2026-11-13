@@ -8,29 +8,37 @@ export const getDashboardStats = async (req, res, next) => {
   try {
     const userId = req.user.userId;
 
-    let readiness = await FirestoreHelper.getDoc('placement_readiness', 'readiness_' + userId);
-    if (!readiness) {
-      readiness = {
-        resumeScore: 0,
-        atsScore: 0,
-        aptitudeScore: 0,
-        technicalScore: 0,
-        hrScore: 0,
-        resumesCreated: 0,
-        testsCompleted: 0,
-        certificatesEarned: 0,
-        mockInterviews: 0,
-        streakDays: 1
-      };
-    }
-
-    // Sync live metrics from primary database collections so Dashboard is never out of sync
-    const [userResumes, userTests, userInterviews, userAts] = await Promise.all([
+    // Fetch all dashboard metrics concurrently in one round-trip
+    const [
+      readinessDoc,
+      userResumes,
+      userTests,
+      userInterviews,
+      userAts,
+      activities,
+      downloads
+    ] = await Promise.all([
+      FirestoreHelper.getDoc('placement_readiness', 'readiness_' + userId),
       FirestoreHelper.queryCollection('resumes', 'userId', userId).catch(() => []),
       FirestoreHelper.queryCollection('mock_tests', 'userId', userId).catch(() => []),
       FirestoreHelper.queryCollection('hr_interviews', 'userId', userId).catch(() => []),
-      FirestoreHelper.queryCollection('ats_results', 'userId', userId).catch(() => [])
+      FirestoreHelper.queryCollection('ats_results', 'userId', userId).catch(() => []),
+      FirestoreHelper.queryCollection('activities', 'userId', userId).catch(() => []),
+      FirestoreHelper.queryCollection('download_history', 'userId', userId).catch(() => [])
     ]);
+
+    let readiness = readinessDoc || {
+      resumeScore: 0,
+      atsScore: 0,
+      aptitudeScore: 0,
+      technicalScore: 0,
+      hrScore: 0,
+      resumesCreated: 0,
+      testsCompleted: 0,
+      certificatesEarned: 0,
+      mockInterviews: 0,
+      streakDays: 1
+    };
 
     const actualResumesCount = Array.isArray(userResumes) ? userResumes.length : 0;
     const actualTestsCount = Array.isArray(userTests) ? userTests.filter(t => t.status === 'completed' || t.submittedAt).length : 0;
@@ -51,23 +59,24 @@ export const getDashboardStats = async (req, res, next) => {
     }
 
     readiness.overallReadiness = calculatePlacementReadiness(readiness);
-    await FirestoreHelper.setDoc('placement_readiness', 'readiness_' + userId, readiness, true);
+    // Persist asynchronously in background so response returns without blocking
+    FirestoreHelper.setDoc('placement_readiness', 'readiness_' + userId, readiness, true).catch(() => {});
 
-    const activities = await FirestoreHelper.queryCollection('activities', 'userId', userId);
-    activities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const sortedActivities = Array.isArray(activities) ? activities : [];
+    sortedActivities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     
-    const recentActivities = activities.slice(0, 5).map(a => ({
+    const recentActivities = sortedActivities.slice(0, 5).map(a => ({
       title: a.activityType,
       score: a.description,
       time: a.createdAt
     }));
 
-    const downloads = await FirestoreHelper.queryCollection('download_history', 'userId', userId);
+    const sortedDownloads = Array.isArray(downloads) ? downloads : [];
 
     return sendSuccess(res, {
       stats: readiness,
       recentActivities,
-      recentDownloads: downloads.slice(-5)
+      recentDownloads: sortedDownloads.slice(-5)
     }, 'Dashboard statistics retrieved');
   } catch (err) {
     next(err);
