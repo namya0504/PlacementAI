@@ -419,9 +419,11 @@ export const CodeRunnerService = {
     const testResults = [];
     let overallVerdict = 'Accepted';
     let maxTimeMs = 0;
+    let firstErrorDiagnostic = null;
 
     for (let i = 0; i < testCases.length; i++) {
       const tc = testCases[i];
+      const tcExpected = tc.expectedOutput ?? tc.output ?? tc.expected ?? '';
       const execRes = await executeSingle({
         language,
         code,
@@ -435,11 +437,13 @@ export const CodeRunnerService = {
         return {
           verdict: 'Compilation Error',
           message: execRes.stderr,
+          error: execRes.stderr,
           testResults: [
             {
               testCaseIndex: i + 1,
               input: tc.input,
-              expectedOutput: tc.expectedOutput,
+              expectedOutput: tcExpected,
+              expected: tcExpected,
               actualOutput: 'Compilation Error',
               passed: false,
               error: execRes.stderr
@@ -450,13 +454,17 @@ export const CodeRunnerService = {
       }
 
       if (execRes.verdict !== 'OK') {
+        const errorMsg = execRes.stderr || execRes.verdict;
+        if (!firstErrorDiagnostic) firstErrorDiagnostic = errorMsg;
         testResults.push({
           testCaseIndex: i + 1,
           input: tc.input,
-          expectedOutput: tc.expectedOutput,
-          actualOutput: execRes.stdout || execRes.verdict,
+          expectedOutput: tcExpected,
+          expected: tcExpected,
+          actualOutput: execRes.stdout || '',
+          actual: execRes.stdout || '',
           passed: false,
-          error: execRes.stderr || execRes.verdict
+          error: errorMsg
         });
         if (overallVerdict === 'Accepted') {
           overallVerdict = execRes.verdict;
@@ -465,7 +473,7 @@ export const CodeRunnerService = {
       }
 
       const cleanActual = normalizeOutput(execRes.stdout);
-      const cleanExpected = normalizeOutput(tc.expectedOutput);
+      const cleanExpected = normalizeOutput(tcExpected);
       const passed = cleanActual === cleanExpected;
 
       if (!passed && overallVerdict === 'Accepted') {
@@ -475,12 +483,12 @@ export const CodeRunnerService = {
       testResults.push({
         testCaseIndex: i + 1,
         input: tc.input,
-        expectedOutput: tc.expectedOutput,
-        expected: tc.expectedOutput,
+        expectedOutput: tcExpected,
+        expected: tcExpected,
         actualOutput: execRes.stdout,
         actual: execRes.stdout,
         passed,
-        error: passed ? null : `Expected:\n${tc.expectedOutput}\n\nGot:\n${execRes.stdout}`
+        error: passed ? null : `Expected:\n${tcExpected}\n\nGot:\n${execRes.stdout}`
       });
     }
 
@@ -491,7 +499,8 @@ export const CodeRunnerService = {
       testsPassed: passedCount,
       totalTests: testCases.length,
       testResults,
-      time: `${maxTimeMs}ms`
+      time: `${maxTimeMs}ms`,
+      error: firstErrorDiagnostic
     };
   },
 
@@ -545,6 +554,8 @@ export const CodeRunnerService = {
         };
       }
 
+      const tcExpected = tc.expectedOutput ?? tc.output ?? tc.expected ?? '';
+
       if (execRes.verdict !== 'OK') {
         if (overallVerdict === 'Accepted') {
           overallVerdict = execRes.verdict;
@@ -552,7 +563,8 @@ export const CodeRunnerService = {
         if (!tc.isHidden && !failedTestCase) {
           failedTestCase = {
             input: tc.input,
-            expectedOutput: tc.expectedOutput,
+            expectedOutput: tcExpected,
+            expected: tcExpected,
             actualOutput: execRes.stdout || execRes.verdict,
             error: execRes.stderr
           };
@@ -564,17 +576,18 @@ export const CodeRunnerService = {
           verdict: execRes.verdict,
           ...(tc.isHidden ? {} : {
             input: tc.input,
-            expectedOutput: tc.expectedOutput,
-            expected: tc.expectedOutput,
+            expectedOutput: tcExpected,
+            expected: tcExpected,
             actualOutput: execRes.stdout,
-            actual: execRes.stdout
+            actual: execRes.stdout,
+            error: execRes.stderr
           })
         });
         continue;
       }
 
       const cleanActual = normalizeOutput(execRes.stdout);
-      const cleanExpected = normalizeOutput(tc.expectedOutput);
+      const cleanExpected = normalizeOutput(tcExpected);
       const passed = cleanActual === cleanExpected;
 
       if (passed) {
@@ -586,11 +599,11 @@ export const CodeRunnerService = {
         if (!tc.isHidden && !failedTestCase) {
           failedTestCase = {
             input: tc.input,
-            expectedOutput: tc.expectedOutput,
-            expected: tc.expectedOutput,
+            expectedOutput: tcExpected,
+            expected: tcExpected,
             actualOutput: execRes.stdout,
             actual: execRes.stdout,
-            error: `Expected ${tc.expectedOutput}, got ${execRes.stdout}`
+            error: `Expected ${tcExpected}, got ${execRes.stdout}`
           };
         }
       }
@@ -602,8 +615,8 @@ export const CodeRunnerService = {
         verdict: passed ? 'Accepted' : 'Wrong Answer',
         ...(tc.isHidden ? {} : {
           input: tc.input,
-          expectedOutput: tc.expectedOutput,
-          expected: tc.expectedOutput,
+          expectedOutput: tcExpected,
+          expected: tcExpected,
           actualOutput: execRes.stdout,
           actual: execRes.stdout
         })

@@ -80,8 +80,9 @@ export default function ResultPanel({
 
   const currentCase = testResults[activeCaseIdx] || {};
   const currentInput = currentCase.input ?? '';
-  const currentExpected = currentCase.expectedOutput ?? currentCase.expected ?? '';
-  const currentActual = currentCase.actualOutput ?? currentCase.actual ?? currentCase.output ?? '';
+  const currentExpected = currentCase.expectedOutput ?? currentCase.expected ?? currentCase.output ?? '';
+  const currentActual = currentCase.actualOutput ?? currentCase.actual ?? '';
+  const currentCaseError = currentCase.error ?? null;
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-md text-slate-200">
@@ -303,6 +304,18 @@ export default function ResultPanel({
                       {currentActual !== '' ? currentActual : '(no stdout output)'}
                     </pre>
                   </div>
+
+                  {currentCaseError && !currentCase.passed && !currentCaseError.startsWith('Expected:\n') && (
+                    <div>
+                      <div className="text-[11px] font-semibold text-rose-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        <span>Execution Diagnostic / Error</span>
+                      </div>
+                      <pre className="p-2.5 bg-rose-950/40 rounded-lg text-xs font-mono text-rose-200 border border-rose-900/60 whitespace-pre-wrap leading-relaxed max-h-36 overflow-y-auto">
+                        <code>{currentCaseError}</code>
+                      </pre>
+                    </div>
+                  )}
                 </>
               )}
             </div>
