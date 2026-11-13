@@ -6,7 +6,8 @@ import {
   markDsaSolutionViewed,
   runDsaCode,
   submitDsaCode,
-  getDsaSubmissions
+  getDsaSubmissions,
+  askDsaTutorChat
 } from '../controllers/dsaController.js';
 import {
   getTopicTest,
@@ -21,6 +22,7 @@ const router = express.Router();
 router.get('/topics', protectRoute, getDsaTopics);
 router.get('/topic/:topicId', protectRoute, getDsaTopicDetail);
 router.get('/problem/:problemId', protectRoute, getDsaProblemDetail);
+router.post('/problem/:problemId/tutor-chat', protectRoute, askDsaTutorChat);
 router.post('/view-solution', protectRoute, markDsaSolutionViewed);
 router.post('/run', protectRoute, runDsaCode);
 router.post('/submit', protectRoute, submitDsaCode);

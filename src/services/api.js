@@ -350,6 +350,7 @@ export const API = {
   submitTopicTest: (topicId, payload) => apiCall(`/technical/dsa/topic/${topicId}/test/submit`, 'POST', payload, false, 90000),
   getTopicTestReports: (topicId) => apiCall(`/technical/dsa/topic/${topicId}/test/reports`, 'GET'),
   getUserTopicBadges: () => apiCall('/technical/dsa/badges', 'GET'),
+  askDsaTutorChat: (problemId, payload) => apiCall(`/technical/dsa/problem/${problemId}/tutor-chat`, 'POST', payload),
 
   // HR Interview
   startInterviewSession: (payload) => apiCall('/hr/session/start', 'POST', payload),

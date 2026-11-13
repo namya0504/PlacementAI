@@ -3,6 +3,7 @@ import { db, isMockFirebase } from '../firebase/firebaseAdmin.js';
 import { CodeRunnerService, normalizeOutput } from '../services/codeRunner.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import { calculatePlacementReadiness } from '../utils/scoring.js';
+import { dsaCache } from './dsaController.js';
 
 // Timer allocations in minutes by problem difficulty
 const DIFFICULTY_MINUTES = {
@@ -68,9 +69,29 @@ export const getTopicTest = async (req, res, next) => {
     const { topicId } = req.params;
     const userId = req.user?.userId;
 
-    const [topic, allProblems, userStatusList, existingBadge] = await Promise.all([
-      FirestoreHelper.getDoc('dsa_topics', topicId),
-      FirestoreHelper.queryCollection('dsa_problems', 'topicId', topicId),
+    const now = Date.now();
+    let topic;
+    let allProblems;
+
+    const cachedEntry = dsaCache.topicProblems.get(topicId);
+    if (cachedEntry && now < cachedEntry.expiresAt) {
+      topic = cachedEntry.topic;
+      allProblems = cachedEntry.problems;
+    } else {
+      [topic, allProblems] = await Promise.all([
+        FirestoreHelper.getDoc('dsa_topics', topicId),
+        FirestoreHelper.queryCollection('dsa_problems', 'topicId', topicId)
+      ]);
+      if (topic && allProblems) {
+        dsaCache.topicProblems.set(topicId, {
+          topic,
+          problems: allProblems,
+          expiresAt: now + (5 * 60 * 1000)
+        });
+      }
+    }
+
+    const [userStatusList, existingBadge] = await Promise.all([
       userId ? FirestoreHelper.queryCollection('dsa_problem_status', 'userId', userId) : Promise.resolve([]),
       userId ? FirestoreHelper.getDoc('dsa_topic_badges', `${userId}_${topicId}`) : Promise.resolve(null)
     ]);
