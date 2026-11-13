@@ -74,6 +74,7 @@ export default function PreInterviewSetup({
   const initialGithub = (userProfile?.github || currentUser?.github || '').trim();
   const [hasProfileGithub, setHasProfileGithub] = useState(Boolean(initialGithub));
   const [profileGithubHandle, setProfileGithubHandle] = useState(initialGithub);
+  const [connectedGithubHandle, setConnectedGithubHandle] = useState(initialGithub);
   const [githubInput, setGithubInput] = useState(initialGithub);
   const [isEditingGithub, setIsEditingGithub] = useState(false);
   const [isInspectingGithub, setIsInspectingGithub] = useState(false);
@@ -179,6 +180,7 @@ export default function PreInterviewSetup({
     if (currentGh) {
       setHasProfileGithub(true);
       setProfileGithubHandle(currentGh);
+      setConnectedGithubHandle(currentGh);
       setGithubInput(currentGh);
       handleInspectGithub(currentGh, true);
     } else {
@@ -190,6 +192,7 @@ export default function PreInterviewSetup({
             if (apiGh) {
               setHasProfileGithub(true);
               setProfileGithubHandle(apiGh);
+              setConnectedGithubHandle(apiGh);
               setGithubInput(apiGh);
               handleInspectGithub(apiGh, true);
             }
@@ -339,22 +342,33 @@ export default function PreInterviewSetup({
           .map(r => r.name);
         setSelectedRepoNames(topRepos.length > 0 ? topRepos : res.repositories.slice(0, 3).map(r => r.name));
 
+        const resolvedHandle = (res?.profile?.username || target.trim())
+          .replace(/^https?:\/\/github\.com\//i, '')
+          .replace(/\/$/, '');
+        setConnectedGithubHandle(resolvedHandle);
+        setGithubInput(resolvedHandle);
+
         if (!silent) {
           if (res.repositories.length > 0) {
             toast.success(`Found ${res.repositories.length} public repo${res.repositories.length !== 1 ? 's' : ''}! Top repos selected.`);
           } else {
             toast.info(`Connected to GitHub. No public repositories found.`);
           }
-          setIsEditingGithub(false);
         }
+        setIsEditingGithub(false);
       } else if (res?.profile) {
         setGithubRepos([]);
         setRepoInsights([]);
         setGithubConnected(true);
+        const resolvedHandle = (res.profile.username || target.trim())
+          .replace(/^https?:\/\/github\.com\//i, '')
+          .replace(/\/$/, '');
+        setConnectedGithubHandle(resolvedHandle);
+        setGithubInput(resolvedHandle);
         if (!silent) {
-          toast.info(`Connected to @${res.profile.username || target.trim()}.`);
-          setIsEditingGithub(false);
+          toast.info(`Connected to @${resolvedHandle}.`);
         }
+        setIsEditingGithub(false);
       }
     } catch (err) {
       if (!silent) toast.error(err.message || 'Could not fetch public GitHub repos.');
@@ -402,6 +416,7 @@ export default function PreInterviewSetup({
       jobDescription: jobDescription.trim(),
       candidateProfile: resumeData?.profile || null,
       repoInsights: activeRepoInsights,
+      githubHandle: connectedGithubHandle || profileGithubHandle || null,
       micEnabled: !skipMic
     });
   };
@@ -673,11 +688,25 @@ export default function PreInterviewSetup({
                 ) : null}
               </div>
 
-              {/* Display Profile GitHub or Editing Instructions */}
-              {hasProfileGithub && !isEditingGithub ? (
-                <p className="text-xs text-slate-500">
-                  Profile GitHub: <span className="font-semibold text-slate-700">"{profileGithubHandle.replace(/^https?:\/\/github\.com\//, '').replace(/\/$/, '')}"</span>
-                </p>
+              {/* Display Connected GitHub or Editing Instructions */}
+              {!isEditingGithub && (connectedGithubHandle || profileGithubHandle) ? (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-xs text-slate-500">
+                    {connectedGithubHandle && profileGithubHandle &&
+                    connectedGithubHandle.toLowerCase() !== profileGithubHandle.toLowerCase().replace(/^https?:\/\/github\.com\//i, '').replace(/\/$/, '') ? (
+                      <>
+                        Connected GitHub: <span className="font-semibold text-slate-800">"{connectedGithubHandle}"</span>
+                        <span className="ml-1.5 text-[10px] px-2 py-0.5 rounded-full bg-purple-50 text-[#7C3AED] border border-purple-200 font-semibold">
+                          Custom Account
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        Profile GitHub: <span className="font-semibold text-slate-800">"{(connectedGithubHandle || profileGithubHandle).replace(/^https?:\/\/github\.com\//i, '').replace(/\/$/, '')}"</span>
+                      </>
+                    )}
+                  </p>
+                </div>
               ) : (
                 <p className="text-xs text-slate-500">
                   {hasProfileGithub
@@ -705,19 +734,16 @@ export default function PreInterviewSetup({
                     {isInspectingGithub ? <RefreshCw className="w-3 h-3 animate-spin" /> : null}
                     <span>{isInspectingGithub ? 'Connecting...' : 'Connect'}</span>
                   </button>
-                  {hasProfileGithub && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsEditingGithub(false);
-                        setGithubInput(profileGithubHandle);
-                        handleInspectGithub(profileGithubHandle, true);
-                      }}
-                      className="px-2.5 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-xs font-semibold transition"
-                    >
-                      Cancel
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingGithub(false);
+                      setGithubInput(connectedGithubHandle || profileGithubHandle);
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-xs font-semibold transition"
+                  >
+                    Cancel
+                  </button>
                 </div>
               )}
 
@@ -755,28 +781,38 @@ export default function PreInterviewSetup({
 
             {/* Bottom button matching Resume Ingestion */}
             <div>
-              {hasProfileGithub && !isEditingGithub ? (
-                <button
-                  type="button"
-                  onClick={() => setIsEditingGithub(true)}
-                  className="w-full py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition flex items-center justify-center gap-2"
-                >
-                  <GithubIcon className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Connect Different GitHub Profile</span>
-                </button>
-              ) : isEditingGithub && hasProfileGithub ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsEditingGithub(false);
-                    setGithubInput(profileGithubHandle);
-                    handleInspectGithub(profileGithubHandle, true);
-                  }}
-                  className="w-full py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition flex items-center justify-center gap-2"
-                >
-                  <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Revert to Profile GitHub</span>
-                </button>
+              {!isEditingGithub ? (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingGithub(true);
+                      setGithubInput(connectedGithubHandle || profileGithubHandle || '');
+                    }}
+                    className="w-full py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition flex items-center justify-center gap-2"
+                  >
+                    <GithubIcon className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Connect Different GitHub Profile</span>
+                  </button>
+
+                  {/* If connected to a custom profile different from user profile, give 1-click option to revert */}
+                  {hasProfileGithub && connectedGithubHandle && profileGithubHandle &&
+                    connectedGithubHandle.toLowerCase() !== profileGithubHandle.toLowerCase().replace(/^https?:\/\/github\.com\//i, '').replace(/\/$/, '') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const cleanProfile = profileGithubHandle.replace(/^https?:\/\/github\.com\//i, '').replace(/\/$/, '');
+                        setConnectedGithubHandle(cleanProfile);
+                        setGithubInput(cleanProfile);
+                        handleInspectGithub(cleanProfile, false);
+                      }}
+                      className="w-full py-2 rounded-xl border border-purple-200 bg-purple-50/60 hover:bg-purple-100/60 text-[#7C3AED] text-xs font-semibold transition flex items-center justify-center gap-1.5"
+                    >
+                      <RotateCcw className="w-3 h-3 text-[#7C3AED]" />
+                      <span>Revert to Profile GitHub ("{profileGithubHandle.replace(/^https?:\/\/github\.com\//i, '').replace(/\/$/, '')}")</span>
+                    </button>
+                  )}
+                </div>
               ) : (
                 <p className="text-[11px] text-slate-400 leading-tight">
                   Selected repositories will be discussed during Round 2 (Technical Deep-Dive).
