@@ -209,7 +209,7 @@ export default function TopicTestWorkspace({
   }
 
   return (
-    <div className="fixed inset-0 z-40 bg-slate-900 text-slate-100 flex flex-col font-sans overflow-hidden">
+    <div className="dark fixed inset-0 z-50 bg-slate-950 text-slate-100 flex flex-col font-sans overflow-hidden">
       {/* Test Top Navigation Bar */}
       <header className="h-16 px-4 sm:px-6 bg-slate-950 border-b border-slate-800 flex items-center justify-between gap-4 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
@@ -220,9 +220,9 @@ export default function TopicTestWorkspace({
                 onCloseTest();
               }
             }}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white text-xs font-semibold border border-slate-800 transition"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-bold border border-slate-800 transition shadow-sm"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-4 h-4 text-purple-400" />
             <span className="hidden sm:inline">Exit Test</span>
           </button>
 
@@ -314,15 +314,15 @@ export default function TopicTestWorkspace({
       </div>
 
       {/* Main Split Screen Body */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 p-4 overflow-hidden">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 p-4 overflow-hidden min-h-0">
         {/* Left Pane: Question Description & Constraints */}
-        <div className="bg-slate-950 border border-slate-800 rounded-2xl p-5 overflow-y-auto flex flex-col">
+        <div className="bg-slate-950 border border-slate-800/90 rounded-2xl p-5 sm:p-6 overflow-y-auto flex flex-col min-h-0 shadow-inner">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
             <div>
               <div className="text-[11px] font-bold text-purple-400 uppercase tracking-wider">
                 Question {activeQuestionIdx + 1} of {questions.length}
               </div>
-              <h2 className="text-lg font-extrabold text-white">
+              <h2 className="text-xl font-extrabold text-white mt-0.5">
                 {activeQuestion?.title}
               </h2>
             </div>
@@ -331,15 +331,15 @@ export default function TopicTestWorkspace({
             </span>
           </div>
 
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto pr-1">
             <ProblemDescription problem={activeQuestion} />
           </div>
         </div>
 
         {/* Right Pane: Editor & Runner */}
-        <div className="flex flex-col gap-3 overflow-hidden">
+        <div className="flex flex-col gap-3 overflow-hidden min-h-0">
           {/* Monaco Editor */}
-          <div className="flex-1 min-h-[360px]">
+          <div className="flex-1 min-h-[300px]">
             <MonacoCodeEditor
               problemId={activeProblemId}
               starterCodes={activeQuestion?.starterCode || {}}

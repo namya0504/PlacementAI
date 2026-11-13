@@ -84,6 +84,23 @@ export const getTopicTest = async (req, res, next) => {
       return sendError(res, 'No questions currently available for this topic assessment', 400);
     }
 
+    // Check if user has passed all practice problems in this topic
+    const solvedProblemsCount = approvedProblems.filter(p => {
+      const st = userStatusList.find(s => s.problemId === p.problemId);
+      return st?.state === 'solved';
+    }).length;
+
+    const totalRequired = approvedProblems.length;
+    const hasStar = Boolean(existingBadge?.hasStarBadge);
+
+    if (!hasStar && solvedProblemsCount < totalRequired) {
+      return sendError(
+        res,
+        `Topic assessment is locked. Please solve all ${totalRequired} practice problems in this topic before starting the test (${solvedProblemsCount}/${totalRequired} solved).`,
+        403
+      );
+    }
+
     // Partition problems by difficulty
     const easyPool = approvedProblems.filter(p => p.difficulty === 'Easy');
     const medPool = approvedProblems.filter(p => p.difficulty === 'Medium');
@@ -342,3 +359,4 @@ export const getUserTopicBadges = async (req, res, next) => {
     next(err);
   }
 };
+

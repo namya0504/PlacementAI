@@ -163,6 +163,29 @@ export default function Technical() {
     fetchTopicDetail(selectedTopicId);
   };
 
+  // If in active assessment test mode, render full-screen workspace directly (no sidebar or navbar overlap)
+  if (activeTestSession) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
+        <TopicTestWorkspace
+          testData={activeTestSession}
+          onCloseTest={() => setActiveTestSession(null)}
+          onSubmitComplete={handleTestSubmitComplete}
+        />
+        {activeTestReport && (
+          <TopicTestReportModal
+            report={activeTestReport}
+            onClose={() => setActiveTestReport(null)}
+            onRetakeTest={() => {
+              setActiveTestReport(null);
+              handleStartTest();
+            }}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-100 transition-colors">
       {/* Sidebar */}
@@ -218,14 +241,7 @@ export default function Technical() {
 
         {/* Page Body */}
         <main className="flex-1 p-4 sm:p-6 max-w-7xl mx-auto w-full">
-          {activeTestSession ? (
-            /* Topic Test Assessment Workspace */
-            <TopicTestWorkspace
-              testData={activeTestSession}
-              onCloseTest={() => setActiveTestSession(null)}
-              onSubmitComplete={handleTestSubmitComplete}
-            />
-          ) : activeProblemId ? (
+          {activeProblemId ? (
             /* Problem Workspace View (Split Screen) */
             <ProblemWorkspace
               problemId={activeProblemId}
