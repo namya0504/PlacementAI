@@ -9,6 +9,7 @@ import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../services/api';
 import { useToast } from '../context/ToastContext';
+import { useSidebar } from '../context/SidebarContext';
 
 function formatFileSize(bytes) {
   if (!bytes) return '';
@@ -21,6 +22,7 @@ export default function Profile() {
   const { currentUser, updateProfileData, logout } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
+  const { isCollapsed } = useSidebar();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -394,7 +396,7 @@ export default function Profile() {
     <div className="min-h-screen bg-[#F8F9FE] flex font-sans">
       <Sidebar mobileOpen={mobileSidebarOpen} setMobileOpen={setMobileSidebarOpen} />
 
-      <main className="flex-1 lg:pl-64 flex flex-col min-w-0">
+      <main className={`flex-1 transition-all duration-300 flex flex-col min-w-0 ${isCollapsed ? 'lg:pl-20' : 'lg:pl-64'}`}>
         <header className="h-20 bg-white border-b border-[#EAEBF4] px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-4">
             <button onClick={() => setMobileSidebarOpen(true)} className="lg:hidden p-2 text-slate-600 rounded-lg hover:bg-slate-100">

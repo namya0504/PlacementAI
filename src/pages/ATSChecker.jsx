@@ -33,12 +33,14 @@ import { useAuth } from '../context/AuthContext';
 import { API } from '../services/api';
 import { ROUTES } from '../routes/paths';
 import { useToast } from '../context/ToastContext';
+import { useSidebar } from '../context/SidebarContext';
 
 export default function ATSChecker() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { currentUser, updateProfileData } = useAuth();
   const toast = useToast();
+  const { isCollapsed } = useSidebar();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   
   // Scanning & Result state
@@ -328,7 +330,7 @@ export default function ATSChecker() {
     <div className="min-h-screen bg-[#F8F9FE] flex font-sans">
       <Sidebar mobileOpen={mobileSidebarOpen} setMobileOpen={setMobileSidebarOpen} />
 
-      <main className="flex-1 lg:pl-64 flex flex-col min-w-0">
+      <main className={`flex-1 transition-all duration-300 flex flex-col min-w-0 ${isCollapsed ? 'lg:pl-20' : 'lg:pl-64'}`}>
         
         {/* Top Header */}
         <header className="h-20 bg-white border-b border-[#EAEBF4] px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30">

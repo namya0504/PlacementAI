@@ -30,11 +30,13 @@ import {
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
+import { useSidebar } from '../context/SidebarContext';
 import { API } from '../services/api';
 import { ROUTES } from '../routes/paths';
 
 export default function Dashboard() {
   const { currentUser } = useAuth();
+  const { isCollapsed } = useSidebar();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [moduleSearch, setModuleSearch] = useState('');
 
@@ -245,7 +247,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-[#F8F9FE] flex font-sans">
       <Sidebar mobileOpen={mobileSidebarOpen} setMobileOpen={setMobileSidebarOpen} />
 
-      <main className="flex-1 lg:pl-64 flex flex-col min-w-0">
+      <main className={`flex-1 transition-all duration-300 flex flex-col min-w-0 ${isCollapsed ? 'lg:pl-20' : 'lg:pl-64'}`}>
         
         {/* Top Header matching reference screenshot */}
         <header className="h-20 bg-white border-b border-[#EAEBF4] px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30">

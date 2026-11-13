@@ -6,6 +6,7 @@ import {
 import Sidebar from '../components/Sidebar';
 import { API } from '../services/api';
 import { useToast } from '../context/ToastContext';
+import { useSidebar } from '../context/SidebarContext';
 import TopicSelector from '../features/dsa/components/TopicSelector';
 import ConceptTab from '../features/dsa/components/ConceptTab';
 import ProblemListTab from '../features/dsa/components/ProblemListTab';
@@ -15,6 +16,7 @@ import { DSA_TOPICS_LIST } from '../features/dsa/constants/dsaTopics';
 
 export default function Technical() {
   const toast = useToast();
+  const { isCollapsed, toggleSidebar } = useSidebar();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Topics and selection
@@ -100,7 +102,7 @@ export default function Technical() {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 pb-16">
+      <div className={`flex-1 flex flex-col min-w-0 pb-16 transition-all duration-300 ${isCollapsed ? 'lg:pl-20' : 'lg:pl-64'}`}>
         {/* Top Navbar */}
         <header className="sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">

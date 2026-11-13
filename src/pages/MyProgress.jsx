@@ -8,6 +8,7 @@ import Sidebar from '../components/Sidebar';
 import { API } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../routes/paths';
+import { useSidebar } from '../context/SidebarContext';
 
 const MODULE_CONFIG = {
   aptitude: {
@@ -119,6 +120,7 @@ function InsightTypeIcon({ type }) {
 }
 
 export default function MyProgress() {
+  const { isCollapsed } = useSidebar();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [period, setPeriod] = useState('week');
   const [progressData, setProgressData] = useState(null);
@@ -208,7 +210,7 @@ export default function MyProgress() {
     <div className="min-h-screen bg-[#F8F9FE] flex font-sans">
       <Sidebar mobileOpen={mobileSidebarOpen} setMobileOpen={setMobileSidebarOpen} />
 
-      <main className="flex-1 lg:pl-64 flex flex-col min-w-0">
+      <main className={`flex-1 transition-all duration-300 flex flex-col min-w-0 ${isCollapsed ? 'lg:pl-20' : 'lg:pl-64'}`}>
         <header className="h-20 bg-white border-b border-[#EAEBF4] px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-4">
             <button onClick={() => setMobileSidebarOpen(true)} className="lg:hidden p-2 text-slate-600 rounded-lg hover:bg-slate-100">
