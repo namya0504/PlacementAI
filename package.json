@@ -10,10 +10,12 @@
     "dev:backend": "node --watch --watch-path=backend backend/server.js",
     "start:backend": "node backend/server.js",
     "build": "vite build",
+    "generate-technical-content": "node backend/scripts/generateTechnicalContent.js",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "canvas-confetti": "^1.9.4",
     "firebase": "^13.0.0",
     "framer-motion": "^13.0.0",

@@ -338,6 +338,15 @@ export const API = {
   submitTechnicalCode: (payload) => apiCall('/technical/submit-code', 'POST', payload),
   getTechnicalHistory: () => apiCall('/technical/history', 'GET'),
 
+  // DSA Topic-by-Topic Practice Platform
+  getDsaTopics: () => apiCall('/technical/dsa/topics', 'GET'),
+  getDsaTopicDetail: (topicId) => apiCall(`/technical/dsa/topic/${topicId}`, 'GET'),
+  getDsaProblemDetail: (problemId) => apiCall(`/technical/dsa/problem/${problemId}`, 'GET'),
+  markDsaSolutionViewed: (problemId) => apiCall('/technical/dsa/view-solution', 'POST', { problemId }),
+  runDsaCode: (payload) => apiCall('/technical/dsa/run', 'POST', payload, false, 45000),
+  submitDsaCode: (payload) => apiCall('/technical/dsa/submit', 'POST', payload, false, 60000),
+  getDsaSubmissions: (params = '') => apiCall(`/technical/dsa/submissions${params ? `?${params}` : ''}`, 'GET'),
+
   // HR Interview
   startInterviewSession: (payload) => apiCall('/hr/session/start', 'POST', payload),
   getInterviewSessionState: (sessionId) => apiCall(`/hr/session/${sessionId}/state`, 'GET'),

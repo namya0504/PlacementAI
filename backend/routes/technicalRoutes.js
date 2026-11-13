@@ -6,10 +6,15 @@ import {
   submitCode,
   getTechnicalHistory
 } from '../controllers/technicalController.js';
+import dsaRoutes from './dsaRoutes.js';
 import { protectRoute } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
 
+// DSA Practice Platform routes
+router.use('/dsa', dsaRoutes);
+
+// Legacy technical endpoints for backward compatibility
 router.get('/questions', protectRoute, getTechnicalQuestions);
 router.post('/submit-mcq', protectRoute, submitMCQ);
 router.post('/run-code', protectRoute, runCode);
