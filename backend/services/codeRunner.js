@@ -476,7 +476,9 @@ export const CodeRunnerService = {
         testCaseIndex: i + 1,
         input: tc.input,
         expectedOutput: tc.expectedOutput,
+        expected: tc.expectedOutput,
         actualOutput: execRes.stdout,
+        actual: execRes.stdout,
         passed,
         error: passed ? null : `Expected:\n${tc.expectedOutput}\n\nGot:\n${execRes.stdout}`
       });
@@ -560,7 +562,13 @@ export const CodeRunnerService = {
           isHidden: tc.isHidden,
           passed: false,
           verdict: execRes.verdict,
-          ...(tc.isHidden ? {} : { input: tc.input, expectedOutput: tc.expectedOutput, actualOutput: execRes.stdout })
+          ...(tc.isHidden ? {} : {
+            input: tc.input,
+            expectedOutput: tc.expectedOutput,
+            expected: tc.expectedOutput,
+            actualOutput: execRes.stdout,
+            actual: execRes.stdout
+          })
         });
         continue;
       }
@@ -579,7 +587,9 @@ export const CodeRunnerService = {
           failedTestCase = {
             input: tc.input,
             expectedOutput: tc.expectedOutput,
+            expected: tc.expectedOutput,
             actualOutput: execRes.stdout,
+            actual: execRes.stdout,
             error: `Expected ${tc.expectedOutput}, got ${execRes.stdout}`
           };
         }
@@ -590,7 +600,13 @@ export const CodeRunnerService = {
         isHidden: tc.isHidden,
         passed,
         verdict: passed ? 'Accepted' : 'Wrong Answer',
-        ...(tc.isHidden ? {} : { input: tc.input, expectedOutput: tc.expectedOutput, actualOutput: execRes.stdout })
+        ...(tc.isHidden ? {} : {
+          input: tc.input,
+          expectedOutput: tc.expectedOutput,
+          expected: tc.expectedOutput,
+          actualOutput: execRes.stdout,
+          actual: execRes.stdout
+        })
       });
     }
 

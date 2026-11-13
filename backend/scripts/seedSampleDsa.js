@@ -19,7 +19,7 @@ export async function seedDsaBaseData() {
 
   console.log('✅ 21 DSA Topics seeded.');
 
-  console.log('🌱 Seeding 3 Golden Standard Sample Problems...');
+  console.log(`🌱 Seeding ${SAMPLE_DSA_PROBLEMS.length} Golden Standard Sample Problems...`);
   for (const problem of SAMPLE_DSA_PROBLEMS) {
     try {
       await FirestoreHelper.setDoc('dsa_problems', problem.problemId, problem, true);
@@ -27,7 +27,7 @@ export async function seedDsaBaseData() {
       console.warn(`[seedDsa] Problem ${problem.problemId} seed warning:`, e.message);
     }
   }
-  console.log('✅ 3 Sample Problems seeded successfully.');
+  console.log(`✅ ${SAMPLE_DSA_PROBLEMS.length} Sample Problems seeded successfully.`);
 }
 
 // Allow direct CLI execution: node backend/scripts/seedSampleDsa.js
@@ -42,3 +42,4 @@ if (process.argv[1]?.endsWith('seedSampleDsa.js')) {
       process.exit(1);
     });
 }
+

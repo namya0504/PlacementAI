@@ -88,3 +88,4 @@ export const VERDICT_CONFIG = {
     border: 'border-orange-300 dark:border-orange-800'
   }
 };
+

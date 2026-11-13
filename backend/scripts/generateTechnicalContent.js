@@ -238,3 +238,4 @@ if (process.argv[1]?.endsWith('generateTechnicalContent.js')) {
       process.exit(1);
     });
 }
+

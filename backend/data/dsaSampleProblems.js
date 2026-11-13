@@ -495,5 +495,308 @@ solve();
     timeLimit: 2000,
     memoryLimit: 256,
     status: 'approved'
+  },
+  {
+    problemId: 'dsa_arr_02_best_time_to_buy_and_sell_stock',
+    topicId: 'arrays',
+    title: 'Best Time to Buy and Sell Stock',
+    difficulty: 'Easy',
+    tags: ['Array', 'Dynamic Programming', 'Greedy'],
+    statement: `You are given an array \`prices\` where \`prices[i]\` is the price of a given stock on the \`i-th\` day.
+
+You want to maximize your profit by choosing a **single day** to buy one stock and choosing a **different day in the future** to sell that stock.
+
+Return the **maximum profit** you can achieve from this transaction. If you cannot achieve any profit, return \`0\`.`,
+    constraints: [
+      '1 <= prices.length <= 10^5',
+      '0 <= prices[i] <= 10^4'
+    ],
+    examples: [
+      {
+        input: '6\n7 1 5 3 6 4',
+        output: '5',
+        explanation: 'Buy on day 2 (price = 1) and sell on day 5 (price = 6), profit = 6 - 1 = 5.'
+      },
+      {
+        input: '5\n7 6 4 3 1',
+        output: '0',
+        explanation: 'In this case, no transactions are done and the max profit = 0.'
+      }
+    ],
+    hints: [
+      'Level 1: Can you find the lowest price so far as you iterate through the list of prices?',
+      'Level 2: At each day, the maximum profit if selling today is (price today - minimum price before today).',
+      'Level 3: Keep track of `min_price` and `max_profit` in a single pass O(N) loop.'
+    ],
+    starterCode: {
+      python: `import sys
+
+def solve():
+    tokens = sys.stdin.read().split()
+    if not tokens:
+        return
+    n = int(tokens[0])
+    prices = [int(x) for x in tokens[1:n+1]]
+    
+    # Write your solution below
+    # Output the maximum profit
+    pass
+
+if __name__ == '__main__':
+    solve()
+`,
+      java: `import java.util.*;
+import java.io.*;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        StringTokenizer st = null;
+        List<String> tokens = new ArrayList<>();
+        String line;
+        while ((line = br.readLine()) != null) {
+            st = new StringTokenizer(line);
+            while (st.hasMoreTokens()) tokens.add(st.nextToken());
+        }
+        if (tokens.isEmpty()) return;
+
+        int n = Integer.parseInt(tokens.get(0));
+        int[] prices = new int[n];
+        for (int i = 0; i < n; i++) prices[i] = Integer.parseInt(tokens.get(i + 1));
+
+        // Write your solution below
+        // Output max profit: System.out.println(maxProfit);
+    }
+}
+`,
+      cpp: `#include <iostream>
+#include <vector>
+#include <algorithm>
+using namespace std;
+
+int main() {
+    ios_base::sync_with_stdio(false);
+    cin.tie(NULL);
+
+    int n;
+    if (!(cin >> n)) return 0;
+    vector<int> prices(n);
+    for (int i = 0; i < n; i++) cin >> prices[i];
+
+    // Write your solution below
+    // Output max profit: cout << maxProfit << "\\n";
+
+    return 0;
+}
+`,
+      javascript: `const fs = require('fs');
+
+function solve() {
+    const tokens = fs.readFileSync(0, 'utf-8').trim().split(/\\s+/);
+    if (!tokens || tokens.length < 2) return;
+    const n = parseInt(tokens[0], 10);
+    const prices = [];
+    for (let i = 0; i < n; i++) prices.push(parseInt(tokens[i + 1], 10));
+
+    // Write your solution below
+    // Output max profit: console.log(maxProfit);
+}
+
+solve();
+`
+    },
+    approaches: [
+      {
+        name: 'Approach 1: Brute Force',
+        idea: 'Compare every buy day i with every future sell day j (i < j). Calculate profit = prices[j] - prices[i]. Return the maximum profit found.',
+        dryRun: 'For prices=[7, 1, 5, 3, 6, 4], check (7,1)=-6, (7,5)=-2, ..., (1,5)=4, (1,6)=5. Max is 5.',
+        timeComplexity: 'O(N^2) time with two nested loops.',
+        spaceComplexity: 'O(1) constant auxiliary space.',
+        whenToUse: 'Small inputs where N <= 1000.',
+        code: {
+          python: `import sys\ndef solve():\n    tokens = sys.stdin.read().split()\n    if not tokens: return\n    n = int(tokens[0])\n    prices = [int(x) for x in tokens[1:n+1]]\n    max_profit = 0\n    for i in range(n):\n        for j in range(i+1, n):\n            profit = prices[j] - prices[i]\n            if profit > max_profit: max_profit = profit\n    print(max_profit)\nif __name__ == '__main__': solve()`,
+          java: `import java.util.*;\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        if (!sc.hasNextInt()) return;\n        int n = sc.nextInt();\n        int[] p = new int[n];\n        for (int i = 0; i < n; i++) p[i] = sc.nextInt();\n        int maxP = 0;\n        for (int i = 0; i < n; i++) {\n            for (int j = i + 1; j < n; j++) {\n                int diff = p[j] - p[i];\n                if (diff > maxP) maxP = diff;\n            }\n        }\n        System.out.println(maxP);\n    }\n}`,
+          cpp: `#include <iostream>\n#include <vector>\nusing namespace std;\nint main() {\n    int n; if (!(cin >> n)) return 0;\n    vector<int> p(n);\n    for(int i = 0; i < n; i++) cin >> p[i];\n    int maxP = 0;\n    for(int i = 0; i < n; i++) {\n        for(int j = i + 1; j < n; j++) {\n            if(p[j] - p[i] > maxP) maxP = p[j] - p[i];\n        }\n    }\n    cout << maxP << "\\n";\n    return 0;\n}`,
+          javascript: `const fs = require('fs');\nfunction solve() {\n    const t = fs.readFileSync(0, 'utf-8').trim().split(/\\s+/);\n    if (!t || t.length < 2) return;\n    const n = parseInt(t[0]);\n    const p = t.slice(1, n+1).map(Number);\n    let maxP = 0;\n    for(let i=0; i<n; i++) {\n        for(let j=i+1; j<n; j++) {\n            if (p[j] - p[i] > maxP) maxP = p[j] - p[i];\n        }\n    }\n    console.log(maxP);\n}\nsolve();`
+        }
+      },
+      {
+        name: 'Approach 2: Single Pass Greedy (Optimal)',
+        idea: 'Keep track of the minimum buy price seen so far. At each day, profit would be prices[i] - min_price. If this profit is greater than max_profit, update it. If current price is less than min_price, update min_price.',
+        dryRun: 'prices=[7, 1, 5, 3, 6, 4]. Day 0: min=7. Day 1: min=1. Day 2: price=5, profit=4, max=4. Day 3: price=3, profit=2. Day 4: price=6, profit=5, max=5. Day 5: price=4, profit=3. Result = 5.',
+        timeComplexity: 'O(N) single pass through the array.',
+        spaceComplexity: 'O(1) constant auxiliary space.',
+        whenToUse: 'Optimal solution expected in campus interviews.',
+        code: {
+          python: `import sys\n\ndef solve():\n    tokens = sys.stdin.read().split()\n    if not tokens: return\n    n = int(tokens[0])\n    prices = [int(x) for x in tokens[1:n+1]]\n    min_price = float('inf')\n    max_profit = 0\n    for p in prices:\n        if p < min_price:\n            min_price = p\n        elif p - min_price > max_profit:\n            max_profit = p - min_price\n    print(max_profit)\n\nif __name__ == '__main__':\n    solve()`,
+          java: `import java.util.*;\nimport java.io.*;\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));\n        StringTokenizer st = null;\n        List<String> tokens = new ArrayList<>();\n        String line;\n        while ((line = br.readLine()) != null) {\n            st = new StringTokenizer(line);\n            while (st.hasMoreTokens()) tokens.add(st.nextToken());\n        }\n        if (tokens.isEmpty()) return;\n        int n = Integer.parseInt(tokens.get(0));\n        int minPrice = Integer.MAX_VALUE, maxProfit = 0;\n        for (int i = 0; i < n; i++) {\n            int p = Integer.parseInt(tokens.get(i + 1));\n            if (p < minPrice) minPrice = p;\n            else if (p - minPrice > maxProfit) maxProfit = p - minPrice;\n        }\n        System.out.println(maxProfit);\n    }\n}`,
+          cpp: `#include <iostream>\n#include <vector>\n#include <algorithm>\nusing namespace std;\nint main() {\n    ios_base::sync_with_stdio(false);\n    cin.tie(NULL);\n    int n; if (!(cin >> n)) return 0;\n    int minPrice = 1e9, maxProfit = 0;\n    for (int i = 0; i < n; i++) {\n        int p; cin >> p;\n        if (p < minPrice) minPrice = p;\n        else if (p - minPrice > maxProfit) maxProfit = p - minPrice;\n    }\n    cout << maxProfit << "\\n";\n    return 0;\n}`,
+          javascript: `const fs = require('fs');\nfunction solve() {\n    const t = fs.readFileSync(0, 'utf-8').trim().split(/\\s+/);\n    if (!t || t.length < 2) return;\n    const n = parseInt(t[0], 10);\n    let minPrice = Infinity, maxProfit = 0;\n    for (let i = 0; i < n; i++) {\n        const p = parseInt(t[i + 1], 10);\n        if (p < minPrice) minPrice = p;\n        else if (p - minPrice > maxProfit) maxProfit = p - minPrice;\n    }\n    console.log(maxProfit);\n}\nsolve();`
+        }
+      }
+    ],
+    commonMistakes: [
+      'Selling before buying (indices must satisfy buy_day < sell_day).',
+      'Returning negative profit when all prices are strictly decreasing.'
+    ],
+    testCases: [
+      { input: '6\n7 1 5 3 6 4', expectedOutput: '5' },
+      { input: '5\n7 6 4 3 1', expectedOutput: '0' }
+    ],
+    hiddenTestCases: [
+      { input: '1\n5', expectedOutput: '0' },
+      { input: '4\n1 2 3 4', expectedOutput: '3' },
+      { input: '5\n2 4 1 7 5', expectedOutput: '6' }
+    ],
+    timeLimit: 2000,
+    memoryLimit: 256,
+    status: 'approved'
+  },
+  {
+    problemId: 'dsa_arr_03_maximum_subarray',
+    topicId: 'arrays',
+    title: "Maximum Subarray (Kadane's Algorithm)",
+    difficulty: 'Medium',
+    tags: ['Array', 'Divide and Conquer', 'Dynamic Programming'],
+    statement: `Given an integer array \`nums\`, find the subarray with the largest sum, and return its **maximum sum**.
+
+A **subarray** is a contiguous non-empty sequence of elements within an array.`,
+    constraints: [
+      '1 <= nums.length <= 10^5',
+      '-10^4 <= nums[i] <= 10^4'
+    ],
+    examples: [
+      {
+        input: '9\n-2 1 -3 4 -1 2 1 -5 4',
+        output: '6',
+        explanation: 'The subarray [4, -1, 2, 1] has the largest sum 6.'
+      },
+      {
+        input: '1\n1',
+        output: '1',
+        explanation: 'The subarray [1] has the largest sum 1.'
+      },
+      {
+        input: '5\n5 4 -1 7 8',
+        output: '23',
+        explanation: 'The subarray [5, 4, -1, 7, 8] has the largest sum 23.'
+      }
+    ],
+    hints: [
+      'Level 1: Can you compute the sum of all contiguous subarrays? That is O(N^2).',
+      'Level 2: If the current running sum becomes negative, can it contribute positively to any future subarray?',
+      'Level 3: Reset current sum to 0 whenever it drops below 0 (Kadane’s Algorithm), keeping track of the global maximum.'
+    ],
+    starterCode: {
+      python: `import sys
+
+def solve():
+    tokens = sys.stdin.read().split()
+    if not tokens:
+        return
+    n = int(tokens[0])
+    nums = [int(x) for x in tokens[1:n+1]]
+    
+    # Write your solution below
+    # Output the maximum subarray sum
+    pass
+
+if __name__ == '__main__':
+    solve()
+`,
+      java: `import java.util.*;
+import java.io.*;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        StringTokenizer st = null;
+        List<String> tokens = new ArrayList<>();
+        String line;
+        while ((line = br.readLine()) != null) {
+            st = new StringTokenizer(line);
+            while (st.hasMoreTokens()) tokens.add(st.nextToken());
+        }
+        if (tokens.isEmpty()) return;
+
+        int n = Integer.parseInt(tokens.get(0));
+        int[] nums = new int[n];
+        for (int i = 0; i < n; i++) nums[i] = Integer.parseInt(tokens.get(i + 1));
+
+        // Write your solution below
+        // Output max sum: System.out.println(maxSum);
+    }
+}
+`,
+      cpp: `#include <iostream>
+#include <vector>
+#include <algorithm>
+using namespace std;
+
+int main() {
+    ios_base::sync_with_stdio(false);
+    cin.tie(NULL);
+
+    int n;
+    if (!(cin >> n)) return 0;
+    vector<int> nums(n);
+    for (int i = 0; i < n; i++) cin >> nums[i];
+
+    // Write your solution below
+    // Output max sum: cout << maxSum << "\\n";
+
+    return 0;
+}
+`,
+      javascript: `const fs = require('fs');
+
+function solve() {
+    const tokens = fs.readFileSync(0, 'utf-8').trim().split(/\\s+/);
+    if (!tokens || tokens.length < 2) return;
+    const n = parseInt(tokens[0], 10);
+    const nums = [];
+    for (let i = 0; i < n; i++) nums.push(parseInt(tokens[i + 1], 10));
+
+    // Write your solution below
+    // Output max sum: console.log(maxSum);
+}
+
+solve();
+`
+    },
+    approaches: [
+      {
+        name: "Approach 1: Kadane's Algorithm (Optimal)",
+        idea: "Iterate through nums maintaining current_sum and max_sum. At each element, add it to current_sum. Update max_sum = max(max_sum, current_sum). If current_sum falls below 0, reset current_sum = 0 because a negative prefix will never help future subarrays.",
+        dryRun: 'nums=[-2, 1, -3, 4, -1, 2, 1, -5, 4]. Step by step: cur=-2->0, max=-2. cur=1, max=1. cur=-2->0, max=1. cur=4, max=4. cur=3, max=4. cur=5, max=5. cur=6, max=6. cur=1, max=6. cur=5, max=6. Final max = 6.',
+        timeComplexity: 'O(N) single pass through the array.',
+        spaceComplexity: 'O(1) constant auxiliary space.',
+        whenToUse: 'Universally expected for contiguous subarray sum problems.',
+        code: {
+          python: `import sys\n\ndef solve():\n    tokens = sys.stdin.read().split()\n    if not tokens: return\n    n = int(tokens[0])\n    nums = [int(x) for x in tokens[1:n+1]]\n    max_sum = nums[0]\n    cur_sum = 0\n    for x in nums:\n        cur_sum += x\n        if cur_sum > max_sum:\n            max_sum = cur_sum\n        if cur_sum < 0:\n            cur_sum = 0\n    print(max_sum)\n\nif __name__ == '__main__':\n    solve()`,
+          java: `import java.util.*;\nimport java.io.*;\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));\n        StringTokenizer st = null;\n        List<String> tokens = new ArrayList<>();\n        String line;\n        while ((line = br.readLine()) != null) {\n            st = new StringTokenizer(line);\n            while (st.hasMoreTokens()) tokens.add(st.nextToken());\n        }\n        if (tokens.isEmpty()) return;\n        int n = Integer.parseInt(tokens.get(0));\n        int maxSum = Integer.parseInt(tokens.get(1));\n        int curSum = 0;\n        for (int i = 0; i < n; i++) {\n            int val = Integer.parseInt(tokens.get(i + 1));\n            curSum += val;\n            if (curSum > maxSum) maxSum = curSum;\n            if (curSum < 0) curSum = 0;\n        }\n        System.out.println(maxSum);\n    }\n}`,
+          cpp: `#include <iostream>\n#include <vector>\n#include <algorithm>\nusing namespace std;\nint main() {\n    ios_base::sync_with_stdio(false);\n    cin.tie(NULL);\n    int n; if (!(cin >> n)) return 0;\n    int first; cin >> first;\n    int maxSum = first, curSum = first < 0 ? 0 : first;\n    for(int i = 1; i < n; i++) {\n        int x; cin >> x;\n        curSum += x;\n        if(curSum > maxSum) maxSum = curSum;\n        if(curSum < 0) curSum = 0;\n    }\n    cout << maxSum << "\\n";\n    return 0;\n}`,
+          javascript: `const fs = require('fs');\nfunction solve() {\n    const t = fs.readFileSync(0, 'utf-8').trim().split(/\\s+/);\n    if (!t || t.length < 2) return;\n    const n = parseInt(t[0], 10);\n    let maxSum = parseInt(t[1], 10);\n    let curSum = 0;\n    for (let i = 0; i < n; i++) {\n        const val = parseInt(t[i + 1], 10);\n        curSum += val;\n        if (curSum > maxSum) maxSum = curSum;\n        if (curSum < 0) curSum = 0;\n    }\n    console.log(maxSum);\n}\nsolve();`
+        }
+      }
+    ],
+    commonMistakes: [
+      'Initializing max_sum to 0 instead of nums[0] (fails when all numbers are negative).',
+      'Resetting cur_sum before checking max_sum.'
+    ],
+    testCases: [
+      { input: '9\n-2 1 -3 4 -1 2 1 -5 4', expectedOutput: '6' },
+      { input: '1\n1', expectedOutput: '1' },
+      { input: '5\n5 4 -1 7 8', expectedOutput: '23' }
+    ],
+    hiddenTestCases: [
+      { input: '3\n-3 -2 -1', expectedOutput: '-1' },
+      { input: '4\n-1 -2 -3 -4', expectedOutput: '-1' },
+      { input: '6\n1 2 3 -10 5 6', expectedOutput: '11' }
+    ],
+    timeLimit: 2000,
+    memoryLimit: 256,
+    status: 'approved'
   }
 ];
+

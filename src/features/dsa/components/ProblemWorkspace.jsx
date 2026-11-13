@@ -19,7 +19,10 @@ export default function ProblemWorkspace({
   topicTitle = 'Topic',
   onBackToTopic,
   onOpenNextProblem,
-  hasNextProblem = false
+  hasNextProblem = false,
+  hasNextTopic = false,
+  nextTopicTitle = '',
+  onOpenNextTopic
 }) {
   const toast = useToast();
 
@@ -249,14 +252,32 @@ export default function ProblemWorkspace({
           </div>
         </div>
 
-        {/* Right Nav Action: Next Problem */}
-        {hasNextProblem && (
+        {/* Right Nav Action: Next Problem or Next Topic */}
+        {hasNextProblem ? (
           <button
             type="button"
             onClick={onOpenNextProblem}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-100 font-semibold text-xs transition-colors shrink-0 self-end md:self-center"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs shadow-sm transition-all shrink-0 self-end md:self-center"
           >
             <span>Next Problem</span>
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        ) : hasNextTopic ? (
+          <button
+            type="button"
+            onClick={onOpenNextTopic}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-100 font-semibold text-xs transition-colors shrink-0 self-end md:self-center"
+          >
+            <span>Next Topic: {nextTopicTitle}</span>
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onBackToTopic}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-colors shrink-0 self-end md:self-center"
+          >
+            <span>Topic Problems</span>
             <ChevronRight className="w-4 h-4" />
           </button>
         )}
@@ -432,6 +453,12 @@ export default function ProblemWorkspace({
               isSubmitting={isSubmitting}
               runnerError={runnerError}
               customMode={customInputMode}
+              hasNextProblem={hasNextProblem}
+              onOpenNextProblem={onOpenNextProblem}
+              hasNextTopic={hasNextTopic}
+              nextTopicTitle={nextTopicTitle}
+              onOpenNextTopic={onOpenNextTopic}
+              onBackToTopic={onBackToTopic}
             />
           </div>
         </div>
@@ -439,3 +466,4 @@ export default function ProblemWorkspace({
     </div>
   );
 }
+

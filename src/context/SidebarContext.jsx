@@ -50,3 +50,4 @@ export const SidebarProvider = ({ children }) => {
 };
 
 export const useSidebar = () => useContext(SidebarContext);
+

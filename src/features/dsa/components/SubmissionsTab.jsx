@@ -216,3 +216,4 @@ export default function SubmissionsTab({ topicId, onOpenProblem }) {
     </div>
   );
 }
+

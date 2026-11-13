@@ -21,3 +21,4 @@ router.post('/submit', protectRoute, submitDsaCode);
 router.get('/submissions', protectRoute, getDsaSubmissions);
 
 export default router;
+

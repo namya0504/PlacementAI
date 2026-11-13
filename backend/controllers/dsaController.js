@@ -60,7 +60,7 @@ export const getDsaTopics = async (req, res, next) => {
 
 /**
  * GET /api/technical/dsa/topic/:topicId
- * Returns topic concept, code examples, and problem list (without hidden test cases)
+ * Returns topic concept, cs, and ode exampleproblem list (without hidden test cases)
  */
 export const getDsaTopicDetail = async (req, res, next) => {
   try {

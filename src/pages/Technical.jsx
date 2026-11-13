@@ -92,6 +92,18 @@ export default function Technical() {
   const currentProblemIndex = problemsList.findIndex(p => p.problemId === activeProblemId);
   const hasNextProblem = currentProblemIndex !== -1 && currentProblemIndex + 1 < problemsList.length;
 
+  const currentTopicIndex = topics.findIndex(t => t.topicId === selectedTopicId);
+  const nextTopic = currentTopicIndex !== -1 && currentTopicIndex + 1 < topics.length
+    ? topics[currentTopicIndex + 1]
+    : null;
+
+  const handleOpenNextTopic = () => {
+    if (nextTopic) {
+      setSelectedTopicId(nextTopic.topicId);
+      setActiveProblemId(null);
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-100 transition-colors">
       {/* Sidebar */}
@@ -159,6 +171,9 @@ export default function Technical() {
               }}
               onOpenNextProblem={handleOpenNextProblem}
               hasNextProblem={hasNextProblem}
+              hasNextTopic={Boolean(nextTopic)}
+              nextTopicTitle={nextTopic?.title || ''}
+              onOpenNextTopic={handleOpenNextTopic}
             />
           ) : (
             /* Topic Page: 3 Tabs (Concept, Problems, My Submissions) */
