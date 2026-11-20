@@ -254,17 +254,6 @@ export default function ProblemWorkspace({
 
         {/* Right Nav Action: Next Problem or Next Topic */}
         <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
-          <button
-            type="button"
-            onClick={() => window.open(`/placement-prep/technical/visualize/${problem.problemId}`, '_blank')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/70 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 font-bold text-xs shadow-sm transition"
-            title="Open interactive animated algorithm visualizer in a new tab"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-            <span className="hidden sm:inline">Understand Step-by-Step 🚀</span>
-            <ExternalLink className="w-3 h-3 text-purple-500 sm:hidden" />
-          </button>
-
           {hasNextProblem ? (
             <button
               type="button"

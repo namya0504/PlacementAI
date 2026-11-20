@@ -121,52 +121,8 @@ export default function ProblemDescription({
 
   const isDark = theme === 'dark';
 
-  const handleOpenVisualizer = () => {
-    window.open(`/placement-prep/technical/visualize/${problem.problemId}`, '_blank');
-  };
-
   return (
     <div className={`space-y-6 text-sm leading-relaxed ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-      {/* Interactive Step-by-Step Animated Visualizer Banner (Hidden in Assessment Exam Mode) */}
-      {!isAssessment && (
-        <div className={`border rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm ${
-          isDark
-            ? 'bg-gradient-to-r from-purple-950/60 via-indigo-950/40 to-slate-900 border-purple-800/80'
-            : 'bg-gradient-to-r from-purple-600/10 via-indigo-600/10 to-transparent border-purple-200'
-        }`}>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-md shadow-purple-600/20 shrink-0">
-              <Sparkles className="w-5 h-5 text-purple-200 animate-pulse" />
-            </div>
-            <div>
-              <div className={`text-xs font-bold flex items-center gap-1.5 flex-wrap ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                <span>Understand Program Step-by-Step</span>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
-                  isDark
-                    ? 'bg-purple-950 text-purple-300 border-purple-800'
-                    : 'bg-purple-100 text-purple-700 border-purple-200'
-                }`}>
-                  Interactive Visualizer
-                </span>
-              </div>
-              <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                Watch an animated visual dry run, live pointer tracing, state variables, and synchronized code line highlights in a new tab.
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleOpenVisualizer}
-            className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-600/25 transition-all hover:scale-105 active:scale-95 shrink-0"
-          >
-            <Play className="w-3.5 h-3.5 fill-white" />
-            <span>Understand Step-by-Step 🚀</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
-
       {/* Problem Statement */}
       <div>
         <h3 className={`text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 ${
