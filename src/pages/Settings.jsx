@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Lock, Bell, Moon, Save, Menu, Eye, EyeOff } from 'lucide-react';
+import { User, Lock, Shield, Save, Menu, Eye, EyeOff } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../services/api';
@@ -107,7 +107,7 @@ export default function Settings() {
             </button>
             <div>
               <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 font-outfit">Settings</h1>
-              <p className="text-xs text-slate-500">Configure your account, security preferences, and app appearance</p>
+              <p className="text-xs text-slate-500">Configure your account, security, and privacy preferences</p>
             </div>
           </div>
         </header>
@@ -122,8 +122,7 @@ export default function Settings() {
               {[
                 { id: 'account', label: 'Account Settings', icon: User },
                 { id: 'password', label: 'Change Password', icon: Lock },
-                { id: 'notifications', label: 'Notification Settings', icon: Bell },
-                { id: 'appearance', label: 'Appearance', icon: Moon }
+                { id: 'privacy', label: 'Privacy', icon: Shield }
               ].map(t => {
                 const Icon = t.icon;
                 return (
@@ -293,10 +292,10 @@ export default function Settings() {
                 </form>
               )}
 
-              {activeTab !== 'account' && activeTab !== 'password' && (
+              {activeTab === 'privacy' && (
                 <div className="space-y-4">
-                  <h3 className="text-lg font-bold text-slate-900 font-outfit uppercase">{activeTab} Preferences</h3>
-                  <p className="text-xs text-slate-500">Configure options for {activeTab} settings.</p>
+                  <h3 className="text-lg font-bold text-slate-900 font-outfit">Privacy Preferences</h3>
+                  <p className="text-xs text-slate-500">Manage your profile visibility, activity sharing, and data privacy settings.</p>
                 </div>
               )}
 
