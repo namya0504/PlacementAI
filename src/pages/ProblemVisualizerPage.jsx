@@ -253,7 +253,72 @@ export default function ProblemVisualizerPage() {
       });
     }
 
-    // Default presets and edge cases per archetype
+    if (list.length === 0) {
+      if (archetype === 'stock') {
+        list.push(
+          { label: 'Example: Peak & Valley', data: [7, 1, 5, 3, 6, 4] },
+          { label: 'Example: Strictly Decreasing (₹0 Profit)', data: [7, 6, 4, 3, 1] },
+          { label: 'Example: Early Dip & Late High', data: [2, 4, 1, 8, 3, 9] }
+        );
+      } else if (archetype === 'two_sum') {
+        list.push(
+          { label: 'Example: Target = 9 (Found [0, 1])', nums: [2, 7, 11, 15], target: 9 },
+          { label: 'Example: Target = 100 (NOT Found ❌)', nums: [1, 4, 6, 12, 15], target: 100 }
+        );
+      } else if (archetype === 'binary_search') {
+        list.push(
+          { label: 'Example: Target = 9 (Found)', nums: [-1, 0, 3, 5, 9, 12], target: 9 },
+          { label: 'Example: Target = 2 (NOT Found ❌)', nums: [-1, 0, 3, 5, 9, 12], target: 2 }
+        );
+      } else {
+        list.push({
+          label: 'Default Example',
+          data: [1, 2, 3, 4, 5],
+          nums: [1, 2, 3, 4, 5]
+        });
+      }
+    }
+
+    return list;
+  }, [problem, archetype]);
+
+  // Code snippets by language
+  const codeSnippets = useMemo(() => {
+    // 0. If AI has synthesized optimal multi-language code for this exact problem:
+    if (aiVisualization?.optimalCode) {
+      const result = {};
+      let hasCode = false;
+      ['python', 'javascript', 'java', 'cpp'].forEach((lang) => {
+        const rawCode = aiVisualization.optimalCode[lang];
+        if (rawCode && rawCode.trim().length > 0) {
+          hasCode = true;
+          result[lang] = rawCode
+            .split('\n')
+            .map((text, idx) => ({ line: idx + 1, text }));
+        }
+      });
+      if (hasCode && result.python && result.python.length > 2) {
+        return result;
+      }
+    }
+
+    // 1. Fallback to optimal approach from problem data
+    const optimalApproach = problem?.approaches?.find(a => (a.type || a.name || '').toLowerCase().includes('optimal')) || problem?.approaches?.[problem?.approaches?.length - 1];
+    if (optimalApproach?.code) {
+      const result = {};
+      let hasCode = false;
+      ['python', 'javascript', 'java', 'cpp'].forEach((lang) => {
+        const raw = optimalApproach.code[lang] || problem?.starterCode?.[lang] || '';
+        if (raw && raw.trim().length > 0) {
+          hasCode = true;
+          result[lang] = raw
+            .split('\n')
+            .map((text, idx) => ({ line: idx + 1, text }));
+        }
+      });
+      if (hasCode) return result;
+    }
+
     // 2. Fallback to starter codes for all languages
     if (problem?.starterCode) {
       const result = {};
