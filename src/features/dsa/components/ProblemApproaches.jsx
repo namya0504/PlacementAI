@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { API } from '../../../services/api';
 import { SUPPORTED_LANGUAGES } from '../constants/dsaTopics';
+import MarkdownRenderer from './MarkdownRenderer';
 
 export default function ProblemApproaches({
   problem,
@@ -125,9 +126,9 @@ export default function ProblemApproaches({
             <Lightbulb className="w-3.5 h-3.5" />
             Core Idea in Simple Words
           </h4>
-          <p className="text-xs text-slate-800 dark:text-slate-200 leading-relaxed font-sans">
-            {currentApproach.idea || 'Iterate through all potential configurations to identify the optimal outcome.'}
-          </p>
+          <div className="text-xs text-slate-800 dark:text-slate-200 leading-relaxed font-sans">
+            <MarkdownRenderer content={currentApproach.idea || 'Iterate through all potential configurations to identify the optimal outcome.'} />
+          </div>
         </div>
 
         {/* Dry Run */}
@@ -137,8 +138,8 @@ export default function ProblemApproaches({
               <Footprints className="w-3.5 h-3.5 text-purple-600" />
               Dry Run on Example
             </h4>
-            <div className="font-mono text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
-              {currentApproach.dryRun}
+            <div className="font-mono text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+              <MarkdownRenderer content={currentApproach.dryRun} />
             </div>
           </div>
         )}

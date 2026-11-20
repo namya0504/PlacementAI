@@ -31,6 +31,9 @@ export default function ProblemVisualizerPage() {
   const [customArrayText, setCustomArrayText] = useState('');
   const [customTargetText, setCustomTargetText] = useState('9');
   const [isCustomMode, setIsCustomMode] = useState(false);
+  const [customTrace, setCustomTrace] = useState(null);
+  const [customLoading, setCustomLoading] = useState(false);
+  const [customError, setCustomError] = useState(null);
 
   // Playback State
   const [currentStep, setCurrentStep] = useState(0);
@@ -39,19 +42,50 @@ export default function ProblemVisualizerPage() {
 
   // AI Tutor Chat State
   const [chatOpen, setChatOpen] = useState(false);
-  const [chatMessages, setChatMessages] = useState([
-    {
-      sender: 'ai',
-      text: "👋 Hi! I'm Sarah, your placement algorithm coach! Whether you're a complete non-coder or brushing up for campus interviews, I can explain every line, analogy, or custom test case. Ask me anything below!"
-    }
-  ]);
+  const [chatMessages, setChatMessages] = useState([]);
   const [inputQuery, setInputQuery] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState(null);
+  const [dynamicQuickButtons, setDynamicQuickButtons] = useState([
+    "Explain this step in simple non-coder words",
+    "What edge case could break this?",
+    "Why is this approach optimal?"
+  ]);
   const chatBottomRef = useRef(null);
 
   // AI Visualization State
   const [aiVisualization, setAiVisualization] = useState(null);
   const [loadingAi, setLoadingAi] = useState(false);
+
+  // Load chat messages from localStorage per problem
+  useEffect(() => {
+    if (!problemId) return;
+    try {
+      const saved = localStorage.getItem(`placementai_coach_${problemId}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setChatMessages(parsed);
+          return;
+        }
+      }
+    } catch (_) {}
+
+    setChatMessages([
+      {
+        sender: 'ai',
+        text: `👋 Hi! I'm Sarah, your placement algorithm coach! Whether you're a complete non-coder or brushing up for campus interviews, I can explain every line, analogy, or custom test case for ${problem?.title || 'this problem'}. Ask me anything below!`
+      }
+    ]);
+  }, [problemId, problem?.title]);
+
+  // Persist chat messages to localStorage per problem
+  useEffect(() => {
+    if (!problemId || chatMessages.length <= 1) return;
+    try {
+      localStorage.setItem(`placementai_coach_${problemId}`, JSON.stringify(chatMessages));
+    } catch (_) {}
+  }, [chatMessages, problemId]);
 
   // Load problem details and synthesized AI visualizer from API
   useEffect(() => {
@@ -71,6 +105,9 @@ export default function ProblemVisualizerPage() {
         }
         if (isMounted && aiRes.status === 'fulfilled' && aiRes.value?.visualization) {
           setAiVisualization(aiRes.value.visualization);
+          if (Array.isArray(aiRes.value.quickButtons) && aiRes.value.quickButtons.length > 0) {
+            setDynamicQuickButtons(aiRes.value.quickButtons);
+          }
         }
       } catch (err) {
         console.error('Failed to load problem for visualizer:', err);
@@ -217,1107 +254,49 @@ export default function ProblemVisualizerPage() {
     }
 
     // Default presets and edge cases per archetype
-    if (archetype === 'stock') {
-      list.push(
-        { label: 'Example: Peak & Valley', data: [7, 1, 5, 3, 6, 4] },
-        { label: 'Example: Strictly Decreasing (₹0 Profit)', data: [7, 6, 4, 3, 1] },
-        { label: 'Example: Early Dip & Late High', data: [2, 4, 1, 8, 3, 9] }
-      );
-    } else if (archetype === 'two_sum') {
-      list.push(
-        { label: 'Example: Target = 9 (Found [0, 1])', nums: [2, 7, 11, 15], target: 9 },
-        { label: 'Example: Target = 100 (NOT Found ❌)', nums: [1, 4, 6, 12, 15], target: 100 }
-      );
-    } else if (archetype === 'binary_search') {
-      list.push(
-        { label: 'Example: Target = 9 (Found)', nums: [-1, 0, 3, 5, 9, 12], target: 9 },
-        { label: 'Example: Target = 2 (NOT Found ❌)', nums: [-1, 0, 3, 5, 9, 12], target: 2 }
-      );
-    } else if (archetype === 'two_pointers') {
-      list.push(
-        { label: 'Example: Inward Array', nums: [1, 8, 6, 2, 5, 4, 8, 3, 7], target: 49 },
-        { label: 'Example: Symmetric Palindrome', nums: [1, 2, 3, 2, 1], target: 1 }
-      );
-    } else if (archetype === 'sliding_window') {
-      list.push(
-        { label: 'Example: Sliding Subarray', nums: [2, 1, 5, 1, 3, 2], target: 7 },
-        { label: 'Example: Expanding Sequence', nums: [1, 4, 2, 10, 23, 3, 1, 0, 20], target: 4 }
-      );
-    } else if (archetype === 'prefix_sum') {
-      list.push(
-        { label: 'Example: Cumulative Values', nums: [1, 2, 3, 4, 5], target: 15 },
-        { label: 'Example: Mixed Positive/Negative', nums: [3, -1, 4, -2, 5], target: 9 }
-      );
-    } else if (archetype === 'stack') {
-      list.push(
-        { label: 'Example: Stack Items', nums: [10, 20, 30, 40], target: 40 },
-        { label: 'Example: Monotonic Series', nums: [73, 74, 75, 71, 69, 72, 76, 73], target: 76 }
-      );
-    } else if (archetype === 'linked_list') {
-      list.push(
-        { label: 'Example: Chained 5 Nodes', nums: [1, 2, 3, 4, 5], target: 5 },
-        { label: 'Example: Chained 4 Nodes', nums: [10, 20, 30, 40], target: 40 }
-      );
-    }
-
-    if (list.length === 0) {
-      list.push(
-        { label: 'Sample Array 1: Linear Sequence', data: [1, 2, 3, 4, 5], nums: [1, 2, 3, 4, 5], target: 10 },
-        { label: 'Sample Array 2: Varied Data', data: [10, 4, 8, 15, 22], nums: [10, 4, 8, 15, 22], target: 25 },
-        { label: 'Sample Array 3: Unsolvable Target', data: [5, 10, 15, 20], nums: [5, 10, 15, 20], target: 99 }
-      );
-    }
-
-    return list;
-  }, [problem, archetype]);
-
-  // Resolve current active input
-  const activeInput = useMemo(() => {
-    if (isCustomMode && customArrayText.trim()) {
-      if (archetype === 'two_sum' || archetype === 'binary_search' || archetype === 'two_pointers' || archetype === 'sliding_window' || archetype === 'prefix_sum' || archetype === 'stack' || archetype === 'linked_list') {
-        const nums = customArrayText.split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
-        const target = Number(customTargetText) || 9;
-        if (nums.length > 0) return { nums, data: nums, target };
-      } else if (archetype === 'palindrome') {
-        return { text: customArrayText };
-      } else {
-        const parsed = customArrayText.split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
-        if (parsed.length > 0) return { data: parsed, nums: parsed };
-      }
-    }
-    return inputPresets[activePresetIndex] || inputPresets[0];
-  }, [isCustomMode, customArrayText, customTargetText, activePresetIndex, inputPresets, archetype]);
-
-  // Non-coder real-world story analogy for every algorithm
-  const beginnerAnalogy = useMemo(() => {
-    if (aiVisualization?.story) {
-      return {
-        analogyTitle: aiVisualization.analogyTitle || '🧩 AI Visual Algorithm Story',
-        story: aiVisualization.story,
-        whyBruteForceFails: aiVisualization.whyBruteForceFails || 'Checking all combinations takes quadratic O(N²) time. This algorithm reduces it to single pass O(N) or O(log N)!',
-        ahaMoment: aiVisualization.ahaMoment || 'Aha! Maintain an invariant and eliminate redundant calculations.',
-        interviewPitch: aiVisualization.interviewPitch
-      };
-    }
-    if (archetype === 'stock') {
-      return {
-        analogyTitle: '👟 The Sneaker / Crypto Resale Analogy',
-        story: 'Imagine you want to buy a collectible sneaker on one day and sell it on a future day for the highest profit. If sneaker prices are [₹7, ₹1, ₹5, ₹3, ₹6, ₹4], you should never buy at ₹7 when you know it drops to ₹1 tomorrow! The smart strategy is to remember the absolute cheapest price you have seen so far (₹1 on Day 2), and as each new day comes, ask: "If I sold today, what is my profit?" On Day 5 it hits ₹6, netting you ₹6 - ₹1 = ₹5 profit! That is the secret of the single-pass algorithm!',
-        whyBruteForceFails: 'A non-coder might compare every day with every future day (7 with 1, 7 with 5, 7 with 3...). For 100,000 days, that would take 10,000,000,000 checks—your computer would freeze! With our greedy trick, we only scan once: 100,000 checks in 0.01 seconds!',
-        ahaMoment: 'Aha! We only need to remember ONE number from the past: the cheapest price seen so far.'
-      };
-    }
-    if (archetype === 'two_sum') {
-      return {
-        analogyTitle: '🛒 The Supermarket Coupon Match Analogy',
-        story: 'Imagine you have a ₹9 gift voucher, and you must pick exactly TWO items that sum to ₹9. You walk down the aisle and pick up an item costing ₹2. You instantly know: "I need an item costing ₹7 (because 9 - 2 = 7)!" Instead of running back to check every aisle, you write "₹2 is at Shelf 0" on your notepad. When you reach the ₹7 item later, you check your notepad: "Aha! I already saw a ₹2 item earlier!" Match found instantly!',
-        whyBruteForceFails: 'Comparing every item with every other item means nested loops O(N²). If a store has 10,000 items, you would make 100,000,000 comparisons!',
-        ahaMoment: 'Aha! Instead of searching for the second number, use a Hash Map (notepad) so you only need one quick lookup per item!'
-      };
-    }
-    if (archetype === 'binary_search') {
-      return {
-        analogyTitle: '📖 The Dictionary / Guess-the-Number Game',
-        story: 'Imagine looking up a word in a 1,000-page dictionary. You do NOT flip page by page starting from page 1! Instead, you open right to page 500. If your word starts with "T", you instantly discard pages 1–500 and chop the dictionary in half! Then you check page 750. In just 10 checks, you can find any word out of 1,000 pages!',
-        whyBruteForceFails: 'Linear scanning one by one takes O(N). If the dictionary has 1,000,000 pages, linear search takes up to 1,000,000 steps, while Binary Search takes only 20 steps!',
-        ahaMoment: 'Aha! Because the list is sorted, every single check cuts the remaining work in half!'
-      };
-    }
-    if (archetype === 'two_pointers') {
-      return {
-        analogyTitle: '🚶‍♂️ The Two Friends Walking Inward from Both Ends',
-        story: 'Imagine two friends walking inward from opposite ends of a long hallway to find the optimal meeting spot or verify symmetry. Because the walls or numbers are bounded, at each step we only need to move the pointer that holds the limiting bottleneck. We eliminate an entire set of invalid combinations in a single step!',
-        whyBruteForceFails: 'Pairwise double loop checks N * (N - 1) / 2 combinations (O(N²)). With two pointers, we touch each element at most once: pure O(N) linear time!',
-        ahaMoment: 'Aha! By starting at opposite ends and moving the smaller bottleneck inward, we never miss the optimal configuration!'
-      };
-    }
-    if (archetype === 'sliding_window') {
-      return {
-        analogyTitle: '🪟 The Moving Camera Zoom / Train Window Panorama',
-        story: 'Imagine looking out of a moving train window at a panoramic landscape. Instead of repainting the entire view from scratch every second, you simply add what enters on the right side and drop what slides out on the left side! This continuous sliding frame keeps track of state dynamically without redundant calculations.',
-        whyBruteForceFails: 'Recomputing the sum or unique elements of every possible subsegment takes O(N²). A sliding window slides in O(1) per step, completing all checks in O(N)!',
-        ahaMoment: 'Aha! Add the new element entering the right side, subtract the old element exiting the left side!'
-      };
-    }
-    if (archetype === 'prefix_sum') {
-      return {
-        analogyTitle: '📊 The Bank Statement / Odometer Running Total',
-        story: 'Imagine looking at your car odometer or bank statement balance. If your odometer was 10,000 km at the start of March and 12,500 km at the end of March, you drove exactly 12,500 - 10,000 = 2,500 km in March! You did not have to sum up each individual 1-km trip. A prefix sum array stores cumulative totals so any range query is answered in 1 step!',
-        whyBruteForceFails: 'Iterating through range queries repeatedly takes O(N * Q) time. With prefix sums, after a one-time O(N) prep, every single query is answered in O(1) time!',
-        ahaMoment: 'Aha! Range sum from L to R is simply prefix[R + 1] - prefix[L]!'
-      };
-    }
-    if (archetype === 'stack') {
-      return {
-        analogyTitle: '🥞 The Spring-Loaded Cafeteria Tray Stack (LIFO)',
-        story: 'Imagine a spring-loaded stack of trays in a college dining hall. The last tray placed onto the stack is the first one taken by the next student (Last-In, First-Out). Stacks are the natural way to match pairs (like opening and closing parentheses `()`, `{}`) or trace back decisions cleanly.',
-        whyBruteForceFails: 'Searching backward without a stack requires repeated scanning O(N²). A stack gives instant O(1) access to the most recent context.',
-        ahaMoment: 'Aha! Push when opening context, pop and match when closing context!'
-      };
-    }
-    if (archetype === 'linked_list') {
-      return {
-        analogyTitle: '🚂 The Connected Train Wagons / Scavenger Hunt',
-        story: 'Imagine a scavenger hunt where each clue box contains an item and a note giving the exact address of the NEXT clue box. You cannot teleport to Clue #10; you must follow the trail from clue to clue (`curr = curr.next`). This dynamic connection makes adding or removing items take instant O(1) pointer adjustment without shifting an entire array!',
-        whyBruteForceFails: 'Arrays require shifting thousands of items when inserting at the front O(N). Linked lists simply update one pointer in O(1)!',
-        ahaMoment: 'Aha! Nodes are scattered in memory, connected like train couplers through `.next` pointers!'
-      };
-    }
-    if (archetype === 'max_subarray') {
-      return {
-        analogyTitle: '⛄ The Rolling Snowball Analogy (Kadane)',
-        story: 'Imagine rolling a snowball down a hill to make it as big as possible. When you hit a patch of heavy mud (a big negative number), if the mud makes your snowball smaller than starting a fresh snowball right here, you DITCH the old ball and start fresh! If the existing snowball is positive, you keep adding to it!',
-        whyBruteForceFails: 'Checking all possible start and end indices takes O(N²) or O(N³). Kadane’s algorithm makes a single decision at each step: "Is my past sum helping me, or dragging me down?"',
-        ahaMoment: 'Aha! If cur_sum drops below 0, it can never help future numbers. Drop it and start fresh at the next number!'
-      };
-    }
-    return {
-      analogyTitle: '🧩 The Step-by-Step Problem Solver',
-      story: 'Every algorithm in computer science is just a smart recipe to avoid redundant human work. By maintaining an invariant (a promise that holds true at every step), we process input systematically from left to right.',
-      whyBruteForceFails: 'Brute force does the same calculation hundreds of times. Optimal algorithms use smart memory or pointers to solve it in a single pass.',
-      ahaMoment: 'Aha! Observe the pattern, eliminate redundant checks, and let the pointers do the work!'
-    };
-  }, [archetype]);
-
-  // Simulation Step Generator (Universal & Specialized)
-  const simulationSteps = useMemo(() => {
-    // If AI visualization has custom synthesized steps and student isn't using custom sandbox input:
-    if (aiVisualization?.steps && aiVisualization.steps.length > 0 && !isCustomMode) {
-      return aiVisualization.steps.map((st, sIdx) => ({
-        ...st,
-        stepIndex: sIdx,
-        activeLine: st.activeLine || (sIdx + 1),
-        title: st.title || `Step ${sIdx + 1}`,
-        explanation: st.explanation,
-        formula: st.formula || `Step ${sIdx + 1} State Verification`,
-        decision: st.decision || 'Advancing pointer.',
-        outcomeStatus: st.outcomeStatus || (sIdx === aiVisualization.steps.length - 1 ? 'solution_found' : 'in_progress'),
-        isOptimalUpdate: st.isOptimalUpdate !== undefined ? st.isOptimalUpdate : (sIdx === aiVisualization.steps.length - 1)
-      }));
-    }
-
-    // 1. Stock Simulation
-    if (archetype === 'stock') {
-      const prices = activeInput?.data || [7, 1, 5, 3, 6, 4];
-      const steps = [];
-
-      steps.push({
-        stepIndex: 0,
-        activeLine: 2,
-        title: 'Step 0: Initialize Invariants',
-        dayIndex: -1,
-        currentPrice: null,
-        minPrice: Infinity,
-        buyDay: null,
-        sellDay: null,
-        currentProfit: 0,
-        maxProfit: 0,
-        explanation: 'We initialize min_price = ∞ and max_profit = 0. We will walk through the days from left to right in a single pass.',
-        formula: 'min_price = ∞, max_profit = ₹0',
-        decision: 'Ready to scan stock prices.',
-        isOptimalUpdate: false,
-        outcomeStatus: 'ready'
-      });
-
-      let currentMin = Infinity;
-      let bestBuyDay = 0;
-      let currentMaxProfit = 0;
-      let bestSellDay = null;
-
-      for (let i = 0; i < prices.length; i++) {
-        const p = prices[i];
-        const dayNum = i + 1;
-
-        if (p < currentMin) {
-          currentMin = p;
-          bestBuyDay = i;
-          steps.push({
-            stepIndex: steps.length,
-            activeLine: 6,
-            title: `Day ${dayNum}: New Lowest Price Found! (₹${p})`,
-            dayIndex: i,
-            currentPrice: p,
-            minPrice: currentMin,
-            buyDay: bestBuyDay,
-            sellDay: bestSellDay,
-            currentProfit: 0,
-            maxProfit: currentMaxProfit,
-            explanation: `Price today is ₹${p}, which is lower than previous minimum. We update min_price = ₹${p} (Day ${dayNum}). It is always best to buy at the lowest possible valley before selling!`,
-            formula: `min_price = min(prev, ${p}) ➔ ₹${currentMin}`,
-            decision: `Lowest buy price set to Day ${dayNum} @ ₹${p}.`,
-            isOptimalUpdate: false,
-            outcomeStatus: 'in_progress'
-          });
-        } else {
-          const profitToday = p - currentMin;
-          const isNewRecord = profitToday > currentMaxProfit;
-          if (isNewRecord) {
-            currentMaxProfit = profitToday;
-            bestSellDay = i;
-          }
-
-          steps.push({
-            stepIndex: steps.length,
-            activeLine: 9,
-            title: isNewRecord
-              ? `Day ${dayNum}: ⭐ NEW RECORD PROFIT LOCKED! (₹${currentMaxProfit})`
-              : `Day ${dayNum}: Check Profit if Sold Today (₹${profitToday})`,
-            dayIndex: i,
-            currentPrice: p,
-            minPrice: currentMin,
-            buyDay: bestBuyDay,
-            sellDay: bestSellDay,
-            currentProfit: profitToday,
-            maxProfit: currentMaxProfit,
-            explanation: isNewRecord
-              ? `If we bought on Day ${bestBuyDay + 1} (₹${currentMin}) and sell TODAY on Day ${dayNum} (₹${p}), profit = ${p} - ${currentMin} = ₹${profitToday}! This beats our previous best, so we update max_profit = ₹${currentMaxProfit}!`
-              : `If we bought on Day ${bestBuyDay + 1} (₹${currentMin}) and sell today on Day ${dayNum} (₹${p}), profit = ${p} - ${currentMin} = ₹${profitToday}. Since ₹${profitToday} <= current best (₹${currentMaxProfit}), max_profit remains ₹${currentMaxProfit}.`,
-            formula: `Profit = ${p} - ${currentMin} = ₹${profitToday} ${isNewRecord ? '➔ New Record! ⭐' : '➔ Not optimal'}`,
-            decision: isNewRecord
-              ? `Updated best trade: Buy Day ${bestBuyDay + 1} @ ₹${currentMin}, Sell Day ${dayNum} @ ₹${p}.`
-              : `Keep current best profit (₹${currentMaxProfit}).`,
-            isOptimalUpdate: isNewRecord,
-            outcomeStatus: isNewRecord ? 'record_updated' : 'in_progress'
-          });
-        }
-      }
-
-      // Final Verdict
-      const hasProfit = currentMaxProfit > 0;
-      steps.push({
-        stepIndex: steps.length,
-        activeLine: 10,
-        title: hasProfit
-          ? `🎉 Simulation Complete: Maximum Profit is ₹${currentMaxProfit}`
-          : `⚠️ Simulation Complete: No Profitable Trade Possible (Max Profit: ₹0)`,
-        dayIndex: prices.length - 1,
-        currentPrice: prices[prices.length - 1],
-        minPrice: currentMin,
-        buyDay: bestBuyDay,
-        sellDay: bestSellDay,
-        currentProfit: currentMaxProfit,
-        maxProfit: currentMaxProfit,
-        explanation: hasProfit
-          ? `Done! The optimal transaction is to BUY on Day ${bestBuyDay + 1} at ₹${prices[bestBuyDay]} and SELL on Day ${(bestSellDay !== null ? bestSellDay + 1 : bestBuyDay + 1)} at ₹${prices[bestSellDay !== null ? bestSellDay : bestBuyDay]}, locking in a profit of ₹${currentMaxProfit}!`
-          : 'Prices were strictly decreasing or flat. Since you cannot travel backward in time, buying on any day would lead to a loss or zero gain. Therefore, the optimal profit is ₹0.',
-        formula: `return max_profit = ${currentMaxProfit}`,
-        decision: hasProfit
-          ? `Success! Maximum profit of ₹${currentMaxProfit} achieved in O(N) single-pass.`
-          : 'Zero profit returned safely without losses.',
-        isOptimalUpdate: hasProfit,
-        outcomeStatus: hasProfit ? 'solution_found' : 'solution_not_found'
-      });
-
-      return steps;
-    }
-
-    // 2. Two Sum Simulation (with Found & NOT Found handling)
-    if (archetype === 'two_sum') {
-      const nums = activeInput?.nums || [2, 7, 11, 15];
-      const target = typeof activeInput?.target === 'number' ? activeInput.target : 9;
-      const steps = [];
-
-      steps.push({
-        stepIndex: 0,
-        activeLine: 2,
-        title: `Step 0: Initialize Hash Map (Target = ${target})`,
-        index: -1,
-        seen: {},
-        currentNum: null,
-        complement: null,
-        foundPair: null,
-        explanation: `We initialize an empty Hash Map 'seen = {}'. We need to find two numbers that sum to ${target}. For each number, we will compute 'complement = ${target} - num' and check if it was seen before in O(1) time.`,
-        formula: `target = ${target}, seen = {}`,
-        decision: `Starting scan looking for pairs that equal ${target}.`,
-        isOptimalUpdate: false,
-        outcomeStatus: 'ready'
-      });
-
-      const seen = {};
-      let foundPair = null;
-
-      for (let i = 0; i < nums.length; i++) {
-        const num = nums[i];
-        const comp = target - num;
-        const exists = comp in seen;
-
-        if (exists) {
-          foundPair = [seen[comp], i];
-          steps.push({
-            stepIndex: steps.length,
-            activeLine: 6,
-            title: `Index ${i}: 🎉 COMPLEMENT FOUND IN HASH MAP! [${comp} + ${num} = ${target}]`,
-            index: i,
-            seen: { ...seen },
-            currentNum: num,
-            complement: comp,
-            foundPair,
-            explanation: `At index ${i}, number is ${num}. Complement needed is ${target} - ${num} = ${comp}. We check our map: ${comp} IS ALREADY PRESENT at index ${seen[comp]}! 2 + 7 = 9! We have found the solution!`,
-            formula: `seen[${comp}] = ${seen[comp]} ➔ Match found! Indices: [${seen[comp]}, ${i}]`,
-            decision: `Target reached! Returning indices [${seen[comp]}, ${i}].`,
-            isOptimalUpdate: true,
-            outcomeStatus: 'solution_found'
-          });
-          break;
-        } else {
-          seen[num] = i;
-          steps.push({
-            stepIndex: steps.length,
-            activeLine: 7,
-            title: `Index ${i}: Complement ${comp} not in map ➔ Store seen[${num}] = ${i}`,
-            index: i,
-            seen: { ...seen },
-            currentNum: num,
-            complement: comp,
-            foundPair: null,
-            explanation: `At index ${i}, number is ${num}. Complement needed is ${target} - ${num} = ${comp}. ${comp} has not been seen yet. We store seen[${num}] = ${i} on our notepad and move to the next item.`,
-            formula: `seen[${num}] = ${i}`,
-            decision: `Added ${num} to map. Moving forward.`,
-            isOptimalUpdate: false,
-            outcomeStatus: 'in_progress'
-          });
-        }
-      }
-
-      // If loop completed without finding pair
-      if (!foundPair) {
-        steps.push({
-          stepIndex: steps.length,
-          activeLine: 8,
-          title: `❌ Target ${target} NOT Found in Array!`,
-          index: nums.length - 1,
-          seen: { ...seen },
-          currentNum: nums[nums.length - 1],
-          complement: null,
-          foundPair: null,
-          explanation: `All ${nums.length} elements were evaluated, but no two numbers in [${nums.join(', ')}] sum to ${target}. The algorithm completes and safely returns [] (empty list).`,
-          formula: `No pair sums to ${target} ➔ return []`,
-          decision: `Gracefully handled: Target ${target} is impossible with this array.`,
-          isOptimalUpdate: false,
-          outcomeStatus: 'solution_not_found'
-        });
-      }
-
-      return steps;
-    }
-
-    // 3. Binary Search Simulation
-    if (archetype === 'binary_search') {
-      const nums = activeInput?.nums || [-1, 0, 3, 5, 9, 12];
-      const target = typeof activeInput?.target === 'number' ? activeInput.target : 9;
-      const steps = [];
-
-      let left = 0;
-      let right = nums.length - 1;
-      let foundIndex = -1;
-
-      steps.push({
-        stepIndex: 0,
-        activeLine: 1,
-        title: `Step 0: Set Pointers left = 0, right = ${right}`,
-        left,
-        right,
-        mid: null,
-        target,
-        nums,
-        explanation: `Initialize binary search pointers: left = 0, right = ${right}. We search for target = ${target}. In each step, we check the midpoint!`,
-        formula: `left = 0, right = ${right}, target = ${target}`,
-        decision: `Search space contains ${nums.length} elements.`,
-        outcomeStatus: 'ready'
-      });
-
-      while (left <= right) {
-        const mid = Math.floor((left + right) / 2);
-        const midVal = nums[mid];
-
-        if (midVal === target) {
-          foundIndex = mid;
-          steps.push({
-            stepIndex: steps.length,
-            activeLine: 5,
-            title: `🎯 Target ${target} Found at Index ${mid}!`,
-            left,
-            right,
-            mid,
-            target,
-            nums,
-            explanation: `Midpoint is index ${mid} with value ${midVal}. Since ${midVal} === ${target}, target is found!`,
-            formula: `nums[${mid}] == ${target} ➔ Return index ${mid}`,
-            decision: `Match found! Returning index ${mid}.`,
-            isOptimalUpdate: true,
-            outcomeStatus: 'solution_found'
-          });
-          break;
-        } else if (midVal < target) {
-          steps.push({
-            stepIndex: steps.length,
-            activeLine: 7,
-            title: `Mid value (${midVal}) < Target (${target}) ➔ Discard Left Half`,
-            left,
-            right,
-            mid,
-            target,
-            nums,
-            explanation: `At mid index ${mid}, value is ${midVal}. Because ${midVal} < ${target}, target must be in the right half! We update left = ${mid + 1}.`,
-            formula: `left = mid + 1 ➔ left = ${mid + 1}`,
-            decision: `Eliminated left half (${mid - left + 1} items).`,
-            outcomeStatus: 'in_progress'
-          });
-          left = mid + 1;
-        } else {
-          steps.push({
-            stepIndex: steps.length,
-            activeLine: 9,
-            title: `Mid value (${midVal}) > Target (${target}) ➔ Discard Right Half`,
-            left,
-            right,
-            mid,
-            target,
-            nums,
-            explanation: `At mid index ${mid}, value is ${midVal}. Because ${midVal} > ${target}, target must be in the left half! We update right = ${mid - 1}.`,
-            formula: `right = mid - 1 ➔ right = ${mid - 1}`,
-            decision: `Eliminated right half (${right - mid + 1} items).`,
-            outcomeStatus: 'in_progress'
-          });
-          right = mid - 1;
-        }
-      }
-
-      if (foundIndex === -1) {
-        steps.push({
-          stepIndex: steps.length,
-          activeLine: 11,
-          title: `❌ Target ${target} NOT Found in Array!`,
-          left,
-          right,
-          mid: null,
-          target,
-          nums,
-          explanation: `left (${left}) > right (${right}). The search space is exhausted and target ${target} does not exist in the array. Return -1.`,
-          formula: `left > right ➔ return -1`,
-          decision: `Gracefully handled: Target ${target} does not exist.`,
-          outcomeStatus: 'solution_not_found'
-        });
-      }
-
-      return steps;
-    }
-
-    // 4. Two Pointers Simulation (Inward Walk)
-    if (archetype === 'two_pointers') {
-      const nums = activeInput?.nums || [1, 8, 6, 2, 5, 4, 8, 3, 7];
-      const target = typeof activeInput?.target === 'number' ? activeInput.target : 49;
-      const steps = [];
-
-      let left = 0;
-      let right = nums.length - 1;
-      let maxArea = 0;
-      let bestPair = [0, right];
-
-      steps.push({
-        stepIndex: 0,
-        activeLine: 1,
-        title: `Step 0: Set Inward Pointers left = 0, right = ${right}`,
-        left: 0,
-        right,
-        nums,
-        explanation: `Initialize two pointers at opposite ends of the array: left = 0 (val: ${nums[0]}), right = ${right} (val: ${nums[right]}). In each step, we evaluate the pair and move the limiting bottleneck inward.`,
-        formula: `left = 0, right = ${right}, target = ${target}`,
-        decision: `Search space contains ${nums.length} elements.`,
-        outcomeStatus: 'ready'
-      });
-
-      while (left < right) {
-        const h = Math.min(nums[left], nums[right]);
-        const w = right - left;
-        const currentMetric = h * w;
-        const isNewBest = currentMetric > maxArea;
-        if (isNewBest) {
-          maxArea = currentMetric;
-          bestPair = [left, right];
-        }
-
-        const isMatch = currentMetric === target;
-        steps.push({
-          stepIndex: steps.length,
-          activeLine: 3,
-          title: isMatch
-            ? `Pair [${left}, ${right}]: ⭐ Target ${target} Reached!`
-            : `Pair [${left}, ${right}]: nums[${left}]=${nums[left]}, nums[${right}]=${nums[right]} ➔ Metric: ${currentMetric}`,
-          left,
-          right,
-          nums,
-          explanation: `At left index ${left} (${nums[left]}) and right index ${right} (${nums[right]}), width is ${w}. Metric = min(${nums[left]}, ${nums[right]}) * ${w} = ${currentMetric}. ${nums[left] < nums[right] ? `Left wall (${nums[left]}) is shorter: advance left to ${left + 1}.` : `Right wall (${nums[right]}) is shorter or equal: advance right to ${right - 1}.`}`,
-          formula: `min(${nums[left]}, ${nums[right]}) * ${w} = ${currentMetric}`,
-          decision: nums[left] < nums[right] ? `left++ ➔ ${left + 1}` : `right-- ➔ ${right - 1}`,
-          isOptimalUpdate: isNewBest,
-          outcomeStatus: isMatch ? 'solution_found' : 'in_progress'
-        });
-
-        if (isMatch) break;
-
-        if (nums[left] < nums[right]) {
-          left++;
-        } else {
-          right--;
-        }
-      }
-
-      steps.push({
-        stepIndex: steps.length,
-        activeLine: 6,
-        title: `🎉 Two Pointers Traversal Complete (Best: ${maxArea})`,
-        left: bestPair[0],
-        right: bestPair[1],
-        nums,
-        explanation: `Traversal completed in O(N) linear time. Optimal boundaries found at indices [${bestPair[0]}, ${bestPair[1]}].`,
-        formula: `return bestMetric = ${maxArea}`,
-        decision: `Done.`,
-        isOptimalUpdate: true,
-        outcomeStatus: 'solution_found'
-      });
-
-      return steps;
-    }
-
-    // 5. Sliding Window Simulation
-    if (archetype === 'sliding_window') {
-      const nums = activeInput?.nums || [2, 1, 5, 1, 3, 2];
-      const target = typeof activeInput?.target === 'number' ? activeInput.target : 7;
-      const steps = [];
-
-      let left = 0;
-      let windowSum = 0;
-
-      steps.push({
-        stepIndex: 0,
-        activeLine: 1,
-        title: `Step 0: Initialize Sliding Window (Target = ${target})`,
-        left: 0,
-        right: 0,
-        nums,
-        explanation: `Initialize sliding window pointers: left = 0, right = 0. Window expands rightward and contracts leftward to satisfy conditions.`,
-        formula: `left = 0, right = 0, target = ${target}`,
-        decision: 'Ready to expand window.',
-        outcomeStatus: 'ready'
-      });
-
-      for (let right = 0; right < nums.length; right++) {
-        windowSum += nums[right];
-        const isMatch = windowSum === target;
-
-        steps.push({
-          stepIndex: steps.length,
-          activeLine: 3,
-          title: isMatch
-            ? `Window [${left}...${right}]: ⭐ Target ${target} Formed!`
-            : `Window [${left}...${right}]: Added nums[${right}]=${nums[right]} ➔ Window Sum = ${windowSum}`,
-          left,
-          right,
-          nums,
-          explanation: `Right pointer at index ${right} adds ${nums[right]}. Current window [${nums.slice(left, right + 1).join(', ')}] sum is ${windowSum}.`,
-          formula: `window[${left}..${right}] = ${windowSum}`,
-          decision: `Window size: ${right - left + 1} items.`,
-          isOptimalUpdate: isMatch,
-          outcomeStatus: isMatch ? 'solution_found' : 'in_progress'
-        });
-
-        if (windowSum > target && left < right) {
-          windowSum -= nums[left];
-          left++;
-          steps.push({
-            stepIndex: steps.length,
-            activeLine: 5,
-            title: `Window Over Target: Shrink Left ➔ New left = ${left}`,
-            left,
-            right,
-            nums,
-            explanation: `Window sum exceeded target. Shrunk left boundary to ${left}, subtracting previous element. New window sum is ${windowSum}.`,
-            formula: `left++ ➔ window = [${nums.slice(left, right + 1).join(', ')}]`,
-            decision: 'Constraint restored.',
-            isOptimalUpdate: false,
-            outcomeStatus: 'in_progress'
-          });
-        }
-      }
-
-      steps.push({
-        stepIndex: steps.length,
-        activeLine: 8,
-        title: '🎉 Sliding Window Complete: Traversal Finished in O(N)',
-        left,
-        right: nums.length - 1,
-        nums,
-        explanation: 'All elements processed in linear O(N) time with O(1) auxiliary space.',
-        formula: 'return optimalWindow',
-        decision: 'Complete.',
-        isOptimalUpdate: true,
-        outcomeStatus: 'solution_found'
-      });
-
-      return steps;
-    }
-
-    // 6. Prefix Sum Simulation
-    if (archetype === 'prefix_sum') {
-      const nums = activeInput?.nums || [1, 2, 3, 4, 5];
-      const steps = [];
-      const prefix = [0];
-
-      steps.push({
-        stepIndex: 0,
-        activeLine: 1,
-        title: 'Step 0: Initialize Prefix Sum Array',
-        index: -1,
-        nums,
-        prefixArray: [0],
-        explanation: 'Initialize prefix array with base prefix[0] = 0. Prefix array allows answering any range sum query in O(1) time!',
-        formula: 'prefix = [0]',
-        decision: 'Ready to compute cumulative sums.',
-        outcomeStatus: 'ready'
-      });
-
-      for (let i = 0; i < nums.length; i++) {
-        const nextVal = prefix[prefix.length - 1] + nums[i];
-        prefix.push(nextVal);
-
-        steps.push({
-          stepIndex: steps.length,
-          activeLine: 3,
-          title: `Index ${i}: prefix[${i + 1}] = prefix[${i}] + nums[${i}] = ${nextVal}`,
-          index: i,
-          nums,
-          prefixArray: [...prefix],
-          explanation: `At index ${i}, element is ${nums[i]}. Add it to previous cumulative sum (${prefix[i]}): ${prefix[i]} + ${nums[i]} = ${nextVal}. Stored in prefix[${i + 1}].`,
-          formula: `prefix[${i + 1}] = ${prefix[i]} + ${nums[i]} = ${nextVal}`,
-          decision: `Cumulative balance updated to ${nextVal}.`,
-          isOptimalUpdate: true,
-          outcomeStatus: 'in_progress'
-        });
-      }
-
-      steps.push({
-        stepIndex: steps.length,
-        activeLine: 6,
-        title: '🎉 Prefix Sum Built: Query Any Subarray in O(1) Time!',
-        index: nums.length - 1,
-        nums,
-        prefixArray: [...prefix],
-        explanation: `Prefix sum array built: [${prefix.join(', ')}]. Now to get the sum between any index i and j, simply compute prefix[j+1] - prefix[i] in instant O(1) time!`,
-        formula: 'sum(i..j) = prefix[j+1] - prefix[i]',
-        decision: 'Ready for instant O(1) range queries.',
-        isOptimalUpdate: true,
-        outcomeStatus: 'solution_found'
-      });
-
-      return steps;
-    }
-
-    // 7. Stack Simulation
-    if (archetype === 'stack') {
-      const nums = activeInput?.nums || [10, 20, 30, 40];
-      const steps = [];
-      const stack = [];
-
-      steps.push({
-        stepIndex: 0,
-        activeLine: 1,
-        title: 'Step 0: Initialize Empty Stack []',
-        index: -1,
-        nums,
-        stackArray: [],
-        explanation: 'Initialize an empty stack: stack = []. Stack operates on LIFO (Last-In, First-Out).',
-        formula: 'stack = []',
-        decision: 'Ready to process elements.',
-        outcomeStatus: 'ready'
-      });
-
-      for (let i = 0; i < nums.length; i++) {
-        const item = nums[i];
-        stack.push(item);
-
-        steps.push({
-          stepIndex: steps.length,
-          activeLine: 3,
-          title: `Index ${i}: Push ${item} onto Stack ➔ Top is now ${item}`,
-          index: i,
-          nums,
-          stackArray: [...stack],
-          explanation: `Pushed element ${item} onto the top of the stack. Stack depth is now ${stack.length}.`,
-          formula: `stack.push(${item}) ➔ [${stack.join(', ')}]`,
-          decision: `Top of stack = ${item}.`,
-          isOptimalUpdate: true,
-          outcomeStatus: 'in_progress'
-        });
-      }
-
-      steps.push({
-        stepIndex: steps.length,
-        activeLine: 6,
-        title: '🎉 Stack Operations Complete: Verified LIFO Order',
-        index: nums.length - 1,
-        nums,
-        stackArray: [...stack],
-        explanation: `All items processed. Top item is ${stack[stack.length - 1]}. Pops happen in reverse order.`,
-        formula: `stack.length = ${stack.length}`,
-        decision: 'Stack invariant verified.',
-        isOptimalUpdate: true,
-        outcomeStatus: 'solution_found'
-      });
-
-      return steps;
-    }
-
-    // 8. Linked List Simulation
-    if (archetype === 'linked_list') {
-      const nums = activeInput?.nums || [1, 2, 3, 4, 5];
-      const steps = [];
-
-      steps.push({
-        stepIndex: 0,
-        activeLine: 1,
-        title: 'Step 0: Head Pointer set to Node(1)',
-        index: 0,
-        nums,
-        explanation: 'Initialize head pointer at first node. Linked list nodes are connected via .next pointers.',
-        formula: 'curr = head',
-        decision: 'At list head.',
-        outcomeStatus: 'ready'
-      });
-
-      for (let i = 0; i < nums.length; i++) {
-        const isTail = i === nums.length - 1;
-        steps.push({
-          stepIndex: steps.length,
-          activeLine: 3,
-          title: isTail
-            ? `Node ${i + 1} (Val: ${nums[i]}): Reached Tail Node (next = null)`
-            : `Node ${i + 1} (Val: ${nums[i]}): Pointer curr ➔ next Node(Val: ${nums[i + 1]})`,
-          index: i,
-          nums,
-          explanation: isTail
-            ? `Node ${i + 1} has value ${nums[i]} and points to null. We have reached the end of the linked list.`
-            : `Visiting Node with value ${nums[i]}. Following pointer to next node with value ${nums[i + 1]}.`,
-          formula: `curr.val = ${nums[i]}, curr.next = ${isTail ? 'null' : `Node(${nums[i + 1]})`}`,
-          decision: isTail ? 'Tail reached.' : 'Advance curr = curr.next.',
-          isOptimalUpdate: isTail,
-          outcomeStatus: isTail ? 'solution_found' : 'in_progress'
-        });
-      }
-
-      return steps;
-    }
-
-    // 9. Universal Fallback Simulator (Works for any problem)
-    const rawList = activeInput?.data || (Array.isArray(activeInput) ? activeInput : [10, 20, 30, 40, 50]);
-    const list = Array.isArray(rawList) ? rawList : [10, 20, 30, 40, 50];
-    const targetVal = typeof activeInput?.target === 'number' ? activeInput.target : 30;
-
-    const steps = [];
-    steps.push({
-      stepIndex: 0,
-      activeLine: 1,
-      title: 'Step 0: Initialize Invariants & Pointers',
-      index: -1,
-      currentPrice: null,
-      explanation: `Algorithm initialized. Beginning traversal over ${list.length} elements. Maintaining algorithm invariants.`,
-      formula: `n = ${list.length}, target = ${targetVal}`,
-      decision: 'Ready to process input stream.',
-      outcomeStatus: 'ready'
-    });
-
-    let runningAccumulator = 0;
-    for (let i = 0; i < list.length; i++) {
-      const val = list[i];
-      runningAccumulator += val;
-      const isTargetMatch = val === targetVal || runningAccumulator === targetVal;
-
-      steps.push({
-        stepIndex: steps.length,
-        activeLine: 3,
-        title: isTargetMatch
-          ? `Index ${i}: ⭐ Target Match Condition Satisfied (Val: ${val})!`
-          : `Index ${i}: Evaluating Element ${val} (Cumulative: ${runningAccumulator})`,
-        index: i,
-        currentPrice: val,
-        explanation: `At index ${i}, element is ${val}. Invariant verified. Processing logic in O(1) step.`,
-        formula: `element = ${val}, state = ${runningAccumulator}`,
-        decision: isTargetMatch ? 'Condition satisfied!' : 'Invariant preserved, advancing.',
-        isOptimalUpdate: isTargetMatch,
-        outcomeStatus: isTargetMatch ? 'solution_found' : 'in_progress'
-      });
-    }
-
-    steps.push({
-      stepIndex: steps.length,
-      activeLine: 5,
-      title: '🎉 Traversal Complete: Algorithm Verified',
-      index: list.length - 1,
-      currentPrice: list[list.length - 1],
-      explanation: `All ${list.length} elements processed in linear O(N) time with O(1) auxiliary memory. Optimal result confirmed.`,
-      formula: `Total elements = ${list.length}`,
-      decision: 'Finished traversal cleanly.',
-      isOptimalUpdate: true,
-      outcomeStatus: 'solution_found'
-    });
-
-    return steps;
-  }, [archetype, activeInput]);
-
-  // Reset current step on data change
-  useEffect(() => {
-    setCurrentStep(0);
-    setIsPlaying(false);
-  }, [activeInput, archetype]);
-
-  // Autoplay timer
-  useEffect(() => {
-    let timer = null;
-    if (isPlaying) {
-      const intervalMs = Math.round(1500 / playbackSpeed);
-      timer = setInterval(() => {
-        setCurrentStep((prev) => {
-          if (prev >= simulationSteps.length - 1) {
-            setIsPlaying(false);
-            return prev;
-          }
-          return prev + 1;
-        });
-      }, intervalMs);
-    }
-    return () => clearInterval(timer);
-  }, [isPlaying, playbackSpeed, simulationSteps.length]);
-
-  const currentStepData = simulationSteps[currentStep] || simulationSteps[0] || {};
-
-  // Handle Tutor Chat Submit
-  const handleSendChat = async (presetText = null) => {
-    const query = presetText || inputQuery;
-    if (!query || !query.trim()) return;
-
-    const userMsg = { sender: 'user', text: query };
-    setChatMessages((prev) => [...prev, userMsg]);
-    setInputQuery('');
-    setChatLoading(true);
-
-    try {
-      const res = await API.askDsaTutorChat(problem?.problemId || problemId, {
-        message: query,
-        currentStepData
-      });
-      const aiReply = res?.reply || "Here's the key idea: The algorithm works by making a greedy decision at every step, keeping the best outcome so far!";
-      setChatMessages((prev) => [...prev, { sender: 'ai', text: aiReply }]);
-    } catch (err) {
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          sender: 'ai',
-          text: `Here is the explanation: In this step, the algorithm inspects the current element and compares it against our saved best value. If it improves our outcome, we record it immediately!`
-        }
-      ]);
-    } finally {
-      setChatLoading(false);
-    }
-  };
-
-  // Code snippets by language
-  const codeSnippets = useMemo(() => {
-    // 0. If AI has synthesized optimal multi-language code for this exact problem:
-    if (aiVisualization?.optimalCode) {
+    // 2. Fallback to starter codes for all languages
+    if (problem?.starterCode) {
       const result = {};
-      let hasCode = false;
       ['python', 'javascript', 'java', 'cpp'].forEach((lang) => {
-        const rawCode = aiVisualization.optimalCode[lang];
-        if (rawCode && rawCode.trim().length > 0) {
-          hasCode = true;
-          result[lang] = rawCode
-            .split('\n')
-            .map((text, idx) => ({ line: idx + 1, text }));
-        }
+        const rawCode = problem.starterCode[lang] || '';
+        result[lang] = (rawCode || `// Solution for ${problem?.title || 'problem'}`)
+          .split('\n')
+          .map((text, idx) => ({ line: idx + 1, text }));
       });
-      if (hasCode && result.python && result.python.length > 2) {
-        return result;
-      }
+      return result;
     }
 
-    // 1. If problem has optimal approach code in database, extract and format it directly!
-    const optimalApproach = problem?.approaches?.find(a => a.name?.toLowerCase().includes('optimal'))
-      || problem?.approaches?.[problem?.approaches?.length - 1];
-
-    if (optimalApproach?.code) {
-      const result = {};
-      let hasValid = false;
-      ['python', 'javascript', 'java', 'cpp'].forEach((lang) => {
-        const rawCode = optimalApproach.code[lang] || problem?.starterCode?.[lang] || '';
-        if (rawCode && rawCode.trim().length > 0) {
-          hasValid = true;
-          result[lang] = rawCode
-            .split('\n')
-            .map((text, idx) => ({ line: idx + 1, text }));
-        }
-      });
-      if (hasValid && result.python && result.python.length > 2) {
-        return result;
-      }
-    }
-
-    if (archetype === 'stock') {
-      return {
-        python: [
-          { line: 1, text: "def maxProfit(prices):" },
-          { line: 2, text: "    min_price = float('inf')" },
-          { line: 3, text: "    max_profit = 0" },
-          { line: 4, text: "    for price in prices:" },
-          { line: 5, text: "        if price < min_price:" },
-          { line: 6, text: "            min_price = price  # cheaper buy day found" },
-          { line: 7, text: "        else:" },
-          { line: 8, text: "            profit = price - min_price" },
-          { line: 9, text: "            max_profit = max(max_profit, profit)" },
-          { line: 10, text: "    return max_profit" }
-        ],
-        javascript: [
-          { line: 1, text: "function maxProfit(prices) {" },
-          { line: 2, text: "    let minPrice = Infinity;" },
-          { line: 3, text: "    let maxProfit = 0;" },
-          { line: 4, text: "    for (let price of prices) {" },
-          { line: 5, text: "        if (price < minPrice) {" },
-          { line: 6, text: "            minPrice = price;" },
-          { line: 7, text: "        } else {" },
-          { line: 8, text: "            maxProfit = Math.max(maxProfit, price - minPrice);" },
-          { line: 9, text: "        }" },
-          { line: 10, text: "    }" },
-          { line: 11, text: "    return maxProfit;" },
-          { line: 12, text: "}" }
-        ],
-        java: [
-          { line: 1, text: "public int maxProfit(int[] prices) {" },
-          { line: 2, text: "    int minPrice = Integer.MAX_VALUE;" },
-          { line: 3, text: "    int maxProfit = 0;" },
-          { line: 4, text: "    for (int price : prices) {" },
-          { line: 5, text: "        if (price < minPrice) {" },
-          { line: 6, text: "            minPrice = price;" },
-          { line: 7, text: "        } else {" },
-          { line: 8, text: "            maxProfit = Math.max(maxProfit, price - minPrice);" },
-          { line: 9, text: "        }" },
-          { line: 10, text: "    }" },
-          { line: 11, text: "    return maxProfit;" },
-          { line: 12, text: "}" }
-        ],
-        cpp: [
-          { line: 1, text: "int maxProfit(vector<int>& prices) {" },
-          { line: 2, text: "    int min_price = INT_MAX;" },
-          { line: 3, text: "    int max_profit = 0;" },
-          { line: 4, text: "    for (int price : prices) {" },
-          { line: 5, text: "        if (price < min_price) {" },
-          { line: 6, text: "            min_price = price;" },
-          { line: 7, text: "        } else {" },
-          { line: 8, text: "            max_profit = max(max_profit, price - min_price);" },
-          { line: 9, text: "        }" },
-          { line: 10, text: "    }" },
-          { line: 11, text: "    return max_profit;" },
-          { line: 12, text: "}" }
-        ]
-      };
-    }
-
-    if (archetype === 'two_sum') {
-      return {
-        python: [
-          { line: 1, text: "def twoSum(nums, target):" },
-          { line: 2, text: "    seen = {}" },
-          { line: 3, text: "    for i, num in enumerate(nums):" },
-          { line: 4, text: "        complement = target - num" },
-          { line: 5, text: "        if complement in seen:" },
-          { line: 6, text: "            return [seen[complement], i]" },
-          { line: 7, text: "        seen[num] = i" },
-          { line: 8, text: "    return []" }
-        ],
-        javascript: [
-          { line: 1, text: "function twoSum(nums, target) {" },
-          { line: 2, text: "    const seen = new Map();" },
-          { line: 3, text: "    for (let i = 0; i < nums.length; i++) {" },
-          { line: 4, text: "        const comp = target - nums[i];" },
-          { line: 5, text: "        if (seen.has(comp)) return [seen.get(comp), i];" },
-          { line: 6, text: "        seen.set(nums[i], i);" },
-          { line: 7, text: "    }" },
-          { line: 8, text: "    return [];" },
-          { line: 9, text: "}" }
-        ],
-        java: [
-          { line: 1, text: "public int[] twoSum(int[] nums, int target) {" },
-          { line: 2, text: "    Map<Integer, Integer> seen = new HashMap<>();" },
-          { line: 3, text: "    for (int i = 0; i < nums.length; i++) {" },
-          { line: 4, text: "        int comp = target - nums[i];" },
-          { line: 5, text: "        if (seen.containsKey(comp)) return new int[]{seen.get(comp), i};" },
-          { line: 6, text: "        seen.put(nums[i], i);" },
-          { line: 7, text: "    }" },
-          { line: 8, text: "    return new int[]{};" },
-          { line: 9, text: "}" }
-        ],
-        cpp: [
-          { line: 1, text: "vector<int> twoSum(vector<int>& nums, int target) {" },
-          { line: 2, text: "    unordered_map<int, int> seen;" },
-          { line: 3, text: "    for (int i = 0; i < nums.size(); i++) {" },
-          { line: 4, text: "        int comp = target - nums[i];" },
-          { line: 5, text: "        if (seen.count(comp)) return {seen[comp], i};" },
-          { line: 6, text: "        seen[nums[i]] = i;" },
-          { line: 7, text: "    }" },
-          { line: 8, text: "    return {};" },
-          { line: 9, text: "}" }
-        ]
-      };
-    }
-
-    // Binary Search / Universal Code Snippets
+    // Default clean stub for this problem
     return {
       python: [
-        { line: 1, text: "def binarySearch(nums, target):" },
-        { line: 2, text: "    left, right = 0, len(nums) - 1" },
-        { line: 3, text: "    while left <= right:" },
-        { line: 4, text: "        mid = (left + right) // 2" },
-        { line: 5, text: "        if nums[mid] == target: return mid" },
-        { line: 6, text: "        elif nums[mid] < target: left = mid + 1" },
-        { line: 7, text: "        else: right = mid - 1" },
-        { line: 8, text: "    return -1" }
+        { line: 1, text: `# Optimal solution for ${problem?.title || 'Problem'}` },
+        { line: 2, text: "def solve(data):" },
+        { line: 3, text: "    # Process optimal algorithm step-by-step" },
+        { line: 4, text: "    return result" }
       ],
       javascript: [
-        { line: 1, text: "function binarySearch(nums, target) {" },
-        { line: 2, text: "    let left = 0, right = nums.length - 1;" },
-        { line: 3, text: "    while (left <= right) {" },
-        { line: 4, text: "        let mid = Math.floor((left + right) / 2);" },
-        { line: 5, text: "        if (nums[mid] === target) return mid;" },
-        { line: 6, text: "        if (nums[mid] < target) left = mid + 1;" },
-        { line: 7, text: "        else right = mid - 1;" },
-        { line: 8, text: "    }" },
-        { line: 9, text: "    return -1;" },
-        { line: 10, text: "}" }
+        { line: 1, text: `// Optimal solution for ${problem?.title || 'Problem'}` },
+        { line: 2, text: "function solve(data) {" },
+        { line: 3, text: "    // Process optimal algorithm step-by-step" },
+        { line: 4, text: "    return result;" },
+        { line: 5, text: "}" }
       ],
       java: [
-        { line: 1, text: "public int search(int[] nums, int target) {" },
-        { line: 2, text: "    int left = 0, right = nums.length - 1;" },
-        { line: 3, text: "    while (left <= right) {" },
-        { line: 4, text: "        int mid = left + (right - left) / 2;" },
-        { line: 5, text: "        if (nums[mid] == target) return mid;" },
-        { line: 6, text: "        if (nums[mid] < target) left = mid + 1;" },
-        { line: 7, text: "        else right = mid - 1;" },
-        { line: 8, text: "    }" },
-        { line: 9, text: "    return -1;" },
-        { line: 10, text: "}" }
+        { line: 1, text: `// Optimal solution for ${problem?.title || 'Problem'}` },
+        { line: 2, text: "public int solve(int[] data) {" },
+        { line: 3, text: "    // Process optimal algorithm step-by-step" },
+        { line: 4, text: "    return 0;" },
+        { line: 5, text: "}" }
       ],
       cpp: [
-        { line: 1, text: "int search(vector<int>& nums, int target) {" },
-        { line: 2, text: "    int left = 0, right = nums.size() - 1;" },
-        { line: 3, text: "    while (left <= right) {" },
-        { line: 4, text: "        int mid = left + (right - left) / 2;" },
-        { line: 5, text: "        if (nums[mid] == target) return mid;" },
-        { line: 6, text: "        if (nums[mid] < target) left = mid + 1;" },
-        { line: 7, text: "        else right = mid - 1;" },
-        { line: 8, text: "    }" },
-        { line: 9, text: "    return -1;" },
-        { line: 10, text: "}" }
+        { line: 1, text: `// Optimal solution for ${problem?.title || 'Problem'}` },
+        { line: 2, text: "int solve(vector<int>& data) {" },
+        { line: 3, text: "    // Process optimal algorithm step-by-step" },
+        { line: 4, text: "    return 0;" },
+        { line: 5, text: "}" }
       ]
     };
-  }, [archetype]);
+  }, [aiVisualization, problem, selectedLanguage]);
 
   const activeSnippet = codeSnippets[selectedLanguage] || codeSnippets.python;
 
@@ -1648,10 +627,8 @@ export default function ProblemVisualizerPage() {
                   <div className={`sm:col-span-${(archetype === 'two_sum' || archetype === 'binary_search') ? '2' : '4'} flex items-end pt-5`}>
                     <button
                       type="button"
-                      onClick={() => {
-                        setCurrentStep(0);
-                        setIsPlaying(false);
-                      }}
+                      onClick={handleRunCustomSimulation}
+                      disabled={customLoading || !customArrayText.trim()}
                       className="w-full px-4 py-2.5 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-600/30 transition hover:scale-105"
                     >
                       Simulate 🚀
@@ -2166,15 +1143,31 @@ export default function ProblemVisualizerPage() {
                 key={idx}
                 className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
               >
-                <div
-                  className={`p-3 rounded-2xl max-w-[85%] whitespace-pre-wrap ${
-                    msg.sender === 'user'
-                      ? 'bg-purple-600 text-white rounded-tr-none shadow-md'
-                      : 'bg-slate-950 border border-slate-800 text-slate-200 rounded-tl-none shadow-sm'
-                  }`}
-                >
-                  {msg.text}
-                </div>
+                {msg.sender === 'error' ? (
+                  <div className="p-3 rounded-2xl max-w-[90%] bg-rose-950/80 border border-rose-800 text-rose-200 rounded-tl-none shadow-sm space-y-2">
+                    <div>{msg.text}</div>
+                    {msg.retryQuery && (
+                      <button
+                        type="button"
+                        onClick={() => handleSendChat(msg.retryQuery)}
+                        className="px-2.5 py-1 rounded-lg bg-rose-900 hover:bg-rose-800 text-rose-100 text-[11px] font-bold border border-rose-700 flex items-center gap-1.5 transition"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>Retry Question</span>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div
+                    className={`p-3 rounded-2xl max-w-[85%] whitespace-pre-wrap ${
+                      msg.sender === 'user'
+                        ? 'bg-purple-600 text-white rounded-tr-none shadow-md'
+                        : 'bg-slate-950 border border-slate-800 text-slate-200 rounded-tl-none shadow-sm'
+                    }`}
+                  >
+                    {msg.text}
+                  </div>
+                )}
               </div>
             ))}
             {chatLoading && (
@@ -2188,27 +1181,17 @@ export default function ProblemVisualizerPage() {
 
           {/* Quick Prompt Chips */}
           <div className="px-3 py-2 bg-slate-950/70 border-t border-slate-800 flex items-center gap-1.5 overflow-x-auto text-[11px]">
-            <button
-              type="button"
-              onClick={() => handleSendChat("Explain this step in simple non-coder words")}
-              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 whitespace-nowrap transition"
-            >
-              👶 Explain simply
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSendChat("What happens if target or solution is NOT found?")}
-              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 whitespace-nowrap transition"
-            >
-              ❓ If not found?
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSendChat("Why is space complexity O(1)?")}
-              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 whitespace-nowrap transition"
-            >
-              💾 Space complexity
-            </button>
+            {dynamicQuickButtons.map((btnText, bIdx) => (
+              <button
+                key={bIdx}
+                type="button"
+                onClick={() => handleSendChat(btnText)}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 whitespace-nowrap transition flex items-center gap-1"
+              >
+                <span>💡</span>
+                <span>{btnText}</span>
+              </button>
+            ))}
           </div>
 
           {/* Chat Input Bar */}

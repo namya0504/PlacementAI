@@ -4,6 +4,7 @@ import {
   getDsaTopicDetail,
   getDsaProblemDetail,
   getDsaAiVisualization,
+  getDsaCustomTrace,
   markDsaSolutionViewed,
   runDsaCode,
   submitDsaCode,
@@ -24,6 +25,7 @@ router.get('/topics', protectRoute, getDsaTopics);
 router.get('/topic/:topicId', protectRoute, getDsaTopicDetail);
 router.get('/problem/:problemId', protectRoute, getDsaProblemDetail);
 router.get('/problem/:problemId/ai-visualization', protectRoute, getDsaAiVisualization);
+router.post('/problem/:problemId/trace', protectRoute, getDsaCustomTrace);
 router.post('/problem/:problemId/tutor-chat', protectRoute, askDsaTutorChat);
 router.post('/view-solution', protectRoute, markDsaSolutionViewed);
 router.post('/run', protectRoute, runDsaCode);

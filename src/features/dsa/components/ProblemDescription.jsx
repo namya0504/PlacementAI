@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { FileText, CheckCircle, Info, Sparkles, Play, ExternalLink, Code2, Eye, Terminal } from 'lucide-react';
+import MarkdownRenderer from './MarkdownRenderer';
 
 /**
  * Formats example inputs cleanly for campus placement students
@@ -112,37 +113,43 @@ function formatRawStdin(inputStr, problem) {
 export default function ProblemDescription({
   problem,
   isAssessment = false,
-  theme = 'auto'
+  theme = 'light'
 }) {
   const [showRawStdin, setShowRawStdin] = useState(false);
 
   if (!problem) return null;
 
-  const isDarkTheme = theme === 'dark';
+  const isDark = theme === 'dark';
 
   const handleOpenVisualizer = () => {
     window.open(`/placement-prep/technical/visualize/${problem.problemId}`, '_blank');
   };
 
   return (
-    <div className={`space-y-6 text-sm leading-relaxed ${
-      isDarkTheme ? 'text-slate-100' : 'text-slate-800 dark:text-slate-100'
-    }`}>
+    <div className={`space-y-6 text-sm leading-relaxed ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
       {/* Interactive Step-by-Step Animated Visualizer Banner (Hidden in Assessment Exam Mode) */}
       {!isAssessment && (
-        <div className="bg-gradient-to-r from-purple-600/10 via-indigo-600/10 to-transparent border border-purple-200 dark:border-purple-800/80 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+        <div className={`border rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm ${
+          isDark
+            ? 'bg-gradient-to-r from-purple-950/60 via-indigo-950/40 to-slate-900 border-purple-800/80'
+            : 'bg-gradient-to-r from-purple-600/10 via-indigo-600/10 to-transparent border-purple-200'
+        }`}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-md shadow-purple-600/20 shrink-0">
               <Sparkles className="w-5 h-5 text-purple-200 animate-pulse" />
             </div>
             <div>
-              <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
+              <div className={`text-xs font-bold flex items-center gap-1.5 flex-wrap ${isDark ? 'text-white' : 'text-slate-900'}`}>
                 <span>Understand Program Step-by-Step</span>
-                <span className="text-[10px] px-2 py-0.2 rounded-full font-bold bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                  isDark
+                    ? 'bg-purple-950 text-purple-300 border-purple-800'
+                    : 'bg-purple-100 text-purple-700 border-purple-200'
+                }`}>
                   Interactive Visualizer
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 Watch an animated visual dry run, live pointer tracing, state variables, and synchronized code line highlights in a new tab.
               </p>
             </div>
@@ -160,16 +167,16 @@ export default function ProblemDescription({
         </div>
       )}
 
-      {/* Problem Statement (High Contrast, Crisp Typography) */}
+      {/* Problem Statement */}
       <div>
-        <h3 className="text-xs font-bold uppercase tracking-wider text-purple-400 mb-2 flex items-center gap-1.5">
-          <FileText className="w-3.5 h-3.5 text-purple-400" />
+        <h3 className={`text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 ${
+          isDark ? 'text-purple-400' : 'text-purple-600'
+        }`}>
+          <FileText className="w-3.5 h-3.5" />
           <span>Problem Statement</span>
         </h3>
-        <div className={`whitespace-pre-line text-sm leading-relaxed font-normal ${
-          isDarkTheme ? 'text-slate-100' : 'text-slate-800 dark:text-slate-100'
-        }`}>
-          {problem.statement}
+        <div className={`text-sm leading-relaxed font-normal ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+          <MarkdownRenderer content={problem.statement} theme={theme} />
         </div>
       </div>
 
@@ -177,14 +184,18 @@ export default function ProblemDescription({
       {Array.isArray(problem.examples) && problem.examples.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-purple-400 flex items-center gap-1.5">
-              <Terminal className="w-3.5 h-3.5 text-purple-400" />
+            <h3 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+              isDark ? 'text-purple-400' : 'text-purple-600'
+            }`}>
+              <Terminal className="w-3.5 h-3.5" />
               <span>Examples</span>
             </h3>
             <button
               type="button"
               onClick={() => setShowRawStdin(!showRawStdin)}
-              className="text-[11px] font-semibold text-purple-400 hover:text-purple-300 hover:underline flex items-center gap-1 transition"
+              className={`text-[11px] font-semibold hover:underline flex items-center gap-1 transition ${
+                isDark ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-700'
+              }`}
             >
               <Eye className="w-3.5 h-3.5" />
               <span>{showRawStdin ? 'Show Human-Readable Format' : 'Show Multi-line Compiler Stdin'}</span>
@@ -198,52 +209,60 @@ export default function ProblemDescription({
             return (
               <div
                 key={idx}
-                className={`p-4 rounded-2xl border space-y-3 text-xs font-mono transition-all ${
-                  isDarkTheme
-                    ? 'bg-slate-900/90 border-slate-800 text-slate-100 shadow-md'
-                    : 'bg-slate-50 dark:bg-slate-900/90 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 shadow-sm'
+                className={`p-4 rounded-xl border space-y-2 text-xs font-mono transition-all ${
+                  isDark
+                    ? 'bg-slate-900/80 border-slate-800 text-slate-200'
+                    : 'bg-slate-50 border-slate-200 text-slate-800'
                 }`}
               >
-                <div className="font-sans font-bold text-xs flex items-center justify-between border-b pb-2 border-slate-200 dark:border-slate-800">
-                  <span className={isDarkTheme ? 'text-white' : 'text-slate-900 dark:text-white'}>
-                    Example {idx + 1}:
-                  </span>
-                  <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-purple-950/70 text-purple-300 border border-purple-800">
-                    {showRawStdin ? 'Compiler Stdin (Multi-line)' : 'Human-readable parameters'}
+                <div className={`font-sans font-bold text-xs mb-1 flex items-center justify-between ${
+                  isDark ? 'text-white' : 'text-slate-900'
+                }`}>
+                  <span>Example {idx + 1}:</span>
+                  <span className="text-[10px] text-slate-400 font-normal">
+                    {showRawStdin ? 'Compiler stdin (multi-line)' : 'Human-readable parameters'}
                   </span>
                 </div>
 
                 {/* Input block */}
                 <div>
-                  <div className="text-slate-400 font-sans font-semibold mb-1 text-[11px]">
-                    {showRawStdin ? 'Compiler Stdin Input:' : 'Input:'}
-                  </div>
+                  <span className={`font-sans font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Input: </span>
                   {showRawStdin ? (
-                    <pre className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-purple-300 font-mono text-xs whitespace-pre-wrap leading-relaxed">
+                    <pre className={`mt-1 p-2.5 rounded-lg border font-mono text-xs whitespace-pre-wrap leading-relaxed ${
+                      isDark
+                        ? 'bg-slate-950 border-slate-800 text-purple-300'
+                        : 'bg-white border-slate-200/90 text-slate-800'
+                    }`}>
                       {rawStdinFormatted}
                     </pre>
                   ) : (
-                    <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 font-mono text-xs font-semibold">
+                    <span className={`px-2 py-0.5 rounded border font-mono font-semibold ${
+                      isDark
+                        ? 'bg-slate-950 text-slate-200 border-slate-800'
+                        : 'bg-white text-slate-900 border-slate-200/90'
+                    }`}>
                       {formattedInput}
-                    </div>
+                    </span>
                   )}
                 </div>
 
                 {/* Output block */}
                 <div>
-                  <div className="text-slate-400 font-sans font-semibold mb-1 text-[11px]">
-                    Output:
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-slate-950 border border-emerald-900/60 text-emerald-400 font-mono text-xs font-bold inline-block min-w-[60px]">
+                  <span className={`font-sans font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Output: </span>
+                  <span className={`px-2 py-0.5 rounded border font-mono font-bold ${
+                    isDark
+                      ? 'text-emerald-400 bg-emerald-950/60 border-emerald-800'
+                      : 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                  }`}>
                     {ex.displayOutput || ex.output}
-                  </div>
+                  </span>
                 </div>
 
                 {/* Explanation block */}
                 {ex.explanation && (
-                  <div className="pt-2 text-xs font-sans leading-relaxed border-t border-slate-200 dark:border-slate-800/80 text-slate-300">
-                    <span className="font-bold text-purple-400">Explanation: </span>
-                    <span>{ex.explanation}</span>
+                  <div className={`pt-1 font-sans text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                    <span className={`font-semibold ${isDark ? 'text-slate-300' : 'text-slate-500'}`}>Explanation: </span>
+                    <MarkdownRenderer content={ex.explanation} inline theme={theme} />
                   </div>
                 )}
               </div>
@@ -255,20 +274,24 @@ export default function ProblemDescription({
       {/* Constraints */}
       {Array.isArray(problem.constraints) && problem.constraints.length > 0 && (
         <div>
-          <h3 className="text-xs font-bold uppercase tracking-wider text-purple-400 mb-2">
+          <h3 className={`text-xs font-bold uppercase tracking-wider mb-2 ${
+            isDark ? 'text-purple-400' : 'text-slate-500'
+          }`}>
             Constraints
           </h3>
-          <ul className="space-y-1.5 list-disc list-inside text-xs font-mono">
+          <ul className={`space-y-1.5 list-disc list-inside text-xs font-mono ${
+            isDark ? 'text-slate-200' : 'text-slate-700'
+          }`}>
             {problem.constraints.map((c, idx) => (
               <li
                 key={idx}
-                className={`px-3 py-1.5 rounded-xl border ${
-                  isDarkTheme
-                    ? 'bg-slate-900/80 border-slate-800 text-slate-200'
-                    : 'bg-slate-50 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200'
+                className={`px-2.5 py-1 rounded-lg border ${
+                  isDark
+                    ? 'bg-slate-900/40 border-slate-800 text-slate-200'
+                    : 'bg-slate-50 border-slate-200/60 text-slate-700'
                 }`}
               >
-                {c}
+                <MarkdownRenderer content={c} inline theme={theme} />
               </li>
             ))}
           </ul>

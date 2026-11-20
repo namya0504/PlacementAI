@@ -59,3 +59,4 @@ if (process.argv[1]?.endsWith('seedCanonicalDsa.js')) {
       process.exit(1);
     });
 }
+

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Lightbulb, Lock, Unlock, ChevronDown, ChevronUp } from 'lucide-react';
+import MarkdownRenderer from './MarkdownRenderer';
 
 export default function ProblemHints({ hints = [] }) {
   // Array of boolean states for each hint
@@ -80,7 +81,7 @@ export default function ProblemHints({ hints = [] }) {
 
             {isOpen && (
               <div className="px-4 pb-4 pt-1 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-sans">
-                {hintText}
+                <MarkdownRenderer content={hintText} />
               </div>
             )}
           </div>

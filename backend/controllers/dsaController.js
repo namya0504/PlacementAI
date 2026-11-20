@@ -3,6 +3,7 @@ import { db, isMockFirebase, memoryStore } from '../firebase/firebaseAdmin.js';
 import { CodeRunnerService } from '../services/codeRunner.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import { calculatePlacementReadiness } from '../utils/scoring.js';
+import { isUnmodifiedStarterCode } from '../utils/codeGuard.js';
 
 // In-memory rate limiter: 20 runs per minute per student
 const studentRunTimestamps = new Map();
@@ -296,6 +297,12 @@ export const runDsaCode = async (req, res, next) => {
       return sendError(res, 'Problem not found', 404);
     }
 
+    // Server-side guard: Prevent running empty code or unmodified starter code stub
+    const guardCheck = isUnmodifiedStarterCode(code, problem.starterCode, language);
+    if (guardCheck.isStub) {
+      return sendError(res, 'Write your solution first', 400);
+    }
+
     const result = await CodeRunnerService.run({
       language,
       code,
@@ -331,6 +338,12 @@ export const submitDsaCode = async (req, res, next) => {
     const problem = await FirestoreHelper.getDoc('dsa_problems', problemId);
     if (!problem) {
       return sendError(res, 'Problem not found', 404);
+    }
+
+    // Server-side guard: Prevent submitting empty code or unmodified starter code stub
+    const guardCheck = isUnmodifiedStarterCode(code, problem.starterCode, language);
+    if (guardCheck.isStub) {
+      return sendError(res, 'Write your solution first', 400);
     }
 
     // 1. Evaluate code against both visible and hidden test cases
@@ -525,13 +538,123 @@ export const getDsaSubmissions = async (req, res, next) => {
  * Answers questions, explains lines, explains custom targets or when solutions are not found,
  * and provides friendly, non-coder accessible analogies.
  */
+// Rate limiter: 30 messages per hour per student for AI Tutor Coach
+const tutorChatTimestamps = new Map();
+
+function checkTutorRateLimit(userId) {
+  const now = Date.now();
+  const windowMs = 60 * 60 * 1000; // 1 hour
+  const maxChats = 30;
+
+  if (!tutorChatTimestamps.has(userId)) {
+    tutorChatTimestamps.set(userId, []);
+  }
+
+  const timestamps = tutorChatTimestamps.get(userId).filter(t => now - t < windowMs);
+  if (timestamps.length >= maxChats) {
+    return false;
+  }
+
+  timestamps.push(now);
+  tutorChatTimestamps.set(userId, timestamps);
+  return true;
+}
+
+// Generates 3 contextual quick buttons for any problem & step
+function getDynamicQuickButtons(problem, currentStepData) {
+  const title = (problem?.title || '').toLowerCase();
+  const topic = (problem?.topicId || '').toLowerCase();
+
+  if (title.includes('two sum') || title.includes('pair')) {
+    return [
+      'Why complement = target - num?',
+      'What does the hash map store?',
+      'Why is the lookup O(1) time?'
+    ];
+  }
+  if (title.includes('stock') || title.includes('buy and sell')) {
+    return [
+      'Why do we update min_price?',
+      'Can we buy and sell on the same day?',
+      'Why does this need only O(1) memory?'
+    ];
+  }
+  if (title.includes('palindrome')) {
+    return [
+      'Why do we skip punctuation and spaces?',
+      'Why do two pointers meet in the middle?',
+      'What happens if the string has odd length?'
+    ];
+  }
+  if (title.includes('binary search') || topic === 'binary-search') {
+    return [
+      'Why mid = (left + right) // 2?',
+      'What if the target is not in the array?',
+      'Why is the time complexity O(log N)?'
+    ];
+  }
+  if (title.includes('kadane') || title.includes('subarray')) {
+    return [
+      'Why reset current sum when it drops < 0?',
+      'What if all numbers in the array are negative?',
+      'Why can this be solved in a single pass?'
+    ];
+  }
+  if (title.includes('single number') || topic === 'bit-manipulation') {
+    return [
+      'Why does X ^ X = 0 cancel duplicate pairs?',
+      'Why does X ^ 0 preserve the single number?',
+      'Why does XOR order not matter?'
+    ];
+  }
+  if (topic === 'linked-list') {
+    return [
+      'How does fast and slow pointer detect cycles?',
+      'Why do we need a dummy head node?',
+      'How to reverse next pointers without losing nodes?'
+    ];
+  }
+  if (topic === 'stack') {
+    return [
+      'Why is stack LIFO ideal for matching brackets?',
+      'What is stored on top of the stack?',
+      'Why is push/pop O(1) time?'
+    ];
+  }
+  if (topic === 'sliding-window') {
+    return [
+      'When do we expand the right boundary?',
+      'When do we shrink the left boundary?',
+      'Why is total time O(N) instead of O(N²)?'
+    ];
+  }
+  return [
+    'Can you explain this step simply?',
+    'What is the core invariant here?',
+    'What is the time and space complexity?'
+  ];
+}
+
+/**
+ * POST /api/technical/dsa/problem/:problemId/tutor-chat
+ * Real-time AI algorithm tutor / coach for the Understanding & Visualizer page
+ * Socratic, beginner-friendly Sarah persona.
+ * Never gives the full solution code before student's first scored submission.
+ * Enforces rate limiting (30 msg/hr) and never falls back to canned/fake answers on error.
+ */
 export const askDsaTutorChat = async (req, res, next) => {
   try {
     const { problemId } = req.params;
-    const { message, currentStepData = null } = req.body;
+    const { message, currentStepData = null, selectedLanguage = 'python', studentCode = null, chatHistory = [] } = req.body;
+    const userId = req.user?.uid || req.user?.id || 'guest';
 
     if (!message || !message.trim()) {
       return sendError(res, 'Message is required', 400);
+    }
+
+    // Rate limiting: 30 messages per hour per student
+    if (!checkTutorRateLimit(userId)) {
+      return sendError(res, 'Rate limit exceeded: maximum 30 AI Coach messages per hour. Please wait a bit before asking again.', 429);
     }
 
     const problem = await FirestoreHelper.getDoc('dsa_problems', problemId);
@@ -539,51 +662,128 @@ export const askDsaTutorChat = async (req, res, next) => {
       return sendError(res, 'Problem not found', 404);
     }
 
-    const systemInstruction = `You are Sarah, an expert friendly DSA teacher and Placement AI Coach.
-Your goal is to explain algorithms so clearly and warmly that ANY non-coder or beginner student can instantly grasp it.
-- Always use clear, everyday, intuitive real-world analogies (e.g. grocery shopping, mirrors, bus stops, game rules).
-- Keep explanations structured, encouraging, concise (2-4 short paragraphs), and easy to read.
-- If asked about custom inputs or targets:
-  - If a target is NOT found or impossible, explain clearly WHY it cannot be formed, what the algorithm did, and why returning [] or 0 is safe and correct.
-  - If a target IS found, explain the exact matching pair or optimal buy/sell days.
-- When referencing code lines, explain what the line does in simple plain English without confusing jargon.
+    // Check student's submission status to enforce scoring fairness rule
+    let hasSubmitted = false;
+    try {
+      if (userId !== 'guest') {
+        const attemptDoc = await FirestoreHelper.getDoc('dsa_attempts', `${userId}_${problemId}`);
+        if (attemptDoc && (attemptDoc.attemptCount > 0 || attemptDoc.state === 'solved')) {
+          hasSubmitted = true;
+        }
+      }
+    } catch (_) {}
 
-Problem Context:
-Title: ${problem.title}
-Difficulty: ${problem.difficulty}
-Topic: ${problem.topicId}
-Statement: ${problem.statement}
-Constraints: ${JSON.stringify(problem.constraints || [])}
-Approaches: ${JSON.stringify((problem.approaches || []).map(a => ({ name: a.name, idea: a.idea, time: a.timeComplexity, space: a.spaceComplexity })))}
+    const optimalApproach = Array.isArray(problem.approaches)
+      ? problem.approaches.find(a => (a.type || a.name || '').toLowerCase().includes('optimal')) || problem.approaches[problem.approaches.length - 1]
+      : null;
 
-${currentStepData ? `Current Visual Step Context: ${JSON.stringify(currentStepData)}` : ''}
+    const systemInstruction = `You are Sarah, a warm, friendly, and expert DSA Placement Coach at PlacementAI.
+Your mission is to help beginner students and non-coders truly understand data structures and algorithms step-by-step.
+
+STRICT PEDAGOGICAL & SECURITY RULES:
+1. Socratic Teaching: Ask a guiding question or give an intuitive hint first before explaining deeper.
+2. First-Attempt Fairness Rule: ${
+      hasSubmitted
+        ? 'The student has already made their first submission on this problem. You may freely discuss optimal code lines, edge cases, and complete implementations.'
+        : 'CRITICAL FAIRNESS RULE: The student HAS NOT made their first scored submission yet! To protect their score and learning integrity, DO NOT reveal or write the complete solution code. Guide them with logic, invariants, small examples, and algorithmic hints only.'
+    }
+3. Stay on Topic: Only answer about THIS specific problem (${problem.title}), the visualizer step, and algorithms. If the student asks something outside this problem, politely guide them back.
+4. Non-repetitive: Never repeat an answer verbatim. If asked again, explain from a fresh, relatable real-world analogy.
+5. Use Problem Data: Use the actual numbers, parameters, and variable values from this problem's data and current step.
+
+Problem Details:
+- Title: ${problem.title} (${problem.difficulty})
+- Topic: ${problem.topicId} | Pattern: ${problem.pattern || 'Algorithmic Invariant'}
+- Statement: ${problem.statement}
+- Constraints: ${JSON.stringify(problem.constraints || [])}
+- Optimal Approach Idea: ${optimalApproach?.idea || 'Maintain optimal invariant in single pass'}
+- Time Complexity: ${problem.timeComplexity || optimalApproach?.timeComplexity || 'O(N)'}
+- Space Complexity: ${problem.spaceComplexity || optimalApproach?.spaceComplexity || 'O(1)'}
+${currentStepData ? `- Current Visualizer Step: ${JSON.stringify({
+  stepIndex: currentStepData.stepIndex,
+  title: currentStepData.title,
+  activeLine: currentStepData.activeLine,
+  explanation: currentStepData.explanation,
+  formula: currentStepData.formula,
+  variables: currentStepData.variables,
+  pointers: currentStepData.pointers
+})}` : ''}
+${selectedLanguage ? `- Language: ${selectedLanguage}` : ''}
+${studentCode ? `- Student Editor Code Snippet: ${String(studentCode).slice(0, 500)}` : ''}
 `;
+
+    // Build chat conversation context (last 10 messages)
+    const formattedHistory = Array.isArray(chatHistory)
+      ? chatHistory.slice(-10).map(m => `${m.sender === 'user' ? 'Student' : 'Sarah'}: ${m.text}`).join('\n')
+      : '';
+
+    const userPromptText = formattedHistory
+      ? `Recent Conversation:\n${formattedHistory}\n\nStudent: "${message}"\n\nSarah:`
+      : `Student: "${message}"\n\nSarah:`;
 
     let replyText = '';
     try {
       const { generateCompletion } = await import('../services/grokService.js');
-      const response = await generateCompletion({
+      const response = await generateCompletion(userPromptText, {
         systemPrompt: systemInstruction,
-        userPrompt: `Student Question: "${message}"\n\nPlease answer as a friendly, warm teacher.`,
         temperature: 0.7,
         maxTokens: 800
       });
       replyText = typeof response === 'string' ? response : (response?.content || response?.message || '');
     } catch (aiErr) {
-      console.warn('[askDsaTutorChat] AI engine notice, using heuristic pedagogical response:', aiErr.message);
-      const qLower = message.toLowerCase();
-      if (qLower.includes('not found') || qLower.includes('target') || qLower.includes('impossible')) {
-        replyText = `Great question! When a target or solution cannot be found in the array, the algorithm checks every element according to its invariant. For example, if no two numbers sum to your target, the loop finishes cleanly and returns an empty list \`[]\` or \`-1\`. This ensures your program never crashes and gracefully informs the caller that no valid pair exists!`;
-      } else if (qLower.includes('line') || qLower.includes('code') || qLower.includes('how')) {
-        replyText = `Here is what this code does in simple terms: It inspects one element at a time from left to right. Instead of checking every pair twice (which is slow and takes O(N²)), it remembers what it has seen so far in memory. This lets it make an instant decision in O(1) time!`;
-      } else if (qLower.includes('space') || qLower.includes('time') || qLower.includes('complexity')) {
-        replyText = `Time Complexity measures how many operations we perform as the input grows. A single pass loop takes O(N) linear time (e.g., 100 items take ~100 operations). Space Complexity measures extra helper memory: if we only use 2 or 3 pointer variables, that is O(1) constant space (uses virtually zero extra RAM)!`;
-      } else {
-        replyText = `Think of this problem like a real-world task: rather than guessing randomly, the algorithm keeps track of the best decision so far. As it scans each element, it asks: "Does this element improve my best outcome?" If yes, it updates its record; if not, it keeps moving forward smoothly.`;
-      }
+      console.error('[askDsaTutorChat] AI API call failed:', aiErr.message);
+      // Return clear error - NEVER return canned or fake answers
+      return sendError(res, 'AI Coach service is temporarily busy. Please click Retry in a few seconds.', 503);
     }
 
-    return sendSuccess(res, { reply: String(replyText) }, 'Tutor reply generated');
+    if (!replyText || !replyText.trim()) {
+      return sendError(res, 'AI Coach service returned an empty response. Please try again.', 503);
+    }
+
+    const quickButtons = getDynamicQuickButtons(problem, currentStepData);
+
+    return sendSuccess(res, {
+      reply: String(replyText).trim(),
+      quickButtons
+    }, 'Tutor reply generated');
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /api/technical/dsa/problem/:problemId/trace
+ * Custom input & target sandbox simulation runner
+ * Validates input against constraints (max 20 elements) and returns deterministic step-by-step trace
+ */
+export const getDsaCustomTrace = async (req, res, next) => {
+  try {
+    const { problemId } = req.params;
+    const { input, target } = req.body;
+
+    if (!input || typeof input !== 'string' || !input.trim()) {
+      return sendError(res, 'Valid input string is required', 400);
+    }
+
+    // Constraint: Limit input size to 20 elements for live animation
+    const tokens = input.trim().split(/[\s,]+/);
+    if (tokens.length > 20) {
+      return sendError(res, 'Input exceeds maximum allowed 20 elements for animated visualizer', 400);
+    }
+
+    const problem = await FirestoreHelper.getDoc('dsa_problems', problemId);
+    if (!problem) {
+      return sendError(res, 'Problem not found', 404);
+    }
+
+    const { generateExecutionTrace } = await import('../services/traceGenerator.js');
+    const trace = generateExecutionTrace(problem, input, target);
+
+    return sendSuccess(res, {
+      trace,
+      totalSteps: trace.length,
+      visualType: trace[0]?.visualType || 'array'
+    }, 'Custom execution trace generated successfully');
   } catch (err) {
     next(err);
   }
@@ -591,164 +791,65 @@ ${currentStepData ? `Current Visual Step Context: ${JSON.stringify(currentStepDa
 
 /**
  * GET /api/technical/dsa/problem/:problemId/ai-visualization
- * Synthesizes deep, animated, non-coder friendly step-by-step visualizer data
- * with Grok AI and caches it in memory and Firestore for ultra-fast load times.
- * Employs secure coding: input sanitization, rate limiting, and safe fallback schema validation.
+ * Fetches problem-specific visualizer data & beginner analogy.
+ * Reads from dsa_visualizations or problem data.
+ * If not generated yet, returns clean notGenerated flag (never borrowed text).
  */
 export const getDsaAiVisualization = async (req, res, next) => {
   try {
     const { problemId } = req.params;
     const now = Date.now();
 
-    // 1. Check in-memory cache first (<2ms response time)
+    // 1. Check in-memory cache
     const cached = dsaCache.visualizations.get(problemId);
     if (cached && now < cached.expiresAt) {
-      return sendSuccess(res, { visualization: cached.data }, 'AI visualization fetched from cache');
+      return sendSuccess(res, { visualization: cached.data }, 'Visualization fetched from cache');
     }
 
-    // 2. Check Firestore persistent document
+    // 2. Check Firestore dsa_visualizations
     const stored = await FirestoreHelper.getDoc('dsa_visualizations', problemId);
-    if (stored && stored.steps && stored.steps.length > 0) {
+    if (stored && (stored.story || (Array.isArray(stored.steps) && stored.steps.length > 0))) {
       dsaCache.visualizations.set(problemId, {
         data: stored,
-        expiresAt: now + (24 * 60 * 60 * 1000) // 24 hours
+        expiresAt: now + (24 * 60 * 60 * 1000)
       });
-      return sendSuccess(res, { visualization: stored }, 'AI visualization fetched from database');
+      return sendSuccess(res, { visualization: stored }, 'Visualization fetched from database');
     }
 
-    // 3. Load problem details for context
+    // 3. Fall back to problem's own stored analogy & steps in dsa_problems
     const problem = await FirestoreHelper.getDoc('dsa_problems', problemId);
     if (!problem) {
       return sendError(res, 'Problem not found', 404);
     }
 
-    // 4. Synthesize with Grok AI with safe input handling
-    let synthesizedData = null;
-    try {
-      const { GrokService, sanitizeUserInput } = await import('../services/grokService.js');
-
-      const sanitizedTitle = sanitizeUserInput(problem.title || '', 100);
-      const sanitizedStatement = sanitizeUserInput(problem.statement || '', 1000);
-      const examplesSample = JSON.stringify((problem.examples || []).slice(0, 2));
-
-      const systemPrompt = `You are Sarah, an elite algorithmic pedagogue and UI visualizer designer.
-Your task is to generate a rich, animated, step-by-step visual dry run for non-coders and campus placement students.
-Return STRICT, VALID JSON ONLY (no markdown fences, no conversational text) conforming exactly to this structure:
-{
-  "analogyTitle": "A catchy real-world analogy title (e.g. 👟 The Sneaker Resale Analogy)",
-  "story": "A 2-3 paragraph vivid real-world story explaining the algorithm in plain English for non-coders",
-  "whyBruteForceFails": "Why human brute-force checks are too slow (O(N^2)) with concrete numbers",
-  "ahaMoment": "The single 'Aha!' intuition or shortcut that makes it O(N) or O(log N)",
-  "interviewPitch": "A 60-second elevator pitch for campus interviews",
-  "steps": [
-    {
-      "stepIndex": 0,
-      "title": "Clear step headline with emojis",
-      "activeLine": 1,
-      "explanation": "Plain English explanation of what happens in this step",
-      "formula": "Equation or state update (e.g. min_price = min(7, 1) = 1)",
-      "decision": "What the algorithm decides to do next",
-      "outcomeStatus": "in_progress",
-      "pointers": { "i": 0, "val": 7 }
-    }
-  ],
-  "optimalCode": {
-    "python": "Clean, concise optimal python solution",
-    "javascript": "Clean, concise optimal javascript solution",
-    "java": "Clean, concise optimal java solution",
-    "cpp": "Clean, concise optimal c++ solution"
-  }
-}
-Requirements:
-- Minimum 4 steps, maximum 8 steps simulating the first example.
-- Mark the final step with outcomeStatus: "solution_found".
-- Keep explanations simple, encouraging, and easy to understand for beginners.`;
-
-      const userPrompt = `Generate a step-by-step animation trace and non-coder story for:
-Problem: ${sanitizedTitle} (${problem.difficulty})
-Topic: ${problem.topicId}
-Statement: ${sanitizedStatement}
-Example test case: ${examplesSample}`;
-
-      synthesizedData = await GrokService.generateJSON(userPrompt, {
-        systemPrompt,
-        temperature: 0.3,
-        maxTokens: 2500
-      });
-    } catch (aiErr) {
-      console.warn('[getDsaAiVisualization] AI synthesis notice, using resilient pedagogical fallback:', aiErr.message);
-    }
-
-    // 5. If AI is slow, rate-limited, or unavailable, use resilient fallback synthesis
-    if (!synthesizedData || !Array.isArray(synthesizedData.steps) || synthesizedData.steps.length === 0) {
-      synthesizedData = {
-        analogyTitle: `🧩 The ${problem.title} Problem Solver`,
-        story: `Imagine solving ${problem.title} without any programming jargon. By maintaining an invariant (a promise that holds true at every step), we scan the data from left to right, updating our best answer on the fly!`,
-        whyBruteForceFails: 'Checking every possible combination takes quadratic O(N²) time. Our optimal algorithm eliminates redundant checks in a single pass O(N)!',
-        ahaMoment: 'Aha! Instead of guessing, remember the best state so far and use pointers to move forward.',
-        interviewPitch: `In an interview, explain ${problem.title} by stating your invariant first, walking through the single-pass transition, and confirming O(N) time and O(1) space.`,
-        steps: [
-          {
-            stepIndex: 0,
-            title: 'Step 0: Initialize Invariants & Pointers',
-            activeLine: 1,
-            explanation: 'Initialize helper variables and set pointers to the start of the data stream.',
-            formula: 'state = initial',
-            decision: 'Ready to process elements.',
-            outcomeStatus: 'ready',
-            pointers: { i: 0 }
-          },
-          {
-            stepIndex: 1,
-            title: 'Step 1: First Element Evaluation',
-            activeLine: 3,
-            explanation: 'Inspect the first element and record its value into our running state.',
-            formula: 'state = update(first)',
-            decision: 'Recorded first item. Advancing pointer.',
-            outcomeStatus: 'in_progress',
-            pointers: { i: 1 }
-          },
-          {
-            stepIndex: 2,
-            title: 'Step 2: Processing Invariant Transitions',
-            activeLine: 5,
-            explanation: 'Each subsequent element checks whether it improves our recorded best outcome.',
-            formula: 'best = optimal(current, best)',
-            decision: 'Optimal condition preserved.',
-            outcomeStatus: 'in_progress',
-            pointers: { i: 2 }
-          },
-          {
-            stepIndex: 3,
-            title: '🎉 Traversal Complete: Optimal Solution Verified',
-            activeLine: 8,
-            explanation: 'All elements processed in linear O(N) time. The final optimal result is locked in.',
-            formula: 'return optimalResult',
-            decision: 'Solution complete.',
-            outcomeStatus: 'solution_found',
-            pointers: { i: 3 }
-          }
-        ],
-        optimalCode: {
-          python: problem.starterCode?.python || 'def solve(): pass',
-          javascript: problem.starterCode?.javascript || 'function solve() {}',
-          java: problem.starterCode?.java || 'public class Main {}',
-          cpp: problem.starterCode?.cpp || 'int main() {}'
-        }
+    if (problem.analogy && problem.analogy.story) {
+      const synthesized = {
+        problemId,
+        topicId: problem.topicId,
+        analogyTitle: problem.analogy.analogyTitle || `🧩 ${problem.title} Intuition`,
+        story: problem.analogy.story,
+        whyBruteForceFails: problem.analogy.whyBruteForceFails || 'Quadratic checks exceed time limit on large constraints.',
+        ahaMoment: problem.analogy.ahaMoment || 'Maintain optimal invariant in a single pass.',
+        interviewPitch: problem.analogy.interviewPitch || '',
+        steps: Array.isArray(problem.steps) ? problem.steps : []
       };
+
+      dsaCache.visualizations.set(problemId, {
+        data: synthesized,
+        expiresAt: now + (24 * 60 * 60 * 1000)
+      });
+      return sendSuccess(res, { visualization: synthesized }, 'Visualization loaded from problem record');
     }
 
-    // 6. Cache in memory and Firestore (Secure, persistent & zero-cost on revisit)
-    dsaCache.visualizations.set(problemId, {
-      data: synthesizedData,
-      expiresAt: now + (24 * 60 * 60 * 1000)
-    });
-
-    FirestoreHelper.setDoc('dsa_visualizations', problemId, synthesizedData, true).catch(e => {
-      console.warn('[dsa_visualizations] Firestore save notice:', e.message);
-    });
-
-    return sendSuccess(res, { visualization: synthesizedData }, 'AI visualization generated successfully');
+    // 4. Return clean notGenerated state if neither is available
+    return sendSuccess(res, {
+      visualization: {
+        notGenerated: true,
+        problemId,
+        problemTitle: problem.title,
+        message: 'Beginner analogy and custom steps not yet generated for this problem.'
+      }
+    }, 'Visualization status check');
   } catch (err) {
     next(err);
   }

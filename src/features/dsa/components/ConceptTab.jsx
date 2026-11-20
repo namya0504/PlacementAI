@@ -4,6 +4,7 @@ import {
   Cpu, Code2, Copy, Check, ArrowRight, Zap, Target
 } from 'lucide-react';
 import { SUPPORTED_LANGUAGES } from '../constants/dsaTopics';
+import MarkdownRenderer from './MarkdownRenderer';
 
 export default function ConceptTab({ topic }) {
   const [activeLang, setActiveLang] = useState('python');
@@ -50,8 +51,8 @@ export default function ConceptTab({ topic }) {
         </div>
 
         {/* What it is */}
-        <div className="prose dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 text-sm leading-relaxed mb-6">
-          <p>{overview.whatItIs || topic.conceptMarkdown || 'Mastering this topic is essential for campus coding assessments.'}</p>
+        <div className="max-w-none text-slate-700 dark:text-slate-300 text-sm leading-relaxed mb-6">
+          <MarkdownRenderer content={overview.whatItIs || topic.conceptMarkdown || 'Mastering this topic is essential for campus coding assessments.'} />
         </div>
 
         {/* 2-Column: When to Use & Common Recognition Patterns */}
@@ -61,9 +62,9 @@ export default function ConceptTab({ topic }) {
               <Zap className="w-4 h-4 text-purple-600 dark:text-purple-400" />
               When to Use
             </div>
-            <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
-              {overview.whenToUse || 'Used for sequential lookups, contiguous subarrays, and fixed-sized window operations.'}
-            </p>
+            <div className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+              <MarkdownRenderer content={overview.whenToUse || 'Used for sequential lookups, contiguous subarrays, and fixed-sized window operations.'} inline />
+            </div>
           </div>
 
           <div className="p-4 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200/70 dark:border-blue-800/50">
@@ -71,9 +72,9 @@ export default function ConceptTab({ topic }) {
               <Target className="w-4 h-4 text-blue-600 dark:text-blue-400" />
               Patterns to Recognise
             </div>
-            <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
-              {overview.recognitionPatterns || 'Look for keywords like "contiguous", "pair sum", "find subarray with target", or "in-place rearrangement".'}
-            </p>
+            <div className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+              <MarkdownRenderer content={overview.recognitionPatterns || 'Look for keywords like "contiguous", "pair sum", "find subarray with target", or "in-place rearrangement".'} inline />
+            </div>
           </div>
         </div>
       </div>
@@ -85,8 +86,8 @@ export default function ConceptTab({ topic }) {
             <Footprints className="w-4 h-4 text-purple-600" />
             Step-by-Step Dry Run Example
           </div>
-          <div className="bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 rounded-xl p-4 font-mono text-xs text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">
-            {overview.stepByStepDryRun}
+          <div className="bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 rounded-xl p-4 font-mono text-xs text-slate-800 dark:text-slate-200 leading-relaxed">
+            <MarkdownRenderer content={overview.stepByStepDryRun} />
           </div>
         </div>
       )}
@@ -98,9 +99,9 @@ export default function ConceptTab({ topic }) {
             <AlertTriangle className="w-4 h-4" />
             Common Pitfalls & Mistakes
           </div>
-          <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-            {overview.commonMistakes || 'Off-by-one errors when updating bounds; failing to handle 0 or 1 element edge cases.'}
-          </p>
+          <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+            <MarkdownRenderer content={overview.commonMistakes || 'Off-by-one errors when updating bounds; failing to handle 0 or 1 element edge cases.'} inline />
+          </div>
         </div>
 
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
@@ -108,9 +109,9 @@ export default function ConceptTab({ topic }) {
             <Clock className="w-4 h-4" />
             Time & Space Complexity
           </div>
-          <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-            {overview.timeAndSpaceComplexity || 'Average Time: O(N) or O(N log N). Space: O(1) in-place or O(N) auxiliary.'}
-          </p>
+          <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+            <MarkdownRenderer content={overview.timeAndSpaceComplexity || 'Average Time: O(N) or O(N log N). Space: O(1) in-place or O(N) auxiliary.'} inline />
+          </div>
         </div>
       </div>
 

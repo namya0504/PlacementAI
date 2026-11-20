@@ -352,6 +352,7 @@ export const API = {
   getUserTopicBadges: () => apiCall('/technical/dsa/badges', 'GET'),
   askDsaTutorChat: (problemId, payload) => apiCall(`/technical/dsa/problem/${problemId}/tutor-chat`, 'POST', payload),
   getDsaAiVisualization: (problemId) => apiCall(`/technical/dsa/problem/${encodeURIComponent(problemId)}/ai-visualization`, 'GET'),
+  getDsaCustomTrace: (problemId, payload) => apiCall(`/technical/dsa/problem/${encodeURIComponent(problemId)}/trace`, 'POST', payload),
 
   // HR Interview
   startInterviewSession: (payload) => apiCall('/hr/session/start', 'POST', payload),

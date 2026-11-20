@@ -3,6 +3,7 @@ import { db, isMockFirebase } from '../firebase/firebaseAdmin.js';
 import { CodeRunnerService, normalizeOutput } from '../services/codeRunner.js';
 import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import { calculatePlacementReadiness } from '../utils/scoring.js';
+import { isUnmodifiedStarterCode } from '../utils/codeGuard.js';
 import { dsaCache } from './dsaController.js';
 
 // Timer allocations in minutes by problem difficulty
@@ -241,9 +242,10 @@ export const submitTopicTest = async (req, res, next) => {
       const totalTestsCount = visible.length + hidden.length;
 
       let execResult;
-      if (!ans.code || !String(ans.code).trim()) {
+      const guard = isUnmodifiedStarterCode(ans.code, problem.starterCode, ans.language || 'python');
+      if (guard.isStub) {
         execResult = {
-          verdict: 'Unattempted',
+          verdict: 'Write your solution first',
           testsPassed: 0,
           totalTests: totalTestsCount || 20,
           time: '0ms'

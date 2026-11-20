@@ -1,6 +1,12 @@
 /**
  * Helper to build verified DSA Problem objects with computed expected outputs.
  */
+import {
+  makeCleanPythonStub,
+  makeCleanJsStub,
+  makeCleanJavaStub,
+  makeCleanCppStub
+} from '../../scripts/regenerateStarterStubs.js';
 
 export function createCanonicalProblem({
   problemId,
@@ -10,12 +16,15 @@ export function createCanonicalProblem({
   difficulty,
   tags,
   statement,
+  inputFormat,
+  outputFormat,
   constraints,
   examples,
   hints,
   starterCode,
   approaches,
   commonMistakes,
+  similarProblems,
   sampleInputs = [],
   hiddenInputs = [],
   solveFunction
@@ -50,6 +59,8 @@ export function createCanonicalProblem({
     difficulty,
     tags: tags || [topicId, difficulty, 'Campus Placement'],
     statement: statement.trim(),
+    inputFormat: inputFormat || 'Standard input format.',
+    outputFormat: outputFormat || 'Standard output format.',
     constraints: constraints || [
       '1 <= N <= 10^5',
       '-10^9 <= element <= 10^9',
@@ -66,12 +77,18 @@ export function createCanonicalProblem({
       'Consider optimal data structures or patterns to avoid brute force.',
       'Walk through a dry run on paper before coding the final pass.'
     ],
-    starterCode,
+    starterCode: {
+      python: makeCleanPythonStub(starterCode?.python, title),
+      javascript: makeCleanJsStub(starterCode?.javascript, title),
+      java: makeCleanJavaStub(starterCode?.java, title),
+      cpp: makeCleanCppStub(starterCode?.cpp, title)
+    },
     approaches: approaches || [],
     commonMistakes: commonMistakes || [
       'Index out of bounds on edge cases.',
       'Integer overflow for large outputs; use 64-bit integers where required.'
     ],
+    similarProblems: similarProblems || [],
     testCases,
     hiddenTestCases,
     timeLimit: 2000,
@@ -79,3 +96,4 @@ export function createCanonicalProblem({
     status: 'approved'
   };
 }
+
