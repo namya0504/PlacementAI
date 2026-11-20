@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Lock, Shield, Save, Menu, Eye, EyeOff } from 'lucide-react';
+import { User, Lock, Shield, Save, Menu, Eye, EyeOff, ShieldCheck, Database, FileText, CheckCircle2 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../services/api';
@@ -293,9 +293,64 @@ export default function Settings() {
               )}
 
               {activeTab === 'privacy' && (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-bold text-slate-900 font-outfit">Privacy Preferences</h3>
-                  <p className="text-xs text-slate-500">Manage your profile visibility, activity sharing, and data privacy settings.</p>
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900 font-outfit">Privacy Overview</h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      A brief summary of how PlacementAI secures your personal information, interview recordings, and coding submissions.
+                    </p>
+                  </div>
+
+                  {/* Highlights Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-4 rounded-2xl bg-[#F8F9FE] border border-[#EAEBF4] space-y-2">
+                      <div className="w-8 h-8 rounded-xl bg-purple-50 text-[#7C3AED] flex items-center justify-center border border-purple-100">
+                        <ShieldCheck className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-900">Encrypted & Secure Storage</h4>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        Your account credentials, contact info, and practice session histories are protected with enterprise-grade encryption via Firebase Authentication and Firestore security rules.
+                      </p>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-[#F8F9FE] border border-[#EAEBF4] space-y-2">
+                      <div className="w-8 h-8 rounded-xl bg-purple-50 text-[#7C3AED] flex items-center justify-center border border-purple-100">
+                        <Database className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-900">Code Sandbox Isolation</h4>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        All code submissions and AI coaching chats execute inside isolated sandbox containers. Your solution logic is evaluated privately and never exposed to other candidates.
+                      </p>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-[#F8F9FE] border border-[#EAEBF4] space-y-2">
+                      <div className="w-8 h-8 rounded-xl bg-purple-50 text-[#7C3AED] flex items-center justify-center border border-purple-100">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-900">Resume & ATS Confidentiality</h4>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        Resume drafts, ATS match reports, and HR mock interview transcripts remain strictly confidential to your account and are never shared or sold to third parties without your consent.
+                      </p>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-[#F8F9FE] border border-[#EAEBF4] space-y-2">
+                      <div className="w-8 h-8 rounded-xl bg-purple-50 text-[#7C3AED] flex items-center justify-center border border-purple-100">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-900">Student Ownership & Control</h4>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        You have complete ownership over your account data. You can view, update, or remove your profile information and career prep records directly at any time.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Summary Callout Banner */}
+                  <div className="p-4 rounded-2xl bg-purple-50/70 border border-purple-200/80 flex items-start gap-3">
+                    <Shield className="w-5 h-5 text-[#7C3AED] shrink-0 mt-0.5" />
+                    <div className="text-xs text-slate-700 leading-relaxed">
+                      <span className="font-bold text-[#7C3AED]">Our Commitment:</span> PlacementAI is designed for student placement preparation. We adhere to responsible data privacy standards, never monetize candidate personal information, and only use your data to power your personalized readiness scores.
+                    </div>
+                  </div>
                 </div>
               )}
 
