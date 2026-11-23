@@ -1030,30 +1030,25 @@ export const forgotPassword = async (req, res, next) => {
     });
 
     const { auth } = await import('../firebase/firebaseAdmin.js');
-    let resetLink = null;
-    if (auth) {
+    const hasSmtp = Boolean(process.env.SMTP_USER || process.env.EMAIL_USER);
+    let resetEmailSent = false;
+
+    // 1. If custom SMTP is configured, generate resetLink and dispatch styled HTML email
+    if (auth && hasSmtp) {
       try {
-        resetLink = await auth.generatePasswordResetLink(sanitizedEmail);
-      } catch (fbErr) {
-        if (fbErr.code === 'auth/user-not-found' || fbErr.message?.includes('user-not-found')) {
-          try {
-            await auth.createUser({
-              uid: users[0]?.userId || ('usr_' + Date.now()),
-              email: sanitizedEmail,
-              displayName: users[0]?.name || sanitizedEmail.split('@')[0]
-            });
-            resetLink = await auth.generatePasswordResetLink(sanitizedEmail);
-          } catch (createErr) {
-            console.warn('Could not auto-provision user in Firebase Auth for reset link:', createErr.message);
-          }
-        } else {
-          console.warn('Firebase reset link generation notice:', fbErr.message);
+        let resetLink = await auth.generatePasswordResetLink(sanitizedEmail);
+        const mailResult = await sendPasswordResetEmail({ to: sanitizedEmail, resetLink });
+        if (mailResult && mailResult.messageId) {
+          resetEmailSent = true;
+          console.log(`✉️ Dispatched custom SMTP password reset email to ${sanitizedEmail}`);
         }
+      } catch (customErr) {
+        console.warn('Custom SMTP reset email attempt notice:', customErr.message);
       }
     }
 
-    // Direct Firebase Identity Toolkit delivery fallback if no resetLink obtained yet
-    if (!resetLink) {
+    // 2. Direct Firebase Identity Toolkit delivery (reliable built-in Google mail service)
+    if (!resetEmailSent) {
       try {
         const apiKey = getCleanFirebaseApiKey();
         const oobRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${apiKey}`, {
@@ -1061,26 +1056,33 @@ export const forgotPassword = async (req, res, next) => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             requestType: 'PASSWORD_RESET',
-            email: sanitizedEmail
+            email: sanitizedEmail,
+            continueUrl: 'https://placement-ai-nu.vercel.app/login'
           })
         });
         const oobData = await oobRes.json();
         if (oobRes.ok) {
+          resetEmailSent = true;
           console.log(`✉️ Firebase Identity Toolkit sent password reset email to ${sanitizedEmail}`);
         } else {
-          console.warn('Firebase Identity Toolkit sendOobCode notice:', oobData);
+          // If continueUrl was not accepted by domain whitelist, retry without continueUrl
+          const retryRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              requestType: 'PASSWORD_RESET',
+              email: sanitizedEmail
+            })
+          });
+          if (retryRes.ok) {
+            resetEmailSent = true;
+            console.log(`✉️ Firebase Identity Toolkit sent password reset email to ${sanitizedEmail} (standard)`);
+          } else {
+            console.warn('Firebase Identity Toolkit sendOobCode notice:', oobData);
+          }
         }
       } catch (restOobErr) {
         console.warn('Firebase Identity Toolkit sendOobCode network notice:', restOobErr.message);
-      }
-    }
-
-    // If we obtained a direct resetLink from Admin SDK, dispatch our styled email template
-    if (resetLink) {
-      try {
-        await sendPasswordResetEmail({ to: sanitizedEmail, resetLink });
-      } catch (mailErr) {
-        console.warn('Could not dispatch password reset email:', mailErr.message);
       }
     }
 

@@ -217,6 +217,23 @@ export const sendPasswordResetEmail = async ({ to, resetLink }) => {
       console.log(`✉️ Password reset email sent to ${to} (MessageId: ${info.messageId})`);
       return { success: true, messageId: info.messageId };
     }
+
+    // When custom SMTP is not configured, dispatch directly via Firebase Identity Toolkit
+    const apiKey = process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || 'AIzaSyBd2Zoslz2SoI1kkkzHJ4nrFYEXHWH8d3w';
+    const oobRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requestType: 'PASSWORD_RESET',
+        email: to,
+        continueUrl: 'https://placement-ai-nu.vercel.app/login'
+      })
+    });
+    if (oobRes.ok) {
+      console.log(`✉️ Firebase Identity Toolkit sent password reset email to ${to}`);
+      return { success: true, messageId: 'firebase_oob_dispatched' };
+    }
+
     return { success: true, directLink: actionUrl };
   } catch (err) {
     console.warn(`⚠️ SMTP reset dispatch notice for ${to}:`, err.message);

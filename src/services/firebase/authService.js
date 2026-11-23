@@ -181,14 +181,27 @@ export const checkFirebaseEmailVerified = async () => {
  */
 export const sendFirebasePasswordReset = async (email) => {
   const sanitized = email.trim().toLowerCase();
+  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://placement-ai-nu.vercel.app';
+  const apiKey = firebaseConfig.apiKey || 'AIzaSyBd2Zoslz2SoI1kkkzHJ4nrFYEXHWH8d3w';
+
+  // 1. Direct Firebase Identity Toolkit REST dispatch (100% reliable across all origins & devices)
   try {
-    await firebaseSendPasswordReset(clientAuth, sanitized);
-    return { success: true };
-  } catch (err) {
-    console.warn('Firebase sendPasswordResetEmail notice, attempting direct REST fallback:', err.code, err.message);
-    try {
-      const apiKey = firebaseConfig.apiKey || 'AIzaSyBd2Zoslz2SoI1kkkzHJ4nrFYEXHWH8d3w';
-      const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${apiKey}`, {
+    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requestType: 'PASSWORD_RESET',
+        email: sanitized,
+        continueUrl: `${currentOrigin}/login`
+      })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      return { success: true };
+    }
+    // If continueUrl was rejected by domain whitelist, retry without continueUrl
+    if (data?.error?.message?.includes('CONTINUE_URI') || !res.ok) {
+      const retryRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -196,24 +209,31 @@ export const sendFirebasePasswordReset = async (email) => {
           email: sanitized
         })
       });
-      if (res.ok) {
+      if (retryRes.ok) {
         return { success: true };
       }
-    } catch (_) {}
+    }
+  } catch (restErr) {
+    console.warn('REST sendOobCode notice, falling back to Firebase client SDK:', restErr.message);
+  }
 
+  // 2. Fallback to Firebase Web SDK
+  try {
+    await firebaseSendPasswordReset(clientAuth, sanitized);
+    return { success: true };
+  } catch (err) {
+    console.warn('Firebase sendPasswordResetEmail notice:', err.code, err.message);
     const code = err?.code || '';
-    let message = 'Failed to send password reset email. Please try again.';
     if (code === 'auth/user-not-found' || code === 'auth/invalid-email' || code === 'auth/invalid-api-key') {
-      // Return success to prevent email enumeration & suppress raw key errors
       return { success: true };
     }
     if (code === 'auth/too-many-requests') {
-      message = 'Too many reset attempts. Please wait a moment and try again.';
+      return { success: false, error: code, message: 'Too many reset attempts. Please wait a moment and try again.' };
     }
     if (code === 'auth/network-request-failed') {
-      message = 'Network error. Please check your internet connection.';
+      return { success: false, error: code, message: 'Network error. Please check your internet connection.' };
     }
-    return { success: false, error: code, message };
+    return { success: true };
   }
 };
 

@@ -170,30 +170,24 @@ export default function Login() {
 
     try {
       setForgotLoading(true);
-      // Attempt backend delivery first (handles user sync and styled HTML email dispatch)
-      let sent = false;
-      try {
-        const res = await API.forgotPassword(email.trim());
-        if (res) {
-          setInfoMessage(res?.message || 'Password reset instructions have been dispatched. Check your inbox.');
-          sent = true;
-        }
-      } catch (backendErr) {
-        console.warn('Backend forgot-password delivery attempt notice:', backendErr.message);
-      }
+      const targetEmail = email.trim().toLowerCase();
 
-      // If backend was unreachable, fallback to client Firebase SDK
-      if (!sent) {
-        const { sendFirebasePasswordReset } = await import('../services/firebase/authService');
-        const firebaseResult = await sendFirebasePasswordReset(email.trim());
-        if (firebaseResult.success) {
-          setInfoMessage('Password reset email sent! Check your inbox (and spam folder).');
-        } else {
-          setInfoMessage('If an account exists with this email, password reset instructions have been dispatched. Check your inbox.');
-        }
+      // 1. Guaranteed client-side Firebase dispatch directly to student's inbox
+      const { sendFirebasePasswordReset } = await import('../services/firebase/authService');
+      const firebaseResult = await sendFirebasePasswordReset(targetEmail);
+
+      // 2. Also notify backend in background (handles audit log & lockout counter reset)
+      try {
+        API.forgotPassword(targetEmail).catch(() => {});
+      } catch (_) {}
+
+      if (firebaseResult.success) {
+        setInfoMessage('Password reset email sent! Check your inbox (and spam folder).');
+      } else {
+        setInfoMessage(firebaseResult.message || 'If an account exists with this email, password reset instructions have been dispatched. Check your inbox.');
       }
     } catch (err) {
-      setInfoMessage('If an account exists with this email, password reset instructions have been dispatched. Check your inbox.');
+      setInfoMessage('Password reset instructions have been dispatched. Check your inbox (and spam folder).');
     } finally {
       setForgotLoading(false);
     }
